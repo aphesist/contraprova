@@ -54,7 +54,7 @@ analytics. It works on GitHub Pages as-is (it loads `demo-data.json` next to it)
 | Event | Payload used |
 |---|---|
 | `task.created` | `task_id`, optional `language`, optional `synthetic` |
-| `route.decided` | `task_id`, `action` (model), `propensities`, `router_hash`, `features.attempt` |
+| `route.decided` | `task_id`, `action` (model), `propensities`, `router_hash`, optional `decision`, `features.attempt` |
 | `fork.created` | `fork_id`, `task_id` (parent), `from_seq`, `model`, `role` (`control` or `treatment`), optional `arm`, `fork_task_id` |
 | `usage.recorded` | the `contraprova.usage.usage_payload` fields plus tags `arm`, `role`, `task_id`, `fork_id` |
 | `outcome.scored` | arm outcome `arm`, `task_id`, `solved`; fork outcome `fork_id`, `task_id`, `solved`; gate replays are listed but not counted |
@@ -73,7 +73,7 @@ Payloads follow [events.md](events.md).
   `role` and `replicate`. Fork cost is shown under the fork's label, never under its parent arm.
 - An attempt's **model tier** is the strongest model that did worker work on it (roles `worker`,
   `control`, `treatment`, or the routed model). **Escalated** means a route to a non-Haiku model on a
-  retry (`features.attempt > 1` or `decision: after_gate_failure`) or a treatment fork. **Blocked** means at least one `gate.decided`
+  retry (`decision: after_gate_failure`, or `features.attempt > 0`, the `router.featurize` encoding of attempt 2 and later) or a treatment fork. **Blocked** means at least one `gate.decided`
   with verdict `block`. **Solved** comes only from `outcome.scored`.
 - Cost per task for an arm is its total cost divided by the number of tasks it has usage or
   outcomes for, so far.

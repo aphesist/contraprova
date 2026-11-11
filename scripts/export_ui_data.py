@@ -273,7 +273,8 @@ def build_export(events: list[Event], log_name: str = "log.jsonl") -> dict[str, 
             if ev.type == "route.decided":
                 action = p.get("action")
                 fx.append([i, "route", action])
-                retry = p.get("decision") == "after_gate_failure" or int((p.get("features") or {}).get("attempt", 1) or 1) > 1
+                # features.attempt is router.featurize's encoding: (attempt - 1) / 2, so > 0 means a retry.
+                retry = p.get("decision") == "after_gate_failure" or float((p.get("features") or {}).get("attempt", 0) or 0) > 0
                 if action and action not in CHEAP_MODELS and retry:
                     fx.append([i, "escalated", True])
             elif ev.type == "gate.decided":

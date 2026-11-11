@@ -36,6 +36,27 @@ workers on retry, so it must never contain gate-private test source.
 `fork_id` is unique in the log. Two controls at the same fork point differ in `seed`; their
 disagreement rate is the noise floor for escalation value.
 
+### `route.decided` features
+
+`features` is exactly the output of `router.featurize(record)`: its keys are `router.FEATURE_NAMES`
+(`language`, `stub_size`, `visible_fail_frac`, `error_class`, `diff_size`, `tamper`, `control_agree`,
+`attempt`), each a number in [0, 1]. Writers build `record` from the documented input keys and nothing
+else; the harness does it in `harness.arms.route_record`:
+
+| Input key | `initial` decision (before the attempt) | `after_gate_failure` decision (from the blocked attempt) |
+|---|---|---|
+| `language` | the exercise language | same |
+| `stub_lines` | lines in the solution stubs | same |
+| `visible_tests` | visible tests in the split | the visible-test gate's counted total, if it ran and reported counts; else as before |
+| `visible_failures` | 0 | failed + errors reported by the visible-test gate, if available; else 0 |
+| `error_class` | `none` | from the first blocking gate result: `timeout` (test run timed out), `compile` (reason or test output shows the code did not build or load), `assert` (failing tests counted, or an assertion in the text), else `other` (scope, review, unrecognised) |
+| `diff_lines` | 0 | lines changed by the blocked attempt against the stubs |
+| `tamper` | false | the attempt wrote a protected path (contract check or a scope gate's `protected`/`test_tampered` violation) |
+| `control_agree` | unknown (encoded 0.5) | unknown: no control has run when the router decides |
+| `attempt` | 1 | 2 |
+
+The synthetic demo log (`scripts/make_demo_log.py`) uses the same featurizer with made-up inputs.
+
 ## Measurement
 
 | Event | Required | Optional |

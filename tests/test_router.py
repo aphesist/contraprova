@@ -329,3 +329,35 @@ def test_training_examples_on_a_harness_log(tmp_path):
     assert sorted(e.task_id for e in forks) == sorted(f"D:{x}" for x in blocked for _ in range(3))
     assert sorted(e.source for e in forks) == ["control"] * 4 + ["treatment"] * 2
     assert all(e.solved == (e.action != HAIKU) and e.propensity == 1.0 and e.cost > 0 for e in forks)
+
+
+def test_router_trained_on_a_dry_run_harness_log_sees_its_features(tmp_path):
+    """The harness writes route features with router.featurize, so a router trained on its log
+    reads exactly FEATURE_NAMES, and the columns carry information (not all zero)."""
+    from pathlib import Path
+
+    from contraprova.harness.arms import ARMS, BudgetGuard, Harness, run_arm
+    from contraprova.harness.polyglot import load_exercises, split_tests
+    from contraprova.harness.run import FakeClient, UniformRouter, dry_run_gates, no_exec_scorer
+
+    exercises = load_exercises(Path(__file__).parent / "fixtures" / "polyglot")
+    splits = {e.id: split_tests(e, 7) for e in exercises}
+    h = Harness(EventLog(tmp_path / "log.jsonl"), FakeClient(), no_exec_scorer, dry_run_gates, UniformRouter(),
+                BudgetGuard(None))
+    for arm in ARMS:
+        run_arm(h, arm, exercises, splits, "pilot")
+    evs = h.log.events()
+    decided = [e.payload for e in evs if e.type == "route.decided"]
+    assert {p["decision"] for p in decided} == {"initial", "after_gate_failure"}
+    # The log stores payloads as canonical JSON (sorted keys), so compare key sets.
+    assert all(set(p["features"]) == set(FEATURE_NAMES) for p in decided)
+
+    ex = training_examples(evs)
+    assert ex and all(len(e.features) == len(FEATURE_NAMES) and set(e.features) == set(FEATURE_NAMES) for e in ex)
+    assert any(v != 0.0 for e in ex for v in e.features.values())
+    nonzero = {name: sum(e.features[name] != 0.0 for e in ex) for name in FEATURE_NAMES}
+    assert nonzero["stub_size"] == len(ex)  # every fixture has a non-empty stub
+    after = [p["features"] for p in decided if p["decision"] == "after_gate_failure"]
+    assert after and all(f["attempt"] == 0.5 and f["error_class"] > 0 for f in after)  # attempt 2, a blocked gate
+    router = train(ex, seed=3, iterations=50)
+    assert router.feature_names == FEATURE_NAMES

@@ -17,6 +17,9 @@ Conventions used (the replay UI relies on them):
 * ``task.created`` is shared by all arms; ``max_attempts`` is 2.
 * Arms A, B and C only record ``usage.recorded`` and ``outcome.scored``.
 * Arm D (governed) goes through route -> claim -> submit -> gate, up to twice.
+  ``route.decided`` features are ``router.featurize`` output (docs/events.md):
+  the first decision knows only the task; the second adds made-up evidence
+  about the blocked attempt (error class and tamper flag from the gate name).
 * When D's first gate blocks, the log is forked at that gate event with
   ``contraprova.forks.fork`` and the task is re-run twice: a ``control`` fork
   (same cheap model) and a ``treatment`` fork (stronger model). Payloads follow
@@ -41,6 +44,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from contraprova.forks import fork  # noqa: E402
 from contraprova.log import EventLog  # noqa: E402
+from contraprova.router import featurize  # noqa: E402
 from contraprova.usage import usage_payload  # noqa: E402
 
 HAIKU, SONNET, OPUS = "claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"
@@ -110,10 +114,32 @@ def run_simple_arm(w: Writer, rng: random.Random, arm: str, tid: str, d: float) 
     w.emit("outcome.scored", "scorer", {"arm": arm, "task_id": tid, "solved": solves(rng, model, d - bonus)})
 
 
+def _h(tid: str, salt: str, lo: int, hi: int) -> int:
+    """A made-up but deterministic integer in [lo, hi] (no draw from the run's rng)."""
+    return lo + int(hashlib.sha256(f"{salt}:{tid}".encode()).hexdigest()[:8], 16) % (hi - lo + 1)
+
+
+# Synthetic gate -> router.featurize inputs: (error_class, tamper) for each blocking gate name.
+GATE_FEATURES = {"visible-tests": ("assert", False), "scope": ("other", False), "protected-tests": ("other", True)}
+
+
+def route_record(tid: str, lang: str, attempt: int, blocked_gate: str | None) -> dict:
+    """The router.featurize input for a demo decision: only the task before attempt 1, plus
+    made-up evidence about the blocked attempt afterwards (see docs/events.md, route.decided)."""
+    n_tests = _h(tid, "tests", 3, 20)
+    rec = {"language": lang, "stub_lines": _h(tid, "stub", 5, 60), "visible_tests": n_tests, "attempt": attempt}
+    if blocked_gate is not None:
+        err, tamper = GATE_FEATURES[blocked_gate]
+        rec.update({"error_class": err, "tamper": tamper, "diff_lines": _h(tid, "diff", 3, 120),
+                    "visible_failures": _h(tid, "fail", 1, n_tests) if blocked_gate == "visible-tests" else 0})
+    return rec
+
+
 def run_governed(w: Writer, rng: random.Random, tid: str, lang: str, d: float) -> None:
     w.emit("usage.recorded", "orchestrator", usage_payload(tokens(rng, OPUS, "orchestrator"), OPUS, arm="D", role="orchestrator", task_id=tid))
     passed = False
     blocks = 0
+    blocked_gate = None
     for attempt in (1, 2):
         p_haiku = 0.9 if blocks == 0 else 0.3
         action = HAIKU if rng.random() < p_haiku else SONNET
@@ -125,7 +151,8 @@ def run_governed(w: Writer, rng: random.Random, tid: str, lang: str, d: float) -
                 "action": action,
                 "propensities": {HAIKU: p_haiku, SONNET: round(1 - p_haiku, 10)},
                 "router_hash": ROUTER_HASH,
-                "features": {"language": lang, "attempt": attempt, "prior_blocks": blocks},
+                "decision": "initial" if attempt == 1 else "after_gate_failure",
+                "features": featurize(route_record(tid, lang, attempt, blocked_gate)),
             },
         )
         worker = f"{'haiku' if action == HAIKU else 'sonnet'}-worker-{rng.randint(1, 4)}"
@@ -145,6 +172,7 @@ def run_governed(w: Writer, rng: random.Random, tid: str, lang: str, d: float) -
         )
         gate = w.emit("gate.decided", "gate", {"task_id": tid, "gate": gate_name, "verdict": "block", "reason": reason})
         blocks += 1
+        blocked_gate = gate_name
         if blocks == 1:
             fork_counterfactuals(w, rng, tid, d, gate.seq)
     # Hidden score tests occasionally disagree with the gate.

@@ -37,13 +37,15 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Sequence
 
-from ..contracts import DEFAULT_PROTECTED, LaneContract
+from ..contracts import DEFAULT_PROTECTED, LaneContract, check_scope
 from ..forks import fork as create_fork
+from ..gates import changed_lines
 from ..interfaces import HAIKU, OPUS, SONNET, Completion, GateResult, LLMClient, Message, Router, Submission
 from ..llm import RecordingClient
 from ..log import EventLog
 from ..pricing import DEFAULT_TABLE, PER_MTOK, PRICE_TABLES, request_cost
 from ..projections import project_tasks, usage_records
+from ..router import featurize
 from .polyglot import Exercise, TestSplit, materialize_tests, sha256_json, sha256_text
 
 ARMS: tuple[str, ...] = ("A", "B", "C", "D")
@@ -299,6 +301,92 @@ def _gate_dict(r: GateResult) -> dict:
     return {"gate": r.gate, "verdict": r.verdict, "reason": r.reason, "evidence": dict(r.evidence)}
 
 
+# ------------------------------------------------------------------ route features
+
+# Substrings (lower-cased) of a blocking gate's reason or test output that mean the code did not build/load.
+COMPILE_MARKERS: tuple[str, ...] = (
+    "syntaxerror", "indentationerror", "importerror", "modulenotfounderror", "compile error", "compilation",
+    "could not compile", "cannot find symbol", "error[e", "undefined:", "build failed", "unexpected token",
+)
+
+
+def _test_counts(r: GateResult) -> Mapping[str, int]:
+    tests = r.evidence.get("tests") if isinstance(r.evidence, Mapping) else None
+    counts = tests.get("counts") if isinstance(tests, Mapping) else None
+    return counts if isinstance(counts, Mapping) else {}
+
+
+def _failures(counts: Mapping[str, int]) -> int:
+    return sum(int(counts.get(k, 0) or 0) for k in ("failed", "failures", "errors"))
+
+
+def error_class(results: Sequence[GateResult]) -> str:
+    """``router.ERROR_CLASSES`` label for a gate run, from its first blocking result.
+
+    "none" if nothing blocked; "timeout" if the test run timed out; "compile" if the
+    reason or test output shows the code did not build or load (``COMPILE_MARKERS``);
+    "assert" if a test gate counted failing tests (or the text mentions an assertion);
+    "other" for everything else (scope violations, review, an unrecognised failure).
+    """
+    blocking = next((r for r in results if r.verdict != "pass"), None)
+    if blocking is None:
+        return "none"
+    tests = blocking.evidence.get("tests") if isinstance(blocking.evidence, Mapping) else None
+    tests = tests if isinstance(tests, Mapping) else {}
+    text = f"{blocking.reason}\n{tests.get('output', '')}".lower()
+    if tests.get("timed_out") or "timed out" in text:
+        return "timeout"
+    if any(m in text for m in COMPILE_MARKERS):
+        return "compile"
+    if _failures(_test_counts(blocking)) > 0 or "assert" in text:
+        return "assert"
+    return "other"
+
+
+def route_record(ex: Exercise, ts: TestSplit, *, attempt: int = 1, submission: Submission | None = None,
+                 results: Sequence[GateResult] = (), contract: LaneContract | None = None) -> dict[str, Any]:
+    """The ``router.featurize`` input record for a routing decision on ``ex``.
+
+    Before any attempt (``submission`` None, no ``results``) only the task is known:
+    language, stub size, number of visible tests, attempt 1, no failures. After a gate
+    failure the blocked attempt adds: visible failures (from the visible-test gate's
+    counts, when it ran and reported them; the test total is taken from those counts
+    too, else the split's visible tests), ``error_class`` (see :func:`error_class`),
+    ``diff_lines`` (lines changed against the stubs), and ``tamper`` (the attempt wrote a
+    protected path, by the contract or by a gate's scope violations).
+    ``control_agree`` is left unknown: no control has run when the router decides.
+    """
+    stubs = ex.stubs()
+    rec: dict[str, Any] = {
+        "language": ex.language,
+        "stub_lines": sum(len(s.splitlines()) for s in stubs.values()),
+        "visible_tests": len(ts.visible),
+        "visible_failures": 0,
+        "error_class": error_class(results),
+        "diff_lines": 0,
+        "tamper": False,
+        "control_agree": None,
+        "attempt": attempt,
+    }
+    for r in results:
+        counts = _test_counts(r)
+        if "visible" in r.gate and counts:
+            fails = _failures(counts)
+            total = int(counts.get("ran", 0) or 0) or (int(counts.get("passed", 0) or 0) + fails)
+            rec["visible_failures"] = fails
+            if total:
+                rec["visible_tests"] = total
+    if submission is not None:
+        rec["diff_lines"] = changed_lines(submission, stubs)
+        if contract is not None:
+            rec["tamper"] = any(v.reason == "protected" for v in check_scope(contract, sorted(submission.files)))
+    for r in results:
+        violations = r.evidence.get("violations") if isinstance(r.evidence, Mapping) else None
+        if any(isinstance(v, Mapping) and v.get("reason") in ("protected", "test_tampered") for v in violations or ()):
+            rec["tamper"] = True
+    return rec
+
+
 @dataclass
 class Harness:
     log: EventLog
@@ -466,16 +554,11 @@ class Harness:
         return d.action
 
     @staticmethod
-    def features(ex: Exercise, ts: TestSplit, gate_failures: int = 0) -> dict[str, float]:
-        f = {f"lang_{lang}": float(ex.language == lang) for lang in ("cpp", "go", "java", "javascript", "python", "rust")}
-        f.update({
-            "n_visible_tests": float(len(ts.visible)),
-            "n_tests": float(len(ts.tests)),
-            "instructions_kchars": len(ex.instructions()) / 1000,
-            "stub_kchars": sum(len(s) for s in ex.stubs().values()) / 1000,
-            "gate_failures": float(gate_failures),
-        })
-        return f
+    def features(ex: Exercise, ts: TestSplit, *, attempt: int = 1, submission: Submission | None = None,
+                 results: Sequence[GateResult] = (), contract: LaneContract | None = None) -> dict[str, float]:
+        """Router features: ``router.featurize`` of :func:`route_record` (keys = ``router.FEATURE_NAMES``)."""
+        return featurize(route_record(ex, ts, attempt=attempt, submission=submission, results=results,
+                                      contract=contract))
 
     def contract(self, tid: str, ex: Exercise) -> LaneContract:
         protected = tuple(DEFAULT_PROTECTED) + tuple(ex.test_files) + tuple(ex.extra_test_files)
@@ -491,6 +574,7 @@ class Harness:
         self.create(arm, tid, ex, split, max_attempts=1, contract=cdict)
         brief = self._brief(arm, tid, ex, ts)
         base = self.worker_prompt(ex, ts, brief)
+        # Initial decision: only what is known before the attempt (attempt 1, no failures yet).
         tier = self._route(arm, tid, "initial", self.features(ex, ts))
         sub = self._work(arm, tid, ex, tier, base, 1)
         ctx = TaskContext(arm, tid, ex, ts, tier, 1, contract, split)
@@ -502,7 +586,9 @@ class Harness:
         fork_point = self.log.events()[-1].seq
         feedback = "\n".join(f"[{r.gate}] {r.reason}" for r in results if r.verdict != "pass")
         retry = self.retry_prompt(base, sub.files, feedback)
-        action = self._route(arm, tid, "after_gate_failure", self.features(ex, ts, gate_failures=1))
+        # After the gate failure: the gate's evidence about the blocked attempt.
+        action = self._route(arm, tid, "after_gate_failure",
+                             self.features(ex, ts, attempt=2, submission=sub, results=results, contract=contract))
         chosen = "control-1" if action == HAIKU else "treatment"
         chosen_result = None
         for branch, role, model in FORK_BRANCHES:

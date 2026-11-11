@@ -12,8 +12,10 @@ from contraprova.harness.arms import (
     BudgetGuard,
     Harness,
     ScoreResult,
+    error_class,
     format_files,
     parse_files,
+    route_record,
     run_arm,
 )
 from contraprova.harness.polyglot import (
@@ -464,3 +466,44 @@ def test_cli_client_anthropic_wiring(tmp_path, monkeypatch, capsys):
                "--limit", "1", "--client", "anthropic", "--scorer", "contraprova.harness.run:no_exec_scorer"])
     assert rc == 0 and json.loads(capsys.readouterr().out)["attempted"] == 1
     assert calls == ["worker"] and len(usage_records(EventLog(log).events())) == 1
+
+
+# ------------------------------------------------------------------ route features
+
+
+def _tests(counts=None, timed_out=False, output=""):
+    return {"tests": {"counts": counts or {}, "timed_out": timed_out, "output": output, "passed": False}}
+
+
+def test_error_class_comes_from_the_blocking_gate():
+    ok = GateResult("T0.scope", "pass", "", {})
+    assert error_class([ok]) == "none"
+    assert error_class([ok, GateResult("T0.visible_tests", "block", "timed out after 60s", _tests(timed_out=True))]) == "timeout"
+    assert error_class([GateResult("T0.visible_tests", "block", "exit code 2", _tests(output="SyntaxError: invalid"))]) == "compile"
+    assert error_class([GateResult("T0.visible_tests", "block", "exit code 1", _tests({"failed": 2, "passed": 3}))]) == "assert"
+    assert error_class([GateResult("T0.scope", "block", "tests/x.py: protected", {})]) == "other"
+
+
+def test_route_record_before_and_after_a_gate_failure(exercises):
+    from contraprova.contracts import LaneContract
+    from contraprova.interfaces import Submission
+    from contraprova.router import FEATURE_NAMES, featurize
+
+    ex = exercises[0]
+    ts = split_tests(ex, 7)
+    first = route_record(ex, ts)
+    assert first["attempt"] == 1 and first["visible_failures"] == 0 and first["error_class"] == "none"
+    assert first["language"] == ex.language and first["visible_tests"] == len(ts.visible) and first["stub_lines"] > 0
+    assert not first["tamper"] and first["diff_lines"] == 0 and first["control_agree"] is None
+
+    stub_path = ex.solution_files[0]
+    sub = Submission("D:x", {stub_path: "changed\n", "tests/test_x.py": "x\n"}, 1)
+    contract = LaneContract("D:x", "D:x", allowed=tuple(ex.solution_files))
+    results = [GateResult("T0.scope", "pass", "", {}),
+               GateResult("T0.visible_tests", "block", "exit code 1", _tests({"failed": 1, "passed": 3}))]
+    after = route_record(ex, ts, attempt=2, submission=sub, results=results, contract=contract)
+    assert after["attempt"] == 2 and after["error_class"] == "assert"
+    assert (after["visible_failures"], after["visible_tests"]) == (1, 4)
+    assert after["diff_lines"] > 0 and after["tamper"] is True
+    f = featurize(after)
+    assert tuple(f) == FEATURE_NAMES and f["visible_fail_frac"] == 0.25 and f["attempt"] == 0.5
