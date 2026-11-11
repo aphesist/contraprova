@@ -33,6 +33,7 @@ main study moves to harder tasks.
 | Messages API client (stdlib), shared budget cap, forks re-run from a logged point | Built, tested; used for the pilot (forks not yet exercised live) |
 | Aider Polyglot harness, arms A–D, frozen partition, `--dry-run` with offline fakes | Built; pilot run on 18 tasks per arm |
 | Aider Polyglot pilot (5 smoke + 13 pilot exercises, arms A–D) | **Run**: [results](results/pilot/README.md) |
+| SWE-bench Pro harness (Python/JS subset, 327 tasks): outlines for the orchestrator, SEARCH/REPLACE edits, Docker verifier, probe pre-flight | Built, tested; scorer validated at $0 on the 12 probe tasks (empty patch 0, gold patch 1). Probe not yet run. [docs](docs/swepro.md) |
 | MCP edge (`submit_intent`, `query_projection`) | Built, tested |
 | Analysis and `contraprova report`: per-arm, paired, escalation value, gate quality, frontier | Built; run on the pilot log |
 | Replay UI | Built; shown on a synthetic demo log |
@@ -89,6 +90,7 @@ plan, route and review (it has no edit tools), Haiku 5.5 workers bound to file-s
 
 - [Design](docs/design.md): architecture, kernel rules, what is new and what is not, the experiment
 - [Event payloads](docs/events.md): the one schema every module writes and reads
+- [SWE-bench Pro harness](docs/swepro.md): the harder benchmark, the outline rule, edit format, scoring
 - [Statistics](docs/statistics.md), [replay UI](docs/ui.md), [MCP edge](docs/mcp.md)
 - [Related work](docs/related-work.md): ESAA, replay research, routing, verification, parallel lanes
 
