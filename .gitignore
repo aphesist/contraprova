@@ -14,3 +14,6 @@ runs/
 .claude/worktrees/
 
 .claude/settings.local.json
+
+# SWE-bench Pro data (tasks, verifier files, context, image cache state): upstream licences, never committed
+data/

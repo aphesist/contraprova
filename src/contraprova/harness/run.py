@@ -1,5 +1,8 @@
 """Run one arm over one split of the frozen partition.
 
+``--benchmark swepro`` hands the whole command line to :mod:`contraprova.harness.swepro_run`
+(SWE-bench Pro: ``--split probe --arms B,A ...``); everything below is the Aider Polyglot harness.
+
     python -m contraprova.harness.run --arm D --split pilot --polyglot PATH \\
         --log runs/x.jsonl --budget-usd 5 [--dry-run]
 
@@ -208,7 +211,14 @@ def load_or_create_partition(path: Path, exercises, seed: int) -> Partition:
 
 
 def main(argv: list[str] | None = None) -> int:
+    raw = sys.argv[1:] if argv is None else list(argv)
+    if "--benchmark=swepro" in raw or any(a == "--benchmark" and b == "swepro" for a, b in zip(raw, raw[1:])):
+        from .swepro_run import main as swepro_main
+
+        return swepro_main(raw)
     ap = argparse.ArgumentParser(prog="python -m contraprova.harness.run", description=__doc__.split("\n")[0])
+    ap.add_argument("--benchmark", default="polyglot", choices=["polyglot", "swepro"],
+                    help="polyglot (this module) or swepro (contraprova.harness.swepro_run)")
     ap.add_argument("--arm", required=True, choices=ARMS)
     ap.add_argument("--split", required=True, choices=SPLITS)
     ap.add_argument("--polyglot", required=True, help="path to a polyglot-benchmark checkout")
