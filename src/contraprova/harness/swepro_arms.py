@@ -322,6 +322,10 @@ def pro_arm_config(**overrides: Any) -> ArmConfig:
 @dataclass
 class ProHarness(Harness):
     t2_max_lines: int = DEFAULT_T2_MAX_LINES
+    # False: task.submitted carries per-file sha256 (``contents_sha256``) instead of the files' full
+    # new content, so a log can be published without redistributing repository code. The diff, the
+    # worker's reply (its edit blocks) and test results are still logged.
+    log_contents: bool = True
     outline_max_chars: int = OUTLINE_MAX_CHARS
 
     worker_system = PRO_WORKER_SYSTEM
@@ -382,7 +386,9 @@ class ProHarness(Harness):
         files = dict(parsed.files)
         diff = unified_patch(ex.context.files, files)
         self.emit("task.submitted", f"worker:{model}", {
-            "task_id": task_id, "attempt": attempt, "model": model, "files": sorted(files), "contents": files,
+            "task_id": task_id, "attempt": attempt, "model": model, "files": sorted(files),
+            **({"contents": files} if self.log_contents else
+               {"contents_sha256": {p: sha256_text(c) for p, c in sorted(files.items())}}),
             "files_sha256": sha256_json(files), "parse_errors": list(parsed.errors),
             "response": response if response is not None else "", "diff": diff,
             "edit_blocks": getattr(self, "_last_blocks", 0), "changed_lines": changed_lines(Submission(task_id, files),

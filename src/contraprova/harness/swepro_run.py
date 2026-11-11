@@ -86,7 +86,13 @@ def _parser() -> argparse.ArgumentParser:
     ap.add_argument("--action", default="run", choices=["run", "prepare", "validate", "preflight"])
     ap.add_argument("--split", default="probe", choices=SPLITS)
     ap.add_argument("--arms", default="B", help=f"comma-separated, from {','.join(PRO_ARMS)}")
-    ap.add_argument("--probe", action="store_true", help="the feasibility probe (arms B,B2,A; split probe)")
+    ap.add_argument("--probe", action="store_true", help="the feasibility probe (arms B,B2,A; split --probe-split)")
+    ap.add_argument("--probe-split", default="probe", choices=["probe", "probe2"],
+                    help="which probe set --probe and --action preflight run (default: probe)")
+    ap.add_argument("--haiku-max-tokens", type=int, default=None,
+                    help="worker max_tokens for Haiku (default: pro_arm_config's 16K)")
+    ap.add_argument("--no-log-contents", action="store_true",
+                    help="log per-file sha256 instead of full file contents in task.submitted (publishable logs)")
     ap.add_argument("--data", default="data/swepro", help="data directory (tasks, verifiers, context, partition)")
     ap.add_argument("--log", default=None, help="event log (required for run)")
     ap.add_argument("--partition", default=None, help="partition JSON (default: <data>/partition.json)")
@@ -260,7 +266,7 @@ def _count_fn(client):
 
 def action_run(args, preflight_only: bool = False) -> int:
     if args.probe:
-        args.split = "probe"
+        args.split = args.probe_split
         arms = PROBE_ARMS
     else:
         arms = tuple(a.strip() for a in args.arms.split(",") if a.strip())
@@ -286,7 +292,12 @@ def action_run(args, preflight_only: bool = False) -> int:
     started = ensure_dockerd() if (not args.dry_run) else None
     cache = _cache(args) if (args.context_source == "image" or not args.dry_run) else None
     try:
-        config = pro_arm_config()
+        overrides: dict[str, Any] = {}
+        if args.haiku_max_tokens:
+            by_model = dict(pro_arm_config().worker_max_tokens_by_model)
+            by_model[HAIKU] = args.haiku_max_tokens
+            overrides["worker_max_tokens_by_model"] = tuple(sorted(by_model.items()))
+        config = pro_arm_config(**overrides)
         exercises: dict[str, ProExercise] = {}
         if args.dry_run:
             from .run import UniformRouter
@@ -302,11 +313,12 @@ def action_run(args, preflight_only: bool = False) -> int:
 
                 router = load_object(args.router)
             if args.client == "anthropic" and not args.no_t2_review:
-                config = pro_arm_config(t2_review_model=SONNET)
+                config = pro_arm_config(t2_review_model=SONNET, **overrides)
             verifier = Verifier(lambda image, tests, files: run_verifier(image, tests, files, timeout=args.test_timeout),
                                 ensure_image=cache.ensure if cache else None)
         h = ProHarness(EventLog(log_path), client, ProScorer(verifier), ProGates(verifier, args.t2_max_lines), router,
-                       BudgetGuard(args.budget_usd), config, part.sha256, t2_max_lines=args.t2_max_lines)
+                       BudgetGuard(args.budget_usd), config, part.sha256, t2_max_lines=args.t2_max_lines,
+                       log_contents=not args.no_log_contents)
 
         excluded: dict[str, str] = {}
 
@@ -357,7 +369,8 @@ def action_run(args, preflight_only: bool = False) -> int:
         s.excluded.update(excluded)
         print(json.dumps({**s.__dict__, "partition_sha256": part.sha256, "dry_run": args.dry_run,
                           "t2_review_model": config.t2_review_model, "t2_max_lines": args.t2_max_lines,
-                          "verifier_runs": verifier.runs, "seconds": round(time.monotonic() - t0, 1),
+                          "verifier_runs": verifier.runs, "log_contents": not args.no_log_contents,
+                          "worker_max_tokens_by_model": dict(config.worker_max_tokens_by_model), "seconds": round(time.monotonic() - t0, 1),
                           "preflight": {k: v for k, v in (pre or {}).items() if k != "rows"} or None}, indent=2))
         return 2 if s.stopped else 0
     finally:

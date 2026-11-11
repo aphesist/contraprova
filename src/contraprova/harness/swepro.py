@@ -16,6 +16,9 @@ Data
 
 Partition (seeded, stratified, persisted with its sha256, like ``polyglot.Partition``)
     ``probe``  exactly the 12 tasks of the feasibility study's probe (:data:`PROBE_IDS`).
+    ``probe2`` the 12 harder tasks of the second probe (:data:`PROBE2_IDS`), chosen from Pro's
+               HARD-51 subset by :func:`probe2_candidates` and validated at $0. Both probe sets
+               are kept out of ``smoke`` and ``main`` for good.
     ``smoke``  one task per repository, drawn with the seed from the rest.
     ``main``   everything else, in a seeded order that interleaves repositories in proportion
                to their size, so any prefix (``--limit N``) is itself stratified.
@@ -50,7 +53,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from .edits import parse_unified_diff
 from .polyglot import Partition, sha256_json, sha256_text
@@ -59,7 +62,12 @@ REPOS: tuple[str, ...] = ("NodeBB/NodeBB", "ansible/ansible", "element-hq/elemen
                           "qutebrowser/qutebrowser")
 EXCLUDED_REPOS_NOTE = "teleport and protonmail/webclients (images 11.8 / 22.6 GB) and the Go repositories"
 LANGUAGE_NAMES = {"py": "python", "js": "javascript", "ts": "javascript"}
-SPLITS: tuple[str, ...] = ("smoke", "probe", "main")
+SPLITS: tuple[str, ...] = ("smoke", "probe", "probe2", "main")
+# Pro's HARD-51 subset is defined in scaleapi/SWE-bench_Pro-os, v2/hard51_ids.txt (one instance_id
+# per line; v2/README.md); the dataset's ``hard`` column and its ``hard`` config carry the same 51
+# ids (checked 2026-11-11: identical, 25 of them in this module's five repositories).
+HARD51_URL = "https://raw.githubusercontent.com/scaleapi/SWE-bench_Pro-os/main/v2/hard51_ids.txt"
+PROBE2_SIZE = 12
 DEFAULT_SEED = 20261111
 SMOKE_PER_REPO = 1
 DATASET = "ScaleAI/SWE-bench_Pro"
@@ -89,6 +97,11 @@ PROBE_IDS: tuple[str, ...] = (
     "instance_element-hq__element-web-41dfec20bfe9b62cddbbbf621bef2e9aa9685157-vnan",
     "instance_element-hq__element-web-ad26925bb6628260cfe0fcf90ec0a8cba381f4a4-vnan",
 )
+
+# The 12 tasks of the second probe: chosen by :func:`probe2_candidates` (seed 20261111) and validated
+# at $0 (empty patch scores 0, gold through the SEARCH/REPLACE path scores 1); see
+# results/swepro-probe2/PREREG.md for the candidate order and any replacement.
+PROBE2_IDS: tuple[str, ...] = ()
 
 _CODE_DIRS = {"tests", "test", "__tests__", "spec", "specs"}
 _DATA_DIRS = {"testdata", "test_data", "fixtures", "fixture", "mocks", "mock", "__snapshots__"}
@@ -292,17 +305,98 @@ def split_tests(task: ProTask, seed: int = DEFAULT_SEED) -> ProTestSplit:
 # ------------------------------------------------------------------ partition
 
 
+def gold_size(task: ProTask) -> tuple[int, int]:
+    """(non-test files the gold patch touches, non-test lines it adds or removes)."""
+    files, lines, cur = set(), 0, None
+    for ln in task.patch.splitlines():
+        if ln.startswith("diff --git "):
+            cur = ln.split(" b/", 1)[-1]
+            if not is_test_path(cur):
+                files.add(cur)
+        elif cur and not is_test_path(cur) and ln[:1] in "+-" and not ln.startswith(("+++ ", "--- ")):
+            lines += 1
+    return len(files), lines
+
+
+def probe2_candidates(tasks: Sequence[ProTask], seed: int = DEFAULT_SEED, *, n: int = PROBE2_SIZE,
+                      exclude: Iterable[str] = PROBE_IDS,
+                      fits: Callable[[ProTask], str | None] | None = None) -> dict[str, Any]:
+    """The second probe's selection rule (no model, no execution; $0).
+
+    Pool: HARD-51 tasks (``task.hard``) not in ``exclude``, whose gold patch the edit format can
+    express and, if ``fits`` is given, for which ``fits(task)`` returns None (e.g. worker prompt
+    within the token bound; a string is the reason a task is left out). Each repository's pool is
+    shuffled with ``Random(f"{seed}:probe2:{repo}")``; the ``n`` places are shared out across
+    repositories in proportion to pool size (largest remainder, ties by repository name). Returns
+    ``selected`` (in repository order), ``queue`` (replacements, in the order to use them: the rest of
+    each repository's hard pool interleaved, then the fallback) and ``left_out`` (id -> reason).
+    The fallback, used when the hard pool is short, is every other eligible task ordered by most
+    gold files, then most changed lines, then id.
+    """
+    excl = set(exclude)
+    left_out: dict[str, str] = {}
+    pool: dict[str, list[str]] = {}
+    rest: list[ProTask] = []
+    for t in sorted(tasks, key=lambda t: t.instance_id):
+        if t.instance_id in excl:
+            continue
+        why = t.unsupported_gold() or (fits(t) if fits else None)
+        if why:
+            if t.hard:
+                left_out[t.instance_id] = why
+            continue
+        if t.hard:
+            pool.setdefault(t.repo, []).append(t.instance_id)
+        else:
+            rest.append(t)
+    for repo in pool:
+        random.Random(f"{seed}:probe2:{repo}").shuffle(pool[repo])
+    total = sum(len(v) for v in pool.values())
+    repos = sorted(pool)
+    take = {r: 0 for r in repos}
+    if total:
+        k = min(n, total)
+        exact = {r: len(pool[r]) * k / total for r in repos}
+        take = {r: min(int(exact[r]), len(pool[r])) for r in repos}
+        for r in sorted(repos, key=lambda r: (-(exact[r] - int(exact[r])), r)):
+            if sum(take.values()) >= k:
+                break
+            if take[r] < len(pool[r]):
+                take[r] += 1
+    selected = [tid for r in repos for tid in pool[r][: take[r]]]
+    leftovers = {r: pool[r][take[r]:] for r in repos}
+    queue: list[str] = []
+    while any(leftovers.values()):
+        for r in repos:
+            if leftovers[r]:
+                queue.append(leftovers[r].pop(0))
+    fallback = [t.instance_id for t in sorted(rest, key=lambda t: (-gold_size(t)[0], -gold_size(t)[1], t.instance_id))]
+    short = n - len(selected)
+    selected += fallback[:short] if short > 0 else []
+    queue += fallback[max(short, 0):]
+    return {"selected": selected, "queue": queue, "left_out": left_out,
+            "quota": take, "hard_pool": {r: len(v) for r, v in pool.items()}}
+
+
 def partition_tasks(tasks: Sequence[ProTask], seed: int = DEFAULT_SEED,
-                    probe_ids: Sequence[str] = PROBE_IDS) -> dict[str, tuple[str, ...]]:
-    """probe = ``probe_ids`` exactly; smoke = ``SMOKE_PER_REPO`` per repository from the rest;
-    main = everything else in a seeded, repository-interleaved order (see the module docstring)."""
+                    probe_ids: Sequence[str] = PROBE_IDS,
+                    probe2_ids: Sequence[str] = PROBE2_IDS) -> dict[str, tuple[str, ...]]:
+    """probe = ``probe_ids`` exactly; probe2 = ``probe2_ids`` exactly; smoke = ``SMOKE_PER_REPO`` per
+    repository from the rest; main = everything else in a seeded, repository-interleaved order (see
+    the module docstring). Neither probe set ever enters smoke or main."""
     ids = {t.instance_id for t in tasks}
     missing = [i for i in probe_ids if i not in ids]
     if missing:
         raise ValueError(f"probe tasks missing from the dataset: {missing}")
+    missing2 = [i for i in probe2_ids if i not in ids]
+    if missing2:
+        raise ValueError(f"probe2 tasks missing from the dataset: {missing2}")
+    if set(probe_ids) & set(probe2_ids):
+        raise ValueError("probe and probe2 overlap")
+    held = set(probe_ids) | set(probe2_ids)
     by_repo: dict[str, list[str]] = {}
     for t in tasks:
-        if t.instance_id not in probe_ids:
+        if t.instance_id not in held:
             by_repo.setdefault(t.repo, []).append(t.instance_id)
     smoke: list[str] = []
     rest: dict[str, list[str]] = {}
@@ -314,11 +408,13 @@ def partition_tasks(tasks: Sequence[ProTask], seed: int = DEFAULT_SEED,
     # Interleave: the k-th task of a repository with n tasks sits at (k + 0.5) / n.
     keyed = [((k + 0.5) / len(pool), repo, tid) for repo, pool in rest.items() for k, tid in enumerate(pool)]
     main = tuple(tid for _, _, tid in sorted(keyed))
-    return {"smoke": tuple(sorted(smoke)), "probe": tuple(sorted(probe_ids)), "main": main}
+    return {"smoke": tuple(sorted(smoke)), "probe": tuple(sorted(probe_ids)), "probe2": tuple(sorted(probe2_ids)),
+            "main": main}
 
 
-def make_partition(tasks: Sequence[ProTask], seed: int = DEFAULT_SEED) -> Partition:
-    splits = partition_tasks(tasks, seed)
+def make_partition(tasks: Sequence[ProTask], seed: int = DEFAULT_SEED,
+                   probe2_ids: Sequence[str] | None = None) -> Partition:
+    splits = partition_tasks(tasks, seed, probe2_ids=PROBE2_IDS if probe2_ids is None else probe2_ids)
     ts = {t.instance_id: split_tests(t, seed).to_dict() for t in tasks}
     return Partition(seed, {k: len(v) for k, v in splits.items()}, splits, dataset_sha256(tasks), ts)
 

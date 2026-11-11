@@ -12,7 +12,10 @@ from contraprova.harness.outline import outline_js, outline_python, render_outli
 from contraprova.harness.polyglot import Partition
 from contraprova.harness.run import FixedRouter, UniformRouter
 from contraprova.harness.swepro import (
+    PROBE2_IDS,
     PROBE_IDS,
+    gold_size,
+    probe2_candidates,
     ProExercise,
     TaskFiles,
     dataset_sha256,
@@ -139,7 +142,7 @@ def make_row(iid):
 
 EXTRA = [f"instance_{k}__{r.split('/')[1]}-{'%040x' % (i + 7 * n)}-vnan" for n, (k, r) in enumerate(REPO_OF.items())
          for i in range(4)]
-ALL_IDS = list(PROBE_IDS) + EXTRA
+ALL_IDS = list(PROBE_IDS) + list(PROBE2_IDS) + EXTRA
 
 
 @pytest.fixture(scope="module")
@@ -219,6 +222,7 @@ def test_partition_probe_is_exact_and_stratified(data_dir, tmp_path):
     assert set(sp["probe"]) == set(PROBE_IDS) and len(sp["probe"]) == 12
     assert len(sp["smoke"]) == 5 and len({_repo(i) for i in sp["smoke"]}) == 5
     assert set(sp["main"]) == set(EXTRA) - set(sp["smoke"])
+    assert set(sp["probe2"]) == set(PROBE2_IDS)
     assert not set(sp["smoke"]) & set(sp["probe"])
     # Any prefix of main is spread across repositories.
     assert len({_repo(i) for i in sp["main"][:5]}) == 5
@@ -513,3 +517,65 @@ def test_docker_daemon_answers():
     from contraprova.harness.docker import system_df
 
     assert "Images" in system_df()
+
+
+# ------------------------------------------------------------------ second probe
+
+
+def test_probe2_is_held_out_of_smoke_and_main(data_dir):
+    tasks = load_tasks(data_dir / "tasks.jsonl")
+    chosen = tuple(EXTRA[:3])
+    sp = partition_tasks(tasks, 5, probe2_ids=chosen)
+    assert sp["probe2"] == tuple(sorted(chosen))
+    held = set(PROBE_IDS) | set(chosen)
+    assert not held & set(sp["smoke"]) and not held & set(sp["main"])
+    assert len(sp["smoke"]) + len(sp["main"]) + 12 + 3 == len(tasks)
+    with pytest.raises(ValueError, match="overlap"):
+        partition_tasks(tasks, 5, probe2_ids=(PROBE_IDS[0],))
+    with pytest.raises(ValueError, match="probe2 tasks missing"):
+        partition_tasks(tasks, 5, probe2_ids=("instance_nope",))
+    part = make_partition(tasks, 5, probe2_ids=chosen)
+    assert part.splits["probe2"] == tuple(sorted(chosen)) and part.sizes["probe2"] == 3
+
+
+def test_probe2_candidates_stratified_seeded_and_excluding(rows):
+    from dataclasses import replace
+    tasks = [task_from_row(r) for r in rows]
+    hard = {t.instance_id for t in tasks[12:12 + 14]} | {PROBE_IDS[0]}
+    tasks = [replace(t, hard=t.instance_id in hard) for t in tasks]
+    c = probe2_candidates(tasks, 7, n=6)
+    assert len(c["selected"]) == 6 and PROBE_IDS[0] not in c["selected"] + c["queue"]
+    assert set(c["selected"]) <= hard and not set(c["selected"]) & set(c["queue"])
+    assert sum(c["quota"].values()) == 6 and len([r for r, k in c["quota"].items() if k]) >= 3
+    assert probe2_candidates(tasks, 7, n=6) == c and probe2_candidates(tasks, 8, n=6)["selected"] != c["selected"]
+    # The rest of the hard pool comes first in the queue, then the fallback (non-hard tasks).
+    nq = len(hard) - 1 - 6
+    assert set(c["queue"][:nq]) <= hard and not set(c["queue"][nq:]) & hard
+    # fits() leaves tasks out with its reason; a short hard pool is filled from the fallback.
+    drop = sorted(hard - {PROBE_IDS[0]})[:2]
+    c2 = probe2_candidates(tasks, 7, n=15, fits=lambda t: "too big" if t.instance_id in drop else None)
+    assert set(c2["left_out"]) == set(drop) and set(c2["left_out"].values()) == {"too big"}
+    # 14 hard tasks outside the probe, 2 left out: 12 hard ones, then 3 from the fallback.
+    assert len(c2["selected"]) == 15 and len(set(c2["selected"]) & hard) == 12
+
+
+def test_gold_size_counts_non_test_files_and_lines(rows):
+    t = task_from_row(rows[0])
+    files, lines = gold_size(t)
+    assert files == 2 and lines >= 3
+
+
+def test_log_contents_off_logs_hashes_not_file_bodies(tmp_path, exercises):
+    h, _ = harness(tmp_path, exercises)
+    h.log_contents = False
+    run_tasks(h, [PROBE_IDS[0]], ["B"], lambda i: exercises[i])
+    sub = next(e.payload for e in h.log.events() if e.type == "task.submitted")
+    assert "contents" not in sub and sub["contents_sha256"] and sub["diff"]
+    body = next(iter(exercises[PROBE_IDS[0]].context.files.values()))
+    assert body not in json.dumps([e.payload for e in h.log.events()])
+
+
+def test_probe_cli_flags_parse():
+    from contraprova.harness.swepro_run import _parser
+    a = _parser().parse_args(["--probe", "--probe-split", "probe2", "--haiku-max-tokens", "32000", "--no-log-contents"])
+    assert a.probe_split == "probe2" and a.haiku_max_tokens == 32000 and a.no_log_contents
