@@ -260,6 +260,54 @@ def test_training_examples_link_decisions_forks_and_cost(tmp_path):
     assert t.action == SONNET and t.solved and t.cost == pytest.approx(10.0)
 
 
+def test_a_blocked_then_forked_decision_is_an_unsolved_example(tmp_path):
+    """D's initial decision whose attempt was blocked and forked scores as unsolved at the fork,
+    in either order of the post-failure decision and the forks; the later decision keeps its outcome."""
+    for second_route_first in (True, False):
+        log = EventLog(tmp_path / f"log-{second_route_first}.jsonl")
+        r = hand_router(0.3, 0.8, 0.85, threshold=1.0)
+        log.append("task.created", "h", {"task_id": "D:x", "title": "x", "scope": ["a"]}, ts=TS)
+
+        def route(decision, seed):
+            d = r.decide(featurize({"attempt": 1 if decision == "initial" else 2}), rng_seed=seed)
+            return log.append("route.decided", "router", {
+                "task_id": "D:x", "arm": "D", "decision": decision, "action": d.action,
+                "propensities": dict(d.propensities), "router_hash": d.router_hash, "features": dict(d.features)}, ts=TS)
+
+        first = route("initial", 1)
+        log.append("task.claimed", "w", {"task_id": "D:x"}, ts=TS)
+        log.append("usage.recorded", "w", usage(HAIKU, "D:x", arm="D"), ts=TS)
+        log.append("task.submitted", "w", {"task_id": "D:x"}, ts=TS)
+        gate = log.append("gate.decided", "gate", {"task_id": "D:x", "gate": "T0.visible_tests", "verdict": "block",
+                                                   "reason": "1 failed"}, ts=TS)
+
+        def forks():
+            for role, model in (("control", HAIKU), ("treatment", SONNET)):
+                fid = f"f-{role}"
+                log.append("fork.created", "h", {"fork_id": fid, "task_id": "D:x", "from_seq": gate.seq, "model": model,
+                                                 "role": role, "seed": 1, "arm": "D"}, ts=TS)
+                log.append("usage.recorded", "w", usage(model, "D:x:" + role, fork_id=fid, arm="D"), ts=TS)
+                log.append("outcome.scored", "s", {"fork_id": fid, "task_id": "x", "solved": role == "treatment"}, ts=TS)
+
+        if second_route_first:
+            second = route("after_gate_failure", 2)
+            forks()
+        else:
+            forks()
+            second = route("after_gate_failure", 2)
+        log.append("outcome.scored", "s", {"arm": "D", "task_id": "x", "log_task_id": "D:x", "solved": True}, ts=TS)
+
+        ex = training_examples(log.events())
+        routes = {e.seq: e for e in ex if e.source == "route"}
+        assert set(routes) == {first.seq, second.seq}
+        assert routes[first.seq].solved is False
+        assert routes[first.seq].cost == pytest.approx(0.50)  # its own Haiku attempt, not the forks
+        assert routes[second.seq].solved is True
+        assert sorted(e.source for e in ex if e.source != "route") == ["control", "treatment"]
+        # A prefix ending before the fork leaves the initial decision open (skipped).
+        assert [e.seq for e in training_examples(log.events(), upto_seq=gate.seq)] == []
+
+
 def test_training_prefix_excludes_later_outcomes(tmp_path):
     log, (e1, _), (e2, _), *_ = build_log(tmp_path / "log.jsonl")
     ex = training_examples(log.events(), upto_seq=e2.seq)
@@ -318,11 +366,16 @@ def test_training_examples_on_a_harness_log(tmp_path):
 
     routes = [e for e in ex if e.source == "route"]
     forks = [e for e in ex if e.source != "route"]
-    # One closed decision per exercise: the initial one when the gate passed, the post-failure one otherwise.
-    assert sorted(e.task_id for e in routes) == sorted(f"D:{x.id}" for x in exercises)
+    # Every decision is closed: the initial one by D's outcome when the gate passed; when it blocked,
+    # the initial one at the fork (unsolved) and the post-failure one by D's outcome.
+    decisions = {e.seq: e.payload for e in evs if e.type == "route.decided"}
+    assert sorted(e.seq for e in routes) == sorted(decisions)
+    assert sorted(e.task_id for e in routes) == sorted([f"D:{x.id}" for x in exercises] + [f"D:{x}" for x in blocked])
     d_out = {e.payload["log_task_id"]: e.payload["solved"] for e in evs
              if e.type == "outcome.scored" and "fork_id" not in e.payload}
-    assert all(e.solved == d_out[e.task_id] for e in routes)
+    for e in routes:
+        forked_initial = decisions[e.seq]["decision"] == "initial" and e.task_id.split(":", 1)[1] in blocked
+        assert e.solved == (False if forked_initial else d_out[e.task_id])
     assert all(0 < e.propensity <= 1 for e in routes)
 
     # Three forks per blocked exercise, each linked to its fork outcome and fork usage.

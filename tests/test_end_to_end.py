@@ -100,7 +100,9 @@ def test_router_and_ope_read_the_same_log(run):
     ex = training_examples(evs)
     routes = [e for e in ex if e.source == "route"]
     forks = [e for e in ex if e.source != "route"]
-    assert sorted(e.task_id for e in routes) == sorted(f"D:{x.id}" for x in exercises)
+    # One example per exercise, plus the initial decision of every forked task (unsolved at the fork).
+    forked = {e.payload["task_id"] for e in evs if e.type == "fork.created"}
+    assert sorted(e.task_id for e in routes) == sorted([f"D:{x.id}" for x in exercises] + list(forked))
     n_forks = sum(e.type == "fork.created" for e in evs)
     assert len(forks) == n_forks and {e.source for e in forks} == {"control", "treatment"}
     assert all(e.cost > 0 for e in forks)

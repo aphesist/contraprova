@@ -61,6 +61,15 @@ Linking rules
   deliberately, not sampled, so their propensity is 1.0 and their ``source``
   is the fork role: they are training data for the reward model but must not
   enter importance-weighted estimators (see ``contraprova.ope``).
+* A decision whose routed attempt was blocked and then forked is scored at
+  the fork: when a ``fork.created`` names its task, the decision in force at
+  the fork point (the latest ``route.decided`` for that task, and the fork's
+  ``arm`` if it names one, at or before ``from_seq``) yields an Example with
+  ``solved=False`` if it has no outcome yet: the action it chose failed its
+  gate, whatever the forks or a later decision then achieve. Its cost is the
+  non-fork usage linked to it until then (or until a later decision replaced
+  it). This is how arm D's initial decision gets an outcome: D's arm outcome
+  scores the post-failure decision, not the initial one.
 * Decisions or forks without a scored outcome inside the prefix are skipped.
 """
 
@@ -324,11 +333,13 @@ def training_examples(
 
     # Open routing decisions keyed by (task_id, arm); value is a mutable record.
     open_routes: dict[tuple[Any, Any], dict[str, Any]] = {}
+    route_history: dict[str, list[dict[str, Any]]] = {}  # task_id -> its decisions, in seq order
     route_features: dict[str, list[tuple[int, Mapping[str, float]]]] = {}
     forks: dict[str, dict[str, Any]] = {}
     done: list[tuple[int, Example]] = []
 
     def close(rec: dict[str, Any], solved: bool) -> None:
+        rec["closed"] = True
         p = rec["payload"]
         action = p["action"]
         done.append(
@@ -352,7 +363,9 @@ def training_examples(
         p = ev.payload
         if ev.type == "route.decided":
             key = (p["task_id"], p.get("arm"))
-            open_routes[key] = {"seq": ev.seq, "payload": p, "cost": 0.0}  # an unscored older one is dropped
+            rec = {"seq": ev.seq, "payload": p, "cost": 0.0, "closed": False}
+            open_routes[key] = rec  # an unscored, unforked older one is dropped
+            route_history.setdefault(p["task_id"], []).append(rec)
             route_features.setdefault(p["task_id"], []).append((ev.seq, p["features"]))
         elif ev.type == "fork.created":
             fid = str(p["fork_id"]) if p.get("fork_id") is not None else str(ev.seq)
@@ -362,6 +375,19 @@ def training_examples(
                 feats = prior[-1] if prior else None
             if feats is not None:
                 forks[fid] = {"seq": ev.seq, "payload": p, "features": feats, "cost": 0.0}
+            # The decision whose attempt was blocked at the fork point failed its gate.
+            fork_arm, from_seq = p.get("arm"), p.get("from_seq")
+            in_force = [
+                r for r in route_history.get(p["task_id"], [])
+                if from_seq is not None and r["seq"] <= int(from_seq)
+                and (fork_arm is None or r["payload"].get("arm") in (fork_arm, None))
+            ]
+            if in_force and not in_force[-1]["closed"]:
+                blocked = in_force[-1]
+                key = (blocked["payload"]["task_id"], blocked["payload"].get("arm"))
+                if open_routes.get(key) is blocked:
+                    del open_routes[key]
+                close(blocked, False)
         elif ev.type == "usage.recorded":
             tid = p.get("task_id")
             if p.get("fork_id") is not None:
