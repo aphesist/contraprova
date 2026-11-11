@@ -18,8 +18,10 @@ Rules, exactly as :func:`parse_edits` and :func:`apply_edits` implement them:
    path. If the marker line has no path, the path is taken from the nearest non-blank line above
    it, skipping one Markdown fence line (Aider's layout: path, fence, block). A block with no
    path is an error.
-2. The SEARCH part ends at the first line that is exactly ``=======`` (seven ``=``); the
-   REPLACE part ends at the first line that is exactly ``>>>>>>> REPLACE``. Marker lines may
+2. The block ends at the first line that is exactly ``>>>>>>> REPLACE``; the SEARCH part ends at
+   the first line in between that is exactly ``=======`` (seven ``=``). If the body holds several
+   such lines (the edited file itself contains one, as reStructuredText headings do), every split
+   is tried, longest SEARCH first, and the first whose SEARCH text matches the file is used. Marker lines may
    carry trailing whitespace. A block cut off before its closing marker is an error and is
    dropped (a truncated reply never half-applies a block).
 3. Text outside blocks is ignored, so prose and Markdown fences around blocks are harmless.
@@ -79,6 +81,8 @@ class EditBlock:
     search: str  # "" creates a file
     replace: str
     index: int  # 1-based position in the reply
+    # Other (search, replace) splits when the body holds more than one "=======" line.
+    alternatives: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -143,29 +147,30 @@ def parse_edits(text: str) -> ParsedEdits:
         n += 1
         raw = m.group("path")
         path = clean_path(raw) if raw else _path_above(lines, i)
+        # Everything up to the closing marker (or the next opening marker) is the block body.
         j = i + 1
-        search: list[str] = []
-        while j < len(lines) and not _DIV.match(lines[j]) and not _OPEN.match(lines[j]) and not _CLOSE.match(lines[j]):
-            search.append(lines[j])
+        body: list[str] = []
+        while j < len(lines) and not _CLOSE.match(lines[j]) and not _OPEN.match(lines[j]):
+            body.append(lines[j])
             j += 1
-        if j >= len(lines) or not _DIV.match(lines[j]):
+        dividers = [k for k, ln in enumerate(body) if _DIV.match(ln)]
+        if not dividers:
             errors.append(f"block {n}: no '{DIVIDER}' line after SEARCH (block dropped)")
-            i = j if j > i else i + 1
+            i = j if j < len(lines) and _OPEN.match(lines[j]) else j + 1
             continue
-        k = j + 1
-        replace: list[str] = []
-        while k < len(lines) and not _CLOSE.match(lines[k]) and not _OPEN.match(lines[k]) and not _DIV.match(lines[k]):
-            replace.append(lines[k])
-            k += 1
-        if k >= len(lines) or not _CLOSE.match(lines[k]):
+        if j >= len(lines) or not _CLOSE.match(lines[j]):
             errors.append(f"block {n}: no '{REPLACE_MARK}' line (block truncated or malformed; dropped)")
-            i = k if k > j else j + 1
+            i = j if j < len(lines) else j
             continue
         if path is None:
             errors.append(f"block {n}: missing or unsafe path {raw.strip() if raw else '(none)'!r}")
         else:
-            blocks.append(EditBlock(path, _body(search), _body(replace), n))
-        i = k + 1
+            # A divider line splits SEARCH from REPLACE. If the body has several (a file that
+            # itself contains a "=======" line), the other splits are kept as alternatives and
+            # the applier picks among them (rule 2).
+            splits = tuple((_body(body[:k]), _body(body[k + 1:])) for k in dividers)
+            blocks.append(EditBlock(path, splits[0][0], splits[0][1], n, splits[1:]))
+        i = j + 1
     return ParsedEdits(tuple(blocks), tuple(errors))
 
 
@@ -192,6 +197,18 @@ def _find_unique(haystack: str, needle: str) -> tuple[int, int] | str:
     if len(hits) > 1:
         return f"matches {len(hits)} places (ignoring trailing whitespace); add surrounding lines"
     return "not found in the file (SEARCH must match the current file exactly)"
+
+
+def _locate(text: str, search: str, replace: str) -> tuple[tuple[int, int] | str, str]:
+    """Where ``search`` matches in ``text`` (rules 5, 6 and 8) and the replacement to use there."""
+    if "\r\n" in text:
+        search = search.replace("\r\n", "\n").replace("\n", "\r\n")
+        replace = replace.replace("\r\n", "\n").replace("\n", "\r\n")
+    stem = search[:-1].rstrip("\r") if search.endswith("\n") else search
+    if search not in text and not text.endswith("\n") and stem and text.endswith(stem) and text.count(stem) == 1:
+        # The file has no final newline; block bodies always end in one (rule 8).
+        return (len(text) - len(stem), len(text)), (replace[:-1].rstrip("\r") if replace.endswith("\n") else replace)
+    return _find_unique(text, search), replace
 
 
 ScopeCheck = Callable[[str], "str | None"]
@@ -245,19 +262,16 @@ def apply_edits(blocks: Sequence[EditBlock], originals: Mapping[str, str], *,
         if text is None:
             errors.append(f"{where}: file not found (only the files shown can be edited)")
             continue
-        search, replace = b.search, b.replace
-        if "\r\n" in text:
-            search = search.replace("\r\n", "\n").replace("\n", "\r\n")
-            replace = replace.replace("\r\n", "\n").replace("\n", "\r\n")
-        stem = search[:-1].rstrip("\r") if search.endswith("\n") else search
-        if search not in text and not text.endswith("\n") and stem and text.endswith(stem) and text.count(stem) == 1:
-            # The file has no final newline; block bodies always end in one (rule 8).
-            found: tuple[int, int] | str = (len(text) - len(stem), len(text))
-            replace = replace[:-1].rstrip("\r") if replace.endswith("\n") else replace
-        else:
-            found = _find_unique(text, search)
+        first_error = ""
+        # Longest SEARCH first: when the file itself has a "=======" line, the split that keeps it
+        # in SEARCH and still matches the file is the one that was meant.
+        for search, replace in sorted(((b.search, b.replace), *b.alternatives), key=lambda x: -len(x[0])):
+            found, replace = _locate(text, search, replace)
+            if not isinstance(found, str):
+                break
+            first_error = first_error or found
         if isinstance(found, str):
-            errors.append(f"{where}: SEARCH text {found}")
+            errors.append(f"{where}: SEARCH text {first_error}")
             continue
         s, e = found
         current[b.path] = text[:s] + replace + text[e:]

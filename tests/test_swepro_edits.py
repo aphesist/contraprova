@@ -114,6 +114,16 @@ def test_scope_rejects_out_of_lane_and_test_files_before_applying():
     assert any("protected" in e for e in r.errors) and any("outside" in e for e in r.errors)
 
 
+def test_divider_lines_inside_file_content():
+    rst = "Title\n=======\n\nBody text.\n"
+    # REPLACE holds a "=======" line: it is content, not a marker.
+    r = apply_edits(parse_edits(block("doc.rst", "Body text.\n", "Section\n=======\nMore.\n")).blocks, {"doc.rst": rst})
+    assert r.errors == () and r.files["doc.rst"] == "Title\n=======\n\nSection\n=======\nMore.\n"
+    # SEARCH holds one too: the split whose SEARCH matches the file is used.
+    r = apply_edits(parse_edits(block("doc.rst", "Title\n=======\n", "New title\n=========\n")).blocks, {"doc.rst": rst})
+    assert r.errors == () and r.files["doc.rst"].startswith("New title\n=========\n\nBody")
+
+
 def test_empty_replace_deletes_code():
     r = apply_edits(parse_edits(block("m.py", "\n\ndef sub(a, b):\n    return a - b\n", "")).blocks, {"m.py": SRC})
     assert r.files["m.py"] == "def add(a, b):\n    return a + b\n"

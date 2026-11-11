@@ -168,6 +168,15 @@ class ProTask:
             (created if fd.old_path is None else modified).append(fd.path)
         return tuple(sorted(set(modified))), tuple(sorted(set(created)))
 
+    def unsupported_gold(self) -> str | None:
+        """Why the gold patch cannot be expressed as SEARCH/REPLACE blocks (it deletes or renames a
+        non-test file), or None. Such tasks are excluded: a worker could not express the reference
+        solution either, and the scorer could not be validated on them."""
+        for fd in parse_unified_diff(self.patch):
+            if not is_test_path(fd.path) and (fd.deleted or fd.renamed):
+                return f"the gold patch {'deletes' if fd.deleted else 'renames'} {fd.path}"
+        return None
+
     def fingerprint(self) -> str:
         return sha256_json({
             "instance_id": self.instance_id, "base_commit": self.base_commit, "image": self.image,

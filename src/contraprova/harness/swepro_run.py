@@ -136,6 +136,9 @@ def _cache(args) -> ImageCache:
 
 
 def _exercise(task, part, args, h: ProHarness | None, cache: ImageCache | None, *, with_verifier: bool) -> ProExercise | str:
+    why = task.unsupported_gold()
+    if why:
+        return why
     source = args.context_source or "image"
     ctx = load_context(task, args.data, source=source, ensure_image=cache.ensure if cache else None)
     if ctx.missing:
