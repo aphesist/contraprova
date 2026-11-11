@@ -59,7 +59,7 @@ resource the page and the kit name, and the kit's checksums.
 The page is styled entirely by the owner's design system, the aphes.ist **lab kit 1.0.0**, vendored
 unchanged in `ui/vendor/lab-kit/v1/` (`SOURCE.md` there names the repository, branch, commit,
 version, checksums and font licences). To update it, copy `system/lab-kit/v1/` from the
-`design-system` branch of `aphesimos/aphesis` again and update `SOURCE.md`; never edit the copy.
+`design-system` branch of `aphesist/aphesis` again and update `SOURCE.md`; never edit the copy.
 
 - The shell is the kit's: `body.lab > .lab-page`, the header with the φ, the project name and the
   theme and fog switches (fog is off by default), an Aphesis Script title with a Latin gloss,

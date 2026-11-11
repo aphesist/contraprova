@@ -277,7 +277,7 @@ def test_vendored_lab_kit_is_the_recorded_version():
     import hashlib
     import re
     source = (KIT / "SOURCE.md").read_text(encoding="utf-8")
-    for needle in ("aphesimos/aphesis", "design-system", "d4087db", "1.0.0", "Apache License 2.0", "Aphesis Script"):
+    for needle in ("aphesist/aphesis", "design-system", "d4087db", "1.0.0", "Apache License 2.0", "Aphesis Script"):
         assert needle in source, needle
     sums = dict((name, digest) for digest, name in re.findall(r"^([0-9a-f]{64})  (\S+)$", source, re.M))
     files = sorted(str(f.relative_to(KIT)) for f in KIT.rglob("*") if f.is_file() and f.name != "SOURCE.md")
