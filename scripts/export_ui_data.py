@@ -29,15 +29,19 @@ arm's outcome event (when the branch becomes the shipped one); the fork's own
 label keeps showing every fork's cost.
 
 ``--html`` additionally writes a copy of ``ui/index.html`` with the data
-inlined, which works when opened straight from disk (``file://``).
+inlined, which works when opened straight from disk (``file://``). The copy
+also inlines the vendored lab kit (``ui/vendor/lab-kit/v1``: its stylesheet,
+with the fonts as data URIs, and its script), so it needs no files beside it.
 """
 
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 import math
+import re
 import sys
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -498,6 +502,30 @@ def inline_html(template: str, data_json: str) -> str:
     return template.replace(marker, f'<script id="embedded-data" type="application/json">{safe}</script>', 1)
 
 
+KIT_DIR = Path(__file__).resolve().parents[1] / "ui" / "vendor" / "lab-kit" / "v1"
+KIT_CSS_LINK = '<link rel="stylesheet" href="vendor/lab-kit/v1/lab.css">'
+KIT_JS_TAG = '<script src="vendor/lab-kit/v1/lab.js" defer></script>'
+
+
+def inline_kit(template: str, kit_dir: str | Path = KIT_DIR) -> str:
+    """Replace the page's links to the vendored lab kit with the kit itself (fonts as data URIs)."""
+    kit = Path(kit_dir)
+    if KIT_CSS_LINK not in template or KIT_JS_TAG not in template:
+        raise ValueError("ui/index.html does not link the vendored lab kit")
+    css = (kit / "lab.css").read_text(encoding="utf-8")
+
+    def font(match: re.Match[str]) -> str:
+        data = base64.b64encode((kit / match.group(1)).read_bytes()).decode("ascii")
+        return f'url("data:font/woff2;base64,{data}")'
+
+    css = re.sub(r'url\("(fonts/[^"]+\.woff2)"\)', font, css)
+    js = (kit / "lab.js").read_text(encoding="utf-8")
+    if "</style" in css.lower() or "</script" in js.lower():
+        raise ValueError("the lab kit cannot be inlined as it is")
+    out = template.replace(KIT_CSS_LINK, f"<style>{css}</style>", 1)
+    return out.replace(KIT_JS_TAG, f"<script>{js}</script>", 1)
+
+
 def main(argv: Iterable[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Export a contraprova log for the replay UI.")
     ap.add_argument("log")
@@ -511,7 +539,7 @@ def main(argv: Iterable[str] | None = None) -> int:
     msg = f"wrote {args.out}: {data['source']['n_events']} events, {len(data['attempts'])} attempts"
     if args.html:
         template = (Path(__file__).resolve().parents[1] / "ui" / "index.html").read_text(encoding="utf-8")
-        Path(args.html).write_text(inline_html(template, text), encoding="utf-8")
+        Path(args.html).write_text(inline_html(inline_kit(template), text), encoding="utf-8")
         msg += f", standalone page {args.html}"
     print(msg + (" (SYNTHETIC)" if data["synthetic"] else ""))
     return 0

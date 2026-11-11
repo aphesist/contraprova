@@ -4,11 +4,13 @@
 panels, all showing the state **as of event N** on the timeline:
 
 1. **Attempts**: one point per (arm, task), including fork re-runs (labelled `D:control`, `D:treatment` from
-   each fork's role).
+   each fork's role), coloured by arm by default.
 2. **Cost per task vs solve rate**: one point per arm with a 95% Wilson interval, the Pareto
    frontier over arms A–D, a price-table selector and a table view of the same numbers.
 3. **Replay**: a scrubber, play/step buttons and an event strip. Clicking a point lists every event
    for its task (the event trail); clicking a trail row moves the scrubber to that event.
+
+Below them an honesty table says what each claim on the page rests on.
 
 Python is the source of truth. `scripts/export_ui_data.py` verifies the log (hash chain plus full
 replay), prices every `usage.recorded` event under every price table with
@@ -46,8 +48,35 @@ picker it shows, or build a standalone copy with the data inlined:
 python scripts/export_ui_data.py path/to/log.jsonl -o /tmp/data.json --html /tmp/replay.html
 ```
 
-The page makes no network requests besides fetching its own data file: no CDN, no fonts, no
-analytics. It works on GitHub Pages as-is (it loads `demo-data.json` next to it).
+The page makes no requests outside its own folder: its data file and the vendored lab kit
+(`ui/vendor/lab-kit/v1/`: `lab.css`, `lab.js`, the two fonts). No CDN, no analytics. It works on
+GitHub Pages as-is (it loads `demo-data.json` next to it). The `--html` copy inlines the kit too
+(stylesheet, fonts as data URIs, script), so it is one file. `tests/test_ui_export.py` checks every
+resource the page and the kit name, and the kit's checksums.
+
+## Design: the aphes.ist lab kit
+
+The page is styled entirely by the owner's design system, the aphes.ist **lab kit 1.0.0**, vendored
+unchanged in `ui/vendor/lab-kit/v1/` (`SOURCE.md` there names the repository, branch, commit,
+version, checksums and font licences). To update it, copy `system/lab-kit/v1/` from the
+`design-system` branch of `aphesimos/aphesis` again and update `SOURCE.md`; never edit the copy.
+
+- The shell is the kit's: `body.lab > .lab-page`, the header with the φ, the project name and the
+  theme and fog switches (fog is off by default), an Aphesis Script title with a Latin gloss,
+  Special Elite text. The page's own `<style>` only lays things out, on the kit's tokens.
+- Colours are the kit's tokens, read at draw time: SVG marks take `.lab-c1`…`.lab-c8`, `.lab-ink`,
+  `.lab-dim`; the canvases read `Lab.color(...)` and redraw on `Lab.onTheme`. Arms take the
+  categorical slots in the order of `arms` (A, B, C, D, D:control, D:treatment).
+- Readability rules: one series is ink (the "escalated" colouring); two or more take the slots in
+  order with a legend, plus direct labels when four or fewer are shown; never more than eight
+  (further arms fold into the dim context colour). Text is never in a series colour. Red marks one
+  thing per chart: the selected attempt (a ring on the map, `.lab-ring` on its arm in the cost
+  chart). Wilson intervals are stippled bands (a range); points are solid (a value). The Pareto
+  frontier is an ink step line. Blocked attempts are diamonds and escalated ones triangles; the event
+  strip gives each kind (gate block, escalation, fork re-run, solved) its own lane, slot and shape,
+  so colour is never the only cue. Every chart has a caption, an `aria-label` stating what it shows
+  at the scrubber, and the arm numbers are in a table. Nothing moves on load; playback runs only
+  when the reader presses play.
 
 ## Data conventions the exporter relies on
 
@@ -95,18 +124,20 @@ the explained variance and the top loadings, and the axis labels show them.
 - **Positions use the whole log** so points do not jump while scrubbing. Visibility, colour and size
   are the state at event N; the position of a point that has just appeared reflects work it has not
   done yet.
-- **Colour encodes only logged facts** (outcome, model tier, escalated, gate), one at a time. Size
+- **Colour encodes only logged facts** (arm, outcome, model tier, escalated, gate), one at a time. Size
   is cost under the selected price table.
 - **Fork re-runs are not comparable with the arms.** They exist only for tasks whose first gate
-  blocked, so they are drawn hollow, labelled with their n, and kept off the frontier.
-- **Small n.** Early in the replay an arm may have a handful of scored tasks; the Wilson whiskers
-  show how little that says.
+  blocked, so they are drawn hollow, labelled with their n where labels are shown, and kept off the frontier.
+- **Small n.** Early in the replay an arm may have a handful of scored tasks; the stippled Wilson
+  bands show how little that says.
 - **Replay check.** On load the page folds every event and compares its arm totals (cost under every
   table, task counts, solved counts, Wilson bounds) with the totals Python wrote every 50 events. The
-  badge in the header shows how many checkpoints matched.
+  badge under the title shows how many checkpoints matched (N/N), and the honesty table lists it as
+  *tested*.
 - **Synthetic data is labelled.** If any `task.created` payload has `"synthetic": true`, the export
-  sets `synthetic: true` and the page shows a "SYNTHETIC DEMO DATA — not results" banner and a
-  watermark. `ui/demo-data.json` is synthetic: its solve probabilities are invented and say nothing
+  sets `synthetic: true` and the page shows a "synthetic demo data — not results" callout, a
+  watermark on the map, and marks every quantitative claim in the honesty table "synthetic demo, not
+  results" (for a real log they read measured, modelled or hypothesis). `ui/demo-data.json` is synthetic: its solve probabilities are invented and say nothing
   about any model.
 - **Re-pricing.** The selector offers every table in `contraprova.pricing.PRICE_TABLES` plus a
   what-if with Haiku at half price (built with `pricing.scale_table`). It is a what-if, not a

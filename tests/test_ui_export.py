@@ -184,11 +184,134 @@ def test_standalone_html_inlines_the_data(demo):
     assert "</script>" not in html.split('<script id="embedded-data" type="application/json">', 1)[1].split("</script>", 1)[0]
 
 
+UI = ROOT / "ui"
+KIT = UI / "vendor" / "lab-kit" / "v1"
+# Elements whose attribute makes the browser fetch something. <a href> is navigation, not a load.
+RESOURCE_ATTRS = {"link": "href", "script": "src", "img": "src", "source": "src", "iframe": "src", "audio": "src",
+                  "video": "src", "embed": "src", "object": "data", "track": "src", "input": "src"}
+
+
+def _page_resources(html):
+    from html.parser import HTMLParser
+
+    class P(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.refs, self.styles, self.scripts, self._in = [], [], [], None
+
+        def handle_starttag(self, tag, attrs):
+            a = dict(attrs)
+            if tag in RESOURCE_ATTRS and a.get(RESOURCE_ATTRS[tag]):
+                self.refs.append((tag, a[RESOURCE_ATTRS[tag]]))
+            for k in ("srcset", "poster", "background"):
+                if a.get(k):
+                    self.refs.append((tag, a[k]))
+            if a.get("style"):
+                self.styles.append(a["style"])
+            self._in = tag if tag in ("style", "script") else None
+
+        def handle_endtag(self, tag):
+            self._in = None
+
+        def handle_data(self, data):
+            if self._in == "style":
+                self.styles.append(data)
+            elif self._in == "script":
+                self.scripts.append(data)
+
+    p = P()
+    p.feed(html)
+    return p
+
+
+def _is_external(url):
+    u = url.strip().lower()
+    return "://" in u or u.startswith("//")
+
+
+def _comment_spans(text):
+    import re
+    return [m.span() for m in re.finditer(r"/\*.*?\*/", text, re.S)]
+
+
 def test_page_makes_no_network_requests():
-    html = (ROOT / "ui" / "index.html").read_text(encoding="utf-8")
-    for needle in ("http://", "https://", "//cdn", "@import", "<link "):
-        hits = [ln for ln in html.splitlines() if needle in ln and "w3.org/2000/svg" not in ln]
-        assert not hits, hits
+    """Every resource the page loads is a file of its own folder; nothing reaches another origin."""
+    import re
+    html = (UI / "index.html").read_text(encoding="utf-8")
+    p = _page_resources(html)
+    assert ("link", "vendor/lab-kit/v1/lab.css") in p.refs and ("script", "vendor/lab-kit/v1/lab.js") in p.refs
+    for tag, ref in p.refs:
+        assert not _is_external(ref), (tag, ref)
+        assert (UI / ref).is_file(), (tag, ref)
+    for css in p.styles:
+        assert "@import" not in css
+        for ref in re.findall(r"url\(\s*['\"]?([^'\")]+)", css):
+            assert ref.startswith(("#", "data:")) or not _is_external(ref), ref
+    for js in p.scripts:
+        for call in re.findall(r"(?:fetch|import|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\s*\(([^)]*)\)", js):
+            assert "://" not in call and "//" not in call.strip("'\" `")[:2], call
+        assert "XMLHttpRequest" not in js and "WebSocket" not in js and "sendBeacon" not in js
+        # the only absolute URL in the page script is the SVG namespace, which is a name, not a request
+        assert set(re.findall(r"[a-z]+://[^\s\"'`]+", js)) <= {"http://www.w3.org/2000/svg"}
+
+
+def test_vendored_lab_kit_loads_nothing_from_elsewhere():
+    """lab.css only names its own fonts, data URIs and in-page masks; any URL in lab.css or lab.js sits in a comment
+    (or is the SVG namespace inside a data URI)."""
+    import re
+    css = (KIT / "lab.css").read_text(encoding="utf-8")
+    assert "@import" not in css
+    for ref in re.findall(r"url\(\s*['\"]?([^'\")]+)", css):
+        assert ref.startswith(("#", "data:")) or (not _is_external(ref) and (KIT / ref).is_file()), ref
+    js = (KIT / "lab.js").read_text(encoding="utf-8")
+    for text in (css, js):
+        spans = _comment_spans(text)
+        for m in re.finditer(r"[a-z]+://", text):
+            in_comment = any(a <= m.start() < b for a, b in spans)
+            assert in_comment or text.startswith("http://www.w3.org/2000/svg", m.start()), text[m.start():m.start() + 60]
+    assert not re.search(r"\b(fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon|importScripts)\b", js)
+
+
+def test_vendored_lab_kit_is_the_recorded_version():
+    """ui/vendor/lab-kit/v1 is an unchanged copy of lab kit 1.0.0; SOURCE.md records where it came from and its checksums."""
+    import hashlib
+    import re
+    source = (KIT / "SOURCE.md").read_text(encoding="utf-8")
+    for needle in ("aphesimos/aphesis", "design-system", "d4087db", "1.0.0", "Apache License 2.0", "Aphesis Script"):
+        assert needle in source, needle
+    sums = dict((name, digest) for digest, name in re.findall(r"^([0-9a-f]{64})  (\S+)$", source, re.M))
+    files = sorted(str(f.relative_to(KIT)) for f in KIT.rglob("*") if f.is_file() and f.name != "SOURCE.md")
+    assert sorted(sums) == files
+    for name, digest in sums.items():
+        assert hashlib.sha256((KIT / name).read_bytes()).hexdigest() == digest, name
+    assert (KIT / "lab.css").read_text(encoding="utf-8").startswith("/* aphes.ist lab kit 1.0.0:")
+    assert "var VERSION = '1.0.0'" in (KIT / "lab.js").read_text(encoding="utf-8")
+
+
+def test_page_uses_the_lab_kit_shell():
+    html = (UI / "index.html").read_text(encoding="utf-8")
+    for needle in ('<body class="lab">', '<div class="lab-page">', '<header class="lab-header">',
+                   '<a class="lab-mark" href="https://aphes.ist/" aria-label="aphes.ist"></a>',
+                   '<span class="lab-project">contraprova</span>', 'data-lab-toggle="theme"', 'data-lab-toggle="fog"',
+                   'class="lab-title"', 'class="lab-gloss-title"', "lab-honesty", "lab-step", "lab-ring", "lab-band"):
+        assert needle in html, needle
+    # the page's own styles rename nothing the kit owns and add no fonts or colours of their own
+    style = html.split("<style>", 1)[1].split("</style>", 1)[0]
+    import re
+    assert "@font-face" not in style and "font-family" not in style
+    assert not re.search(r":[^;{}]*(#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(|oklch\()", style), "colours come from the kit's tokens"
+    for prop in ("--bg:", "--ink:", "--accent:"):
+        assert prop not in style
+
+
+def test_standalone_html_inlines_the_lab_kit(demo):
+    _, data = demo
+    template = (UI / "index.html").read_text(encoding="utf-8")
+    html = export_ui_data.inline_html(export_ui_data.inline_kit(template), export_ui_data.dumps(data))
+    p = _page_resources(html)
+    assert p.refs == [], p.refs
+    assert "data:font/woff2;base64," in html and 'url("fonts/' not in html
+    assert "window.Lab" in html and "vendor/lab-kit" not in html.split("<body", 1)[0]
 
 
 def test_shipped_fork_branch_counts_toward_its_arm(tmp_path):
