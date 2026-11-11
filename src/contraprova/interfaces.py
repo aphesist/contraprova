@@ -24,6 +24,10 @@ TIERS: tuple[str, ...] = (HAIKU, SONNET, OPUS)
 class Message:
     role: str  # "user" | "assistant"
     content: str
+    # Length (in characters) of a leading part of ``content`` that later requests will repeat byte
+    # for byte. A client that supports prompt caching puts a cache breakpoint at the end of it;
+    # 0 means none. ``content`` is always the whole text, so clients without caching ignore it.
+    cache_upto: int = 0
 
 
 @dataclass(frozen=True)

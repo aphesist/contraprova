@@ -5,8 +5,14 @@
     headers: x-api-key, anthropic-version: 2026-10-21, content-type: application/json
     body:    {"model", "max_tokens",
               "system": [{"type": "text", "text": ..., "cache_control": {"type": "ephemeral"[, "ttl": "1h"]}}],
-              "messages": [{"role": "user"|"assistant", "content": str}, ...],
+              "messages": [{"role": "user"|"assistant", "content": str | [text blocks]}, ...],
               "output_config": {"effort": "low"|"medium"|"high"|"xhigh"|"max"}}   # only when effort is given
+
+A message with ``cache_upto`` > 0 is sent as two text blocks, the first (its stable prefix) carrying
+the same ``cache_control``, so a later request that repeats that prefix reads it from the cache.
+At most four breakpoints are allowed per request. Caching is a byte-exact prefix match over
+system then messages, and prefixes shorter than the model's minimum (512 tokens on Opus 5.5,
+Sonnet 5.5 and Haiku 5.5) are silently not cached: no write premium, no read.
 
 No ``thinking`` field is sent: on Opus 5.5, Sonnet 5.5 and Haiku 5.5 omitting it runs adaptive
 thinking, and effort is the depth control. No ``temperature``/``top_p``/``top_k``: API version
@@ -44,6 +50,7 @@ API_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2026-10-21"
 EFFORTS = frozenset({"low", "medium", "high", "xhigh", "max"})
 CACHE_TTLS = frozenset({"5m", "1h"})
+MAX_CACHE_BREAKPOINTS = 4
 # 408/409/429 and every 5xx (529 is overloaded_error) are retryable; other 4xx are not.
 RETRYABLE_STATUS = frozenset({408, 409, 429})
 # Shared project key first; ANTHROPIC_API_KEY only as a local fallback. The base URL is pinned to
@@ -129,11 +136,15 @@ def estimate_cost(
     write premium, every other input token at the full rate, and all ``max_tokens`` generated."""
     sys_tok = estimate_tokens(system)
     msg_tok = sum(estimate_tokens(m.content) + 4 for m in messages)
-    u: dict[str, Any] = {"model": model, "input_tokens": msg_tok, "output_tokens": max_tokens}
+    # A marked message prefix may be written to the cache at the write premium too.
+    pre_tok = 0 if cache_ttl is None else sum(
+        min(estimate_tokens(m.content[: m.cache_upto]), estimate_tokens(m.content) + 4)
+        for m in messages if m.cache_upto > 0)
+    u: dict[str, Any] = {"model": model, "input_tokens": msg_tok - pre_tok, "output_tokens": max_tokens}
     if cache_ttl == "1h":
-        u["cache_write_1h_tokens"] = sys_tok
+        u["cache_write_1h_tokens"] = sys_tok + pre_tok
     elif cache_ttl == "5m":
-        u["cache_write_5m_tokens"] = sys_tok
+        u["cache_write_5m_tokens"] = sys_tok + pre_tok
     else:
         u["input_tokens"] += sys_tok
     # The token estimate errs high, so if it stays under a long-context threshold the real prompt
@@ -236,18 +247,36 @@ class AnthropicClient(_Metered):
 
     # -- request construction (pure; also used by forks to check prefix stability)
 
+    def _cache_control(self) -> dict[str, Any]:
+        cc: dict[str, Any] = {"type": "ephemeral"}
+        if self.cache_ttl == "1h":
+            cc["ttl"] = "1h"
+        return cc
+
+    def _message(self, m: Message) -> dict[str, Any]:
+        n = min(max(m.cache_upto, 0), len(m.content))
+        if not self.cache_system or n == 0:
+            return {"role": m.role, "content": m.content}
+        blocks: list[dict[str, Any]] = [{"type": "text", "text": m.content[:n], "cache_control": self._cache_control()}]
+        if m.content[n:]:
+            blocks.append({"type": "text", "text": m.content[n:]})
+        return {"role": m.role, "content": blocks}
+
     def build_body(self, *, model: str, system: str, messages: Sequence[Message], max_tokens: int,
                    effort: str | None = None) -> dict[str, Any]:
         body: dict[str, Any] = {"model": model, "max_tokens": max_tokens}
+        breakpoints = 0
         if system:
             block: dict[str, Any] = {"type": "text", "text": system}
             if self.cache_system:
-                cc: dict[str, Any] = {"type": "ephemeral"}
-                if self.cache_ttl == "1h":
-                    cc["ttl"] = "1h"
-                block["cache_control"] = cc
+                block["cache_control"] = self._cache_control()
+                breakpoints += 1
             body["system"] = [block]
-        body["messages"] = [{"role": m.role, "content": m.content} for m in messages]
+        body["messages"] = [self._message(m) for m in messages]
+        if self.cache_system:
+            breakpoints += sum(1 for m in messages if m.cache_upto > 0 and m.content)
+        if breakpoints > MAX_CACHE_BREAKPOINTS:
+            raise ValueError(f"{breakpoints} cache breakpoints; the API allows {MAX_CACHE_BREAKPOINTS}")
         if effort is not None:
             body["output_config"] = {"effort": effort}
         return body
@@ -369,7 +398,8 @@ class FakeLLM(_Metered):
     ``script`` is either a sequence of reply strings, returned in order (``ScriptExhausted`` once
     they run out), or a function ``(model, system, messages) -> str``. Usage is synthetic but
     deterministic: about four characters per token, with the system prompt reported as a cache
-    write on first sight and a cache read afterwards. ``calls`` keeps every request.
+    write on first sight and a cache read afterwards, and likewise a message's marked prefix
+    (``cache_upto``), keyed by model, system and the prefix. ``calls`` keeps every request.
     """
 
     class ScriptExhausted(Exception):
@@ -389,6 +419,7 @@ class FakeLLM(_Metered):
         self._fn = script if callable(script) else None
         self._replies = list(script) if not callable(script) else []
         self._seen_systems: set[str] = set()
+        self._seen_prefixes: set[tuple[str, str, str]] = set()
         self.calls: list[dict[str, Any]] = []
 
     @staticmethod
@@ -421,11 +452,26 @@ class FakeLLM(_Metered):
         sys_tok = self._tok(system)
         hit = system in self._seen_systems
         self._seen_systems.add(system)
+        read, write = (sys_tok, 0) if hit else (0, sys_tok)
+        plain = 0
+        for m in messages:
+            n = min(max(m.cache_upto, 0), len(m.content))
+            pre, rest = m.content[:n], m.content[n:]
+            if not pre:
+                plain += self._tok(m.content)
+                continue
+            plain += self._tok(rest)
+            key = (model, system, pre)
+            if key in self._seen_prefixes:
+                read += self._tok(pre)
+            else:
+                write += self._tok(pre)
+                self._seen_prefixes.add(key)
         raw_usage = {
-            "input_tokens": sum(self._tok(m.content) for m in messages),
+            "input_tokens": plain,
             "output_tokens": out_tok,
-            "cache_read_input_tokens": sys_tok if hit else 0,
-            "cache_creation_input_tokens": 0 if hit else sys_tok,
+            "cache_read_input_tokens": read,
+            "cache_creation_input_tokens": write,
         }
         payload = usage_payload(raw_usage, model, **{"role": self.role, **dict(tags or {})})
         self._settle(payload)

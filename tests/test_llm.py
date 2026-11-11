@@ -7,7 +7,7 @@ from email.message import Message as HeaderMap
 import pytest
 
 from contraprova import llm
-from contraprova.interfaces import HAIKU, OPUS, Message
+from contraprova.interfaces import HAIKU, OPUS, SONNET, Message
 from contraprova.llm import (
     ANTHROPIC_VERSION,
     AnthropicClient,
@@ -369,3 +369,51 @@ def test_shared_project_key_beats_fallback_and_base_url_is_pinned(transport, mon
     req = transport["requests"][-1]
     assert dict((k.lower(), v) for k, v in req.header_items())["x-api-key"] == "shared-key"
     assert req.full_url == "https://api.anthropic.com/v1/messages"
+
+
+# ------------------------------------------------------------------ message prefix caching
+
+
+def test_cache_upto_marks_the_stable_prefix():
+    c, _ = make()
+    body = c.build_body(model=HAIKU, system="s", messages=[Message("user", "PREFIX|tail", cache_upto=7)],
+                        max_tokens=10)
+    assert body["messages"] == [{"role": "user", "content": [
+        {"type": "text", "text": "PREFIX|", "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": "tail"}]}]
+    whole = c.build_body(model=HAIKU, system="s", messages=[Message("user", "all", cache_upto=99)], max_tokens=10)
+    assert whole["messages"][0]["content"] == [{"type": "text", "text": "all", "cache_control": {"type": "ephemeral"}}]
+    off, _ = make(cache_system=False)
+    plain = off.build_body(model=HAIKU, system="s", messages=[Message("user", "PREFIX|tail", cache_upto=7)],
+                           max_tokens=10)
+    assert plain["messages"] == [{"role": "user", "content": "PREFIX|tail"}]
+    too_many = [Message("user", "a", 1), Message("assistant", "b", 1), Message("user", "c", 1),
+                Message("assistant", "d", 1), Message("user", "e", 1)]
+    with pytest.raises(ValueError, match="breakpoints"):
+        c.build_body(model=HAIKU, system="", messages=too_many, max_tokens=10)
+    with pytest.raises(ValueError, match="breakpoints"):
+        c.build_body(model=HAIKU, system="s", messages=too_many[1:], max_tokens=10)
+
+
+def test_fake_reads_a_repeated_marked_prefix():
+    f = FakeLLM(lambda *a: "ok")
+    prefix = "x" * 400
+    a = f.complete(model=HAIKU, system="", messages=[Message("user", prefix + "one", len(prefix))], max_tokens=5)
+    b = f.complete(model=HAIKU, system="", messages=[Message("user", prefix + "two", len(prefix))], max_tokens=5)
+    c = f.complete(model=SONNET, system="", messages=[Message("user", prefix + "two", len(prefix))], max_tokens=5)
+    assert (a.usage["cache_write_5m_tokens"], a.usage["cache_read_tokens"]) == (100, 0)
+    assert (b.usage["cache_write_5m_tokens"], b.usage["cache_read_tokens"]) == (0, 100)
+    assert c.usage["cache_read_tokens"] == 0  # caches are per model
+    assert a.usage["input_tokens"] == 1
+
+
+def test_estimate_counts_a_marked_prefix_as_a_cache_write():
+    from contraprova.llm import estimate_cost
+    from contraprova.pricing import DEFAULT_TABLE
+
+    table = PRICE_TABLES[DEFAULT_TABLE]
+    text = "y" * 10_000
+    plain = estimate_cost(model=OPUS, system="", messages=[Message("user", text)], max_tokens=1, table=table)
+    marked = estimate_cost(model=OPUS, system="", messages=[Message("user", text, len(text))], max_tokens=1,
+                           table=table)
+    assert marked > plain

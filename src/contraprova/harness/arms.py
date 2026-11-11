@@ -72,17 +72,24 @@ WORKER_SYSTEM = (
     + FILE_FORMAT
 )
 
+# Prompt caching: every system prompt is a constant, so it is byte-identical across tasks, but each
+# is far below the 512-token minimum cacheable prefix of Opus 5.5, Sonnet 5.5 and Haiku 5.5 and is
+# never cached on its own. What can be cached is a long exercise prefix that a later request with
+# the same model repeats exactly, so the request-specific part always comes last: the planner's
+# brief after the tests, a retry's feedback after the first prompt, and the lead's request after
+# the exercise context. See ``Harness.call``'s ``cache_upto`` and docs/design.md.
+
 WORKER_TASK = """Exercise: {exercise_id} ({language})
 
 ## Instructions
 {instructions}
-{brief}
+
 ## Solution files (current content)
 {stubs}
 
 ## Tests you can see
 {tests}
-"""
+{brief}"""
 
 WORKER_RETRY = """Your previous attempt was rejected.
 
@@ -94,40 +101,37 @@ WORKER_RETRY = """Your previous attempt was rejected.
 
 Fix the problem and return the complete corrected files."""
 
-ORCHESTRATOR_SYSTEM = (
-    "You plan work for a junior programmer. You cannot edit files. Write a short brief (at most 150 words): "
-    "the approach, edge cases the tests check, and pitfalls. No code longer than one line."
+# The orchestrator's brief and the arm C review are both Opus requests about the same exercise, so
+# they share one system prompt and one exercise context and differ only in the request at the end.
+LEAD_SYSTEM = (
+    "You lead a junior programmer on one small exercise. You cannot edit files or run code. "
+    "The message gives the exercise first and your request last; do exactly what the request asks."
 )
 
-ORCHESTRATOR_TASK = """Exercise: {exercise_id} ({language})
+LEAD_CONTEXT = """Exercise: {exercise_id} ({language})
 
 ## Instructions
 {instructions}
 
-## Solution files
+## Solution files (starting content)
 {stubs}
 
 ## Visible tests
 {tests}
 """
 
-REVIEW_SYSTEM = (
-    "You review a junior programmer's solution by reading it; you cannot run it. "
-    "Answer with ACCEPT on the first line, or REDISPATCH on the first line followed by at most 100 words "
-    "of concrete feedback."
-)
+BRIEF_REQUEST = """
+## Request: brief
+Write a short brief for the junior programmer (at most 150 words): the approach, edge cases the tests check, \
+and pitfalls. No code longer than one line."""
 
-REVIEW_TASK = """Exercise: {exercise_id} ({language})
-
-## Instructions
-{instructions}
-
-## Visible tests
-{tests}
+REVIEW_REQUEST = """
+## Request: review
+Review the submitted solution below by reading it; you cannot run it. Answer with ACCEPT on the first line, \
+or REDISPATCH on the first line followed by at most 100 words of concrete feedback.
 
 ## Submitted files
-{files}
-"""
+{files}"""
 
 # ------------------------------------------------------------------ file format
 
@@ -410,12 +414,16 @@ class Harness:
         return self.log.append(type_, actor, payload)
 
     def call(self, *, arm: str, role: str, task_id: str, model: str, system: str, user: str,
-             max_tokens: int, effort: str | None = None, fork_id: str | None = None) -> Completion:
+             max_tokens: int, effort: str | None = None, fork_id: str | None = None,
+             cache_upto: int = 0) -> Completion:
+        """One single-turn request. ``cache_upto`` marks the first ``cache_upto`` characters of
+        ``user`` as a prefix that a later request with the same model and system repeats exactly;
+        set it only where such a request is planned, since a cache write costs a premium."""
         self.budget.check(self.log, model, len(system) + len(user), max_tokens)
         tags = {"arm": arm, "role": role, "task_id": task_id}
         if fork_id is not None:
             tags["fork_id"] = fork_id
-        c = self.client.complete(model=model, system=system, messages=[Message("user", user)],
+        c = self.client.complete(model=model, system=system, messages=[Message("user", user, cache_upto)],
                                  max_tokens=max_tokens, effort=effort, tags=tags)
         usage = dict(c.usage)
         usage["model"] = usage.get("model") or c.model or model
@@ -477,21 +485,27 @@ class Harness:
         return base + "\n" + WORKER_RETRY.format(previous=format_files(previous) or "(no files parsed)", feedback=fb)
 
     def _work(self, arm: str, task_id: str, ex: Exercise, model: str, prompt: str, attempt: int,
-              effort: str | None = None, role: str = "worker", fork_id: str | None = None) -> Submission:
+              effort: str | None = None, role: str = "worker", fork_id: str | None = None,
+              cache_upto: int = 0) -> Submission:
         self.emit("task.claimed", f"worker:{model}", {"task_id": task_id, "worker": model, "attempt": attempt})
         if effort is None:
             effort = self.config.worker_effort
         c = self.call(arm=arm, role=role, task_id=task_id, model=model, system=WORKER_SYSTEM, user=prompt,
-                      max_tokens=self.config.worker_max_tokens, effort=effort, fork_id=fork_id)
+                      max_tokens=self.config.worker_max_tokens, effort=effort, fork_id=fork_id,
+                      cache_upto=cache_upto)
         return self.submit(task_id, attempt, model, parse_files(c.text), ex)
 
-    def _brief(self, arm: str, task_id: str, ex: Exercise, ts: TestSplit) -> str:
-        user = ORCHESTRATOR_TASK.format(exercise_id=ex.id, language=ex.language, instructions=ex.instructions(),
-                                        stubs=format_files(ex.stubs()),
-                                        tests=format_files(materialize_tests(ex, ts, "visible")) or "(none)")
+    def lead_context(self, ex: Exercise, ts: TestSplit) -> str:
+        """The exercise part shared by the orchestrator's brief and arm C's review (same bytes)."""
+        return LEAD_CONTEXT.format(exercise_id=ex.id, language=ex.language, instructions=ex.instructions(),
+                                   stubs=format_files(ex.stubs()),
+                                   tests=format_files(materialize_tests(ex, ts, "visible")) or "(none)")
+
+    def _brief(self, arm: str, task_id: str, ex: Exercise, ts: TestSplit, cache_context: bool = False) -> str:
+        context = self.lead_context(ex, ts)
         c = self.call(arm=arm, role="orchestrator", task_id=task_id, model=self.config.strong_model,
-                      system=ORCHESTRATOR_SYSTEM, user=user, max_tokens=self.config.orchestrator_max_tokens,
-                      effort=self.config.strong_effort)
+                      system=LEAD_SYSTEM, user=context + BRIEF_REQUEST, max_tokens=self.config.orchestrator_max_tokens,
+                      effort=self.config.strong_effort, cache_upto=len(context) if cache_context else 0)
         return c.text
 
     def _accept(self, task_id: str, attempt: int, gate: str, reason: str) -> None:
@@ -514,14 +528,16 @@ class Harness:
         arm, cfg = "C", self.config
         tid = f"C:{ex.id}"
         self.create(arm, tid, ex, split, max_attempts=2)
-        brief = self._brief(arm, tid, ex, ts)
+        # The review repeats the brief's system prompt and exercise context with the same model, so
+        # the brief writes that prefix to the cache and the review reads it.
+        brief = self._brief(arm, tid, ex, ts, cache_context=True)
         base = self.worker_prompt(ex, ts, brief)
         sub = self._work(arm, tid, ex, cfg.cheap_model, base, 1)
-        review = REVIEW_TASK.format(exercise_id=ex.id, language=ex.language, instructions=ex.instructions(),
-                                    tests=format_files(materialize_tests(ex, ts, "visible")) or "(none)",
-                                    files=format_files(sub.files) or "(no files parsed)")
-        c = self.call(arm=arm, role="reviewer", task_id=tid, model=cfg.strong_model, system=REVIEW_SYSTEM,
-                      user=review, max_tokens=cfg.orchestrator_max_tokens, effort=cfg.strong_effort)
+        context = self.lead_context(ex, ts)
+        review = context + REVIEW_REQUEST.format(files=format_files(sub.files) or "(no files parsed)")
+        c = self.call(arm=arm, role="reviewer", task_id=tid, model=cfg.strong_model, system=LEAD_SYSTEM,
+                      user=review, max_tokens=cfg.orchestrator_max_tokens, effort=cfg.strong_effort,
+                      cache_upto=len(context))
         first, _, rest = c.text.strip().partition("\n")
         redispatch = first.strip().upper().startswith("REDISPATCH")
         self.emit("gate.decided", f"reviewer:{cfg.strong_model}", {
@@ -601,7 +617,10 @@ class Harness:
                               extra={"fork_task_id": child, "branch": branch, "arm": arm})
             self.create(arm, child, ex, split, max_attempts=1, contract=cdict, fork_of=tid, fork_id=fid,
                         branch=branch)
-            csub = self._work(arm, child, ex, model, retry, 1, fork_id=fid)
+            # Branches that share a model send byte-identical requests (the two Haiku controls):
+            # the first writes the whole prompt to the cache and the next reads it.
+            shared = sum(1 for _, _, m in FORK_BRANCHES if m == model) > 1
+            csub = self._work(arm, child, ex, model, retry, 1, fork_id=fid, cache_upto=len(retry) if shared else 0)
             cctx = TaskContext(arm, child, ex, ts, model, 1, contract, split)
             cpassed, _ = self._gate(csub, cctx)
             r = self.evaluate(csub, cctx)

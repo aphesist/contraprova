@@ -507,3 +507,84 @@ def test_route_record_before_and_after_a_gate_failure(exercises):
     assert after["diff_lines"] > 0 and after["tamper"] is True
     f = featurize(after)
     assert tuple(f) == FEATURE_NAMES and f["visible_fail_frac"] == 0.25 and f["attempt"] == 0.5
+
+
+# ------------------------------------------------------------------ prompt caching
+
+
+def _request_bytes(call, upto=None):
+    """The bytes the real client would send for a FakeClient call, cut after the cached block."""
+    from contraprova.interfaces import Message
+    from contraprova.llm import AnthropicClient
+
+    client = AnthropicClient("worker")
+    body = client.build_body(model=call["model"], system=call["system"],
+                             messages=[Message("user", call["prompt"], call["cache_upto"])], max_tokens=10)
+    system = client.encode_body(body["system"])
+    content = body["messages"][0]["content"]
+    if upto == "system":
+        return system
+    first = content[0] if isinstance(content, list) else {"text": content}
+    return system + client.encode_body(first)
+
+
+def test_system_prompts_are_byte_identical_across_tasks(exercises, tmp_path):
+    ex = [by_id(exercises, i) for i in ("python/clamp", "python/word-tally", "javascript/shout")]
+    for arm in ("A", "B", "C", "D"):
+        c = FakeClient()
+        run_arm(harness(tmp_path / arm, client=c, router=FixedRouter(HAIKU)), arm, ex, splits_for(ex))
+        by_role = {}
+        for call in c.calls:
+            by_role.setdefault(call["role"], set()).add(_request_bytes(call, "system"))
+        assert all(len(v) == 1 for v in by_role.values()), (arm, by_role.keys())
+
+
+def test_lead_requests_share_a_cached_exercise_prefix(exercises, tmp_path):
+    ex = [by_id(exercises, i) for i in ("python/clamp", "python/word-tally")]
+    c = FakeClient()
+    run_arm(harness(tmp_path, client=c), "C", ex, splits_for(ex))
+    for e in ex:
+        calls = [x for x in c.calls if x["tags"]["task_id"] == f"C:{e.id}"]
+        brief, worker, review = calls
+        assert brief["model"] == review["model"] == OPUS
+        assert brief["cache_upto"] == review["cache_upto"] > 0 and worker["cache_upto"] == 0
+        # The review repeats the brief's system prompt and exercise context byte for byte;
+        # only the request after the breakpoint differs.
+        assert _request_bytes(brief) == _request_bytes(review)
+        assert brief["prompt"] != review["prompt"]
+        assert e.id in brief["prompt"][: brief["cache_upto"]]
+        assert "## Request" not in brief["prompt"][: brief["cache_upto"]]
+    # Different exercises never share the exercise part.
+    briefs = [x for x in c.calls if x["role"] == "orchestrator"]
+    assert _request_bytes(briefs[0]) != _request_bytes(briefs[1])
+    # Arms without a second same-model request mark nothing, so they pay no cache-write premium.
+    for arm in ("A", "B", "D"):
+        c2 = FakeClient()
+        run_arm(harness(tmp_path / arm, client=c2, router=FixedRouter(SONNET)), arm, ex[:1], splits_for(ex))
+        assert all(x["cache_upto"] == 0 for x in c2.calls), arm
+
+
+def test_fork_controls_send_identical_cached_requests(exercises, tmp_path):
+    ex = [by_id(exercises, "python/word-tally")]
+
+    def block_initial(sub, ctx):
+        return [GateResult("T0.visible_tests", "block" if ctx.task_id.count(":") == 1 else "pass", "1 failed")]
+
+    c = FakeClient()
+    run_arm(harness(tmp_path, client=c, router=FixedRouter(HAIKU), gates=block_initial), "D", ex, splits_for(ex))
+    workers = [x for x in c.calls if x["role"] == "worker"]
+    first, ctl1, ctl2, treat = workers
+    assert ctl1["model"] == ctl2["model"] == HAIKU and treat["model"] == SONNET
+    assert ctl1["cache_upto"] == ctl2["cache_upto"] == len(ctl1["prompt"]) > 0
+    assert _request_bytes(ctl1) == _request_bytes(ctl2)
+    assert treat["cache_upto"] == 0 and first["cache_upto"] == 0
+    # The retry extends the first prompt: the variable part (feedback) comes last.
+    assert ctl1["prompt"].startswith(first["prompt"])
+
+
+def test_worker_prompt_puts_the_brief_last(exercises):
+    e = by_id(exercises, "python/clamp")
+    h = Harness(EventLog(Path("/nonexistent/unused.jsonl")), FakeClient(), no_exec_scorer)
+    ts = split_tests(e, 7)
+    plain, briefed = h.worker_prompt(e, ts), h.worker_prompt(e, ts, "use min and max")
+    assert briefed.startswith(plain) and briefed.rstrip().endswith("use min and max")

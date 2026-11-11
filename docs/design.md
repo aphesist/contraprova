@@ -70,6 +70,32 @@ The payload of every event, required and optional fields, is defined once in
 | `usage.recorded` | Tokens for one API request, tagged with role, arm, task and, for forks, `fork_id` |
 | `outcome.scored` | Whether an arm (or a fork, by `fork_id`) solved a task on the hidden score tests, or whether a blocked patch would have passed (gate replay) |
 
+### Prompt caching
+
+In the pilot no request read from the cache, and none wrote to it either (`results/pilot/log.jsonl`:
+zero cache-read and zero cache-write tokens on all 126 requests). The cause was where the cache
+breakpoint sat. The client put `cache_control` only on the system prompt, and every system prompt is
+50 to 105 tokens, far below the 512-token minimum cacheable prefix of Opus 5.5, Sonnet 5.5 and
+Haiku 5.5. A prefix below the minimum is silently not cached, so no write premium was paid, but
+nothing was saved either. The system prompts are not padded to reach the minimum.
+
+What is worth caching is a long exercise prefix that a later request with the same model repeats
+byte for byte. The harness now marks one (`Message.cache_upto`, a second `cache_control` breakpoint
+at the end of that prefix) only where such a repeat is planned, because a cache write costs a premium:
+
+- **Arm C:** the orchestrator's brief and the review are both Opus requests. They now share one
+  system prompt (`LEAD_SYSTEM`) and one exercise context (`LEAD_CONTEXT`: instructions, starting
+  files, visible tests), and only the request at the end differs. The brief writes the prefix and
+  the review reads it.
+- **Arm D forks:** the two Haiku controls send identical requests, so the first writes the whole
+  prompt and the second reads it. The Sonnet treatment runs once and marks nothing.
+- **Arms A and B, arm D's brief and first attempt:** one request per model, so nothing is marked.
+
+Prompts keep their variable part last: the planner's brief comes after the visible tests, and a
+retry's feedback after the first prompt. `tests/test_harness.py` checks that system prompts are
+byte-identical across tasks and that the shared prefixes match byte for byte. Caches are per model,
+so the cross-model handoffs (Opus brief to Haiku worker, Haiku attempt to Sonnet treatment) cannot share.
+
 ## What is new, and what is not
 
 **Inherited ideas (see [related work](related-work.md)):** the separation of proposals from a

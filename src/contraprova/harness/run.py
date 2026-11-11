@@ -82,7 +82,8 @@ class FakeClient:
             files = parse_files(section).files
             files.update(self.edits)
             text = "Here is my solution.\n\n" + format_files(files)
-        self.calls.append({"model": model, "role": role, "effort": effort, "tags": dict(tags or {}), "prompt": prompt})
+        self.calls.append({"model": model, "role": role, "effort": effort, "tags": dict(tags or {}), "prompt": prompt,
+                           "system": system, "cache_upto": messages[-1].cache_upto})
         tin, tout = self.tokens_per_call or (len(system + prompt) // 4 + 1, len(text) // 4 + 1)
         usage = {"model": model, "input_tokens": tin, "output_tokens": min(tout, max_tokens),
                  "cache_read_tokens": 0, "cache_write_5m_tokens": 0, "cache_write_1h_tokens": 0}
