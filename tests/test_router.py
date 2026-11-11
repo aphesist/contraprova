@@ -287,3 +287,45 @@ def test_router_trained_event_replays(tmp_path):
 
 def test_default_costs_are_ordered():
     assert DEFAULT_EXPECTED_COST[HAIKU] < DEFAULT_EXPECTED_COST[SONNET] < DEFAULT_EXPECTED_COST[OPUS]
+
+
+# ------------------------------------------------------------------ a harness-produced log
+
+
+def test_training_examples_on_a_harness_log(tmp_path):
+    """Harness outcomes use the exercise id as task_id and the kernel id as log_task_id; forks link by fork_id."""
+    from pathlib import Path
+
+    from contraprova.harness.arms import BudgetGuard, Harness, ScoreResult, run_arm
+    from contraprova.harness.polyglot import load_exercises, split_tests
+    from contraprova.harness.run import FakeClient, UniformRouter
+    from contraprova.interfaces import GateResult
+
+    exercises = load_exercises(Path(__file__).parent / "fixtures" / "polyglot")
+    blocked = {"python/clamp", "python/word-tally"}
+
+    def gates(sub, ctx):
+        first_try = ctx.task_id.count(":") == 1
+        return [GateResult("T0.visible_tests", "block" if first_try and ctx.exercise.id in blocked else "pass", "2 failed")]
+
+    def scorer(sub, ctx):
+        return ScoreResult(ctx.model != HAIKU)  # only the treatment "solves"
+
+    h = Harness(EventLog(tmp_path / "log.jsonl"), FakeClient(), scorer, gates, UniformRouter(), BudgetGuard(None))
+    run_arm(h, "D", exercises, {e.id: split_tests(e, 7) for e in exercises}, "train")
+    evs = h.log.events()
+    ex = training_examples(evs)
+
+    routes = [e for e in ex if e.source == "route"]
+    forks = [e for e in ex if e.source != "route"]
+    # One closed decision per exercise: the initial one when the gate passed, the post-failure one otherwise.
+    assert sorted(e.task_id for e in routes) == sorted(f"D:{x.id}" for x in exercises)
+    d_out = {e.payload["log_task_id"]: e.payload["solved"] for e in evs
+             if e.type == "outcome.scored" and "fork_id" not in e.payload}
+    assert all(e.solved == d_out[e.task_id] for e in routes)
+    assert all(0 < e.propensity <= 1 for e in routes)
+
+    # Three forks per blocked exercise, each linked to its fork outcome and fork usage.
+    assert sorted(e.task_id for e in forks) == sorted(f"D:{x}" for x in blocked for _ in range(3))
+    assert sorted(e.source for e in forks) == ["control"] * 4 + ["treatment"] * 2
+    assert all(e.solved == (e.action != HAIKU) and e.propensity == 1.0 and e.cost > 0 for e in forks)

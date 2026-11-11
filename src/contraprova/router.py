@@ -16,32 +16,44 @@ Event payload fields consumed by ``training_examples``
     ``features`` (object: feature name -> number, as returned by
     ``LinearRouter.decide`` / ``featurize``). Optional: ``arm`` (str).
 
+Payloads follow docs/events.md. Two task ids matter: the **kernel task id**
+(``task_id`` on route, fork and usage events) and the **pairing key**
+(``task_id`` on ``outcome.scored``, the benchmark exercise id). An outcome
+names the kernel task it scores in ``log_task_id``; linking always uses it.
+
 ``fork.created`` (one per counterfactual re-run)
-    ``task_id`` (str), ``from_seq`` (int: the log position the fork re-runs
-    from), ``model`` (str, one of ``TIERS``: the action the fork takes),
-    ``role`` ("control" | "treatment"), ``seed`` (int). Optional: ``fork_id``
-    (str; defaults to the decimal string of the fork event's own ``seq``),
-    ``features`` (object; defaults to the features of the latest
-    ``route.decided`` for the same task at or before ``from_seq``).
+    ``fork_id`` (str, unique in the log), ``task_id`` (str: the parent kernel
+    task), ``from_seq`` (int: the log position the fork re-runs from),
+    ``model`` (str, one of ``TIERS``: the action the fork takes), ``role``
+    ("control" | "treatment"), ``seed`` (int). Older logs without
+    ``fork_id`` fall back to the decimal string of the fork event's own
+    ``seq``. Optional: ``features`` (object; defaults to the features of the
+    latest ``route.decided`` for the same task at or before ``from_seq``);
+    other optional fields (``prefix_hash``, ``fork_task_id``, ``branch``,
+    ``arm``) are ignored.
 
 ``outcome.scored``
-    ``task_id`` (str), ``arm`` (str), ``solved`` (bool). Optional: ``fork_id``
-    (str or int) naming the fork it scores; a score without ``fork_id``
-    belongs to the main (unforked) run of its arm.
+    Arm outcome: ``arm`` (str), ``task_id`` (pairing key), ``solved`` (bool),
+    optional ``log_task_id`` (the kernel task it scores; ``task_id`` is used
+    when absent). Fork outcome: ``fork_id`` naming the fork it scores, plus
+    ``solved``; it is linked by ``fork_id`` alone. Gate replays (``gate_seq``)
+    are ignored.
 
 ``usage.recorded`` (only for the ``cost`` field)
     The token fields of ``contraprova.usage.usage_payload`` plus ``model``,
-    tagged with ``task_id`` and either ``fork_id`` (fork usage) or ``arm``
+    tagged with the kernel ``task_id`` and either ``fork_id`` (fork usage,
+    linked by ``fork_id`` alone, whatever its ``task_id``) or ``arm``
     (main-run usage). Arm matching for usage and outcomes is exact, except that
     a decision without ``arm`` accepts usage and scores from any arm.
 
 Linking rules
 -------------
 
-* A routing decision's outcome is the first unforked ``outcome.scored`` for the
-  same ``task_id`` (and the same ``arm``, if the decision names one) after the
-  decision and before the next decision for that task and arm. Its cost is the
-  priced ``usage.recorded`` events for that task and arm, without ``fork_id``,
+* A routing decision's outcome is the first arm ``outcome.scored`` whose
+  ``log_task_id`` (else ``task_id``) is the decision's ``task_id`` (and the
+  same ``arm``, if the decision names one) after the decision and before the
+  next decision for that task and arm. Its cost is the priced
+  ``usage.recorded`` events for that task and arm, without ``fork_id``,
   between the decision and its outcome. Its propensity is
   ``propensities[action]``.
 * A fork's outcome is the ``outcome.scored`` whose ``fork_id`` equals the fork
@@ -343,7 +355,7 @@ def training_examples(
             open_routes[key] = {"seq": ev.seq, "payload": p, "cost": 0.0}  # an unscored older one is dropped
             route_features.setdefault(p["task_id"], []).append((ev.seq, p["features"]))
         elif ev.type == "fork.created":
-            fid = str(p.get("fork_id", ev.seq))
+            fid = str(p["fork_id"]) if p.get("fork_id") is not None else str(ev.seq)
             feats = p.get("features")
             if feats is None:
                 prior = [f for s, f in route_features.get(p["task_id"], []) if s <= int(p["from_seq"])]
@@ -352,19 +364,23 @@ def training_examples(
                 forks[fid] = {"seq": ev.seq, "payload": p, "features": feats, "cost": 0.0}
         elif ev.type == "usage.recorded":
             tid = p.get("task_id")
-            if "fork_id" in p:
+            if p.get("fork_id") is not None:
+                # Fork usage may name the child task (fork_task_id); the fork id alone links it.
                 rec = forks.get(str(p["fork_id"]))
-                if rec is not None and rec["payload"]["task_id"] == tid:
+                if rec is not None:
                     rec["cost"] += _usage_cost(p, table)
             else:
                 rec = open_routes.get((tid, p.get("arm"))) or open_routes.get((tid, None))
                 if rec is not None:
                     rec["cost"] += _usage_cost(p, table)
         elif ev.type == "outcome.scored":
+            if p.get("gate_seq") is not None and p.get("fork_id") is None:
+                continue  # a gate replay scores a blocked patch, not a decision
             solved = bool(p["solved"])
-            if "fork_id" in p:
+            if p.get("fork_id") is not None:
+                # The outcome's task_id is the pairing key, not the fork's parent kernel task.
                 rec = forks.pop(str(p["fork_id"]), None)
-                if rec is not None and rec["payload"]["task_id"] == p["task_id"]:
+                if rec is not None:
                     fp = rec["payload"]
                     done.append(
                         (
@@ -383,9 +399,10 @@ def training_examples(
                     )
             else:
                 arm = p.get("arm")
-                rec = open_routes.pop((p["task_id"], arm), None)
+                kernel_tid = p.get("log_task_id") or p["task_id"]
+                rec = open_routes.pop((kernel_tid, arm), None)
                 if rec is None:
-                    rec = open_routes.pop((p["task_id"], None), None)
+                    rec = open_routes.pop((kernel_tid, None), None)
                 if rec is not None:
                     close(rec, solved)
 
