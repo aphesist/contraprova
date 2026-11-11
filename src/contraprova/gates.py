@@ -176,9 +176,11 @@ def run_test_gate(
     *,
     timeout: float = 60.0,
     overlay: Path | None = None,
+    dir_name: str = "ws",
 ) -> GateResult:
-    """Run ``command`` on a temp copy of ``workspace`` with the submission applied."""
-    result = run_in_temp_workspace(workspace, submission.files, command, timeout=timeout, overlay=overlay)
+    """Run ``command`` on a temp copy of ``workspace`` (named ``dir_name``) with the submission applied."""
+    result = run_in_temp_workspace(workspace, submission.files, command, timeout=timeout, overlay=overlay,
+                                   dir_name=dir_name)
     evidence = {"tests": result.summary()}
     if result.passed:
         return GateResult(gate, "pass", "", evidence)
@@ -227,6 +229,7 @@ def run_gates(
     reviewer: Reviewer | None = None,
     timeout: float = 60.0,
     max_changed_lines: int = DEFAULT_MAX_CHANGED_LINES,
+    dir_name: str = "ws",
 ) -> list[GateResult]:
     """Run the required tiers in order, stopping at the first block.
 
@@ -254,10 +257,11 @@ def run_gates(
         if tier == T0_SCOPE:
             res = scope_gate(submission, contract, test_hashes=before, current_hashes=current)
         elif tier == T0_VISIBLE:
-            res = run_test_gate(T0_VISIBLE, submission, workspace, visible_command, timeout=timeout)
+            res = run_test_gate(T0_VISIBLE, submission, workspace, visible_command, timeout=timeout, dir_name=dir_name)
         elif tier == T1_PRIVATE:
             assert private_command is not None
-            res = run_test_gate(T1_PRIVATE, submission, workspace, private_command, timeout=timeout, overlay=private_dir)
+            res = run_test_gate(T1_PRIVATE, submission, workspace, private_command, timeout=timeout, overlay=private_dir,
+                                dir_name=dir_name)
         else:
             res = review_gate(submission, contract, reviewer)
         res = GateResult(res.gate, res.verdict, res.reason, {**res.evidence, **common})

@@ -159,9 +159,13 @@ def run_in_temp_workspace(
     *,
     timeout: float = 60.0,
     overlay: Path | None = None,
+    dir_name: str = "ws",
 ) -> RunResult:
-    """Copy the workspace, apply ``files`` (and ``overlay``), run ``command``, delete the copy."""
+    """Copy the workspace, apply ``files`` (and ``overlay``), run ``command``, delete the copy.
+
+    ``dir_name`` names the copy's directory (some builds, e.g. Exercism's CMake files, derive the
+    project name from it)."""
     with tempfile.TemporaryDirectory(prefix="contraprova-") as tmp:
-        dest = Path(tmp) / "ws"
+        dest = Path(tmp) / safe_relpath(dir_name).name
         materialize(workspace, files, dest, overlay=overlay)
         return run_command(command, dest, timeout=timeout)

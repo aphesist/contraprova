@@ -19,6 +19,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass, field
@@ -35,6 +36,10 @@ from .polyglot import Exercise, build_workspace, sha256_text
 DEFAULT_TIMEOUT = 300.0
 # Where JavaScript's jest toolchain is installed once and linked into every workspace.
 JS_TOOLCHAIN_ENV = "CONTRAPROVA_JS_TOOLCHAIN"
+# A directory holding junit-platform-console-standalone-*.jar and the assertj/byte-buddy jars every
+# Java exercise's build.gradle asks for. Java runs as javac + the JUnit console launcher, not Gradle:
+# the Gradle wrapper would download a ~130 MB distribution per machine.
+JAVA_TOOLCHAIN_ENV = "CONTRAPROVA_JAVA_TOOLCHAIN"
 
 
 def _unskip_js(text: str) -> str:
@@ -99,8 +104,27 @@ def _cpp(tests: Sequence[str]) -> list[str]:
     return ["sh", "-c", script]
 
 
+def _java_jars() -> tuple[str, list[str]]:
+    d = Path(os.environ.get(JAVA_TOOLCHAIN_ENV, ""))
+    jars = sorted(str(p) for p in d.glob("*.jar")) if str(d) else []
+    console = next((j for j in jars if "junit-platform-console-standalone" in j), "")
+    return console, [j for j in jars if j != console]
+
+
 def _java(tests: Sequence[str]) -> list[str]:
-    return ["gradle", "test", "--offline", "--console=plain", "-q"]
+    console, libs = _java_jars()
+    cp = ":".join([console, *libs])
+    script = (f'mkdir -p build && javac -nowarn -encoding UTF-8 -d build -cp "{cp}" $(find src -name "*.java") '
+              f'&& exec java -jar "{console}" --disable-banner --disable-ansi-colors --details=summary '
+              f'--class-path "build:{":".join(libs)}" --scan-class-path')
+    return ["sh", "-c", script]
+
+
+def _java_env_ok() -> str | None:
+    console, _ = _java_jars()
+    if not console:
+        return f"JUnit console launcher not found (set {JAVA_TOOLCHAIN_ENV} to a dir with the jars)"
+    return None
 
 
 RUNNERS: dict[str, Runner] = {
@@ -109,7 +133,7 @@ RUNNERS: dict[str, Runner] = {
     "go": Runner("go", ("go",), _go),
     "rust": Runner("rust", ("cargo",), _rust),
     "cpp": Runner("cpp", ("cmake", "g++", "make", "sh"), _cpp),
-    "java": Runner("java", ("java", "gradle"), _java, _unskip_java),
+    "java": Runner("java", ("java", "javac", "sh"), _java, _unskip_java, _java_env_ok),
 }
 
 
@@ -118,14 +142,88 @@ def available_languages() -> dict[str, str | None]:
     return {lang: r.missing() for lang, r in sorted(RUNNERS.items())}
 
 
-def runner_for(ex: Exercise) -> Runner:
+def exercise_unavailable(ex: Exercise) -> str | None:
+    """None if this exercise's tests can run here, else why not (language toolchain or a
+    per-exercise system library such as Boost for some C++ exercises)."""
     r = RUNNERS.get(ex.language)
     if r is None:
-        raise NotImplementedError(f"no test runner for {ex.language}")
+        return f"no test runner for {ex.language}"
     why = r.missing()
     if why:
-        raise RuntimeError(f"{ex.language} toolchain unavailable: {why}")
-    return r
+        return f"{ex.language} toolchain unavailable: {why}"
+    cm = ex.path / "CMakeLists.txt"
+    if ex.language == "cpp" and cm.is_file() and "find_package(Boost" in cm.read_text(errors="replace") \
+            and not Path("/usr/include/boost").is_dir():
+        return "needs the Boost C++ libraries, which are not installed"
+    return None
+
+
+def runner_for(ex: Exercise) -> Runner:
+    why = exercise_unavailable(ex)
+    if why:
+        raise RuntimeError(why if "toolchain" in why else f"exercise unavailable: {why}")
+    return RUNNERS[ex.language]
+
+
+_COUNT_RES: Mapping[str, tuple[str, ...]] = {
+    "python": (r"(\d+) (?:passed|failed|errors?)\b",),
+    "javascript": (r"^Tests:.*?(\d+) total",),
+    "rust": (r"test result: \w+\. (\d+) passed; (\d+) failed; (\d+) ignored",),
+    "cpp": (r"All tests passed \(\d+ assertions? in (\d+) test cases?\)", r"test cases:\s+(\d+)"),
+    "java": (r"\[\s*(\d+) tests found\s*\]",),
+}
+
+
+def discovered_tests(language: str, output: str) -> int | None:
+    """Number of test cases a runner's output says it ran (None if unrecognised).
+
+    Go is counted from ``go test -v`` output: leaf ``--- PASS/FAIL`` lines (a test with subtests
+    counts its subtests only)."""
+    if language == "go":
+        names = re.findall(r"^\s*--- (?:PASS|FAIL|SKIP): (\S+)", output, re.M)
+        if not names:
+            return None
+        parents = {n.rsplit("/", 1)[0] for n in names if "/" in n}
+        return sum(1 for n in names if n not in parents)
+    if language == "python":
+        tail = [ln for ln in output.splitlines() if re.search(_COUNT_RES["python"][0], ln)]
+        return sum(int(x) for x in re.findall(_COUNT_RES["python"][0], tail[-1])) if tail else None
+    for pat in _COUNT_RES.get(language, ()):
+        hits = re.findall(pat, output, re.M)
+        if hits:
+            if language == "rust":
+                return sum(sum(int(x) for x in h) for h in hits)
+            return int(hits[-1])
+    return None
+
+
+def reference_files(ex: Exercise) -> dict[str, str]:
+    """The exercise's reference solution mapped onto its solution paths (by file extension)."""
+    out = {}
+    for sol in ex.solution_files:
+        ext = Path(sol).suffix
+        match = [e for e in ex.example_files if Path(e).suffix == ext and (ex.path / e).is_file()]
+        if match:
+            out[sol] = ex.read(match[0])
+    return out
+
+
+def run_full_suite(ex: Exercise, files: Mapping[str, str], *, timeout: float = DEFAULT_TIMEOUT) -> tuple[int | None, str]:
+    """Run the exercise's complete, unsplit test suite against ``files`` (for checks, not scoring).
+
+    Returns (exit code or None on timeout, full combined output). Go runs with ``-v`` so
+    :func:`discovered_tests` can count subtests."""
+    r = runner_for(ex)
+    tests = r.prepare({rel: ex.read(rel) for rel in (*ex.test_files, *ex.extra_test_files) if (ex.path / rel).is_file()})
+    cmd = ["go", "test", "-count=1", "-v", "./..."] if ex.language == "go" else r.command(list(tests))
+    with tempfile.TemporaryDirectory(prefix="contraprova-check-") as d:
+        ws = build_workspace(ex, files, tests, Path(d) / ex.name)
+        try:
+            p = subprocess.run(cmd, cwd=ws, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT, timeout=timeout, check=False)
+        except subprocess.TimeoutExpired:
+            return None, "timeout"
+        return p.returncode, p.stdout.decode("utf-8", errors="replace")
 
 
 def default_contract(ctx: TaskContext) -> LaneContract:
@@ -157,7 +255,7 @@ def polyglot_gates(sub: Submission, ctx: TaskContext, *, timeout: float = DEFAUL
         return run_gates(sub, ctx.contract or default_contract(ctx), ws,
                          visible_command=r.command(list(visible)),
                          private_command=r.command(list(private)) if private else None,
-                         private_dir=pdir, timeout=timeout)
+                         private_dir=pdir, timeout=timeout, dir_name=ctx.exercise.name)
 
 
 def polyglot_scorer(sub: Submission, ctx: TaskContext, *, timeout: float = DEFAULT_TIMEOUT) -> ScoreResult:
@@ -165,7 +263,7 @@ def polyglot_scorer(sub: Submission, ctx: TaskContext, *, timeout: float = DEFAU
     r = runner_for(ctx.exercise)
     tests = r.prepare(ctx.test_files("score"))
     with tempfile.TemporaryDirectory(prefix="contraprova-score-") as d:
-        ws = build_workspace(ctx.exercise, sub.files, tests, Path(d) / "ws")
+        ws = build_workspace(ctx.exercise, sub.files, tests, Path(d) / ctx.exercise.name)
         res = run_command(r.command(list(tests)), ws, timeout=timeout)
     return ScoreResult(res.passed, {"runner": ctx.exercise.language, "n_score_tests": len(ctx.test_split.score),
                                     "returncode": res.returncode, "timed_out": res.timed_out,

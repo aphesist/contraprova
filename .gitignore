@@ -12,3 +12,5 @@ runs/
 
 # local agent worktrees
 .claude/worktrees/
+
+.claude/settings.local.json

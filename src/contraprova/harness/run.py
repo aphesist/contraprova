@@ -217,6 +217,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--router", help="module:attr of a Router (arm D)")
     ap.add_argument("--gates", help="module:attr of a gate callable (arm D)")
     ap.add_argument("--scorer", help="module:attr of a scorer callable")
+    ap.add_argument("--exclude", action="append", default=[], metavar="EXERCISE_ID",
+                    help="leave this exercise out (repeatable); reported in the summary")
+    ap.add_argument("--exclude-unrunnable", action="store_true",
+                    help="leave out exercises whose tests cannot run here (contraprova.harness.runners)")
     args = ap.parse_args(argv)
 
     exercises = load_exercises(args.polyglot)
@@ -225,6 +229,17 @@ def main(argv: list[str] | None = None) -> int:
     part = load_or_create_partition(part_path, exercises, args.seed)
     by_id = {e.id: e for e in exercises}
     chosen = [by_id[i] for i in part.splits[args.split]][: args.limit]
+    excluded: dict[str, str] = {}
+    for ex in chosen:
+        if ex.id in args.exclude:
+            excluded[ex.id] = "excluded on the command line"
+        elif args.exclude_unrunnable:
+            from .runners import exercise_unavailable
+
+            why = exercise_unavailable(ex)
+            if why:
+                excluded[ex.id] = why
+    chosen = [ex for ex in chosen if ex.id not in excluded]
     splits = {e.id: TestSplit.from_dict(e.id, part.test_splits[e.id]) for e in chosen}
 
     if args.dry_run:
@@ -248,7 +263,8 @@ def main(argv: list[str] | None = None) -> int:
     h = Harness(EventLog(log_path), client, scorer, gates, router, BudgetGuard(args.budget_usd), ArmConfig(),
                 part.sha256)
     summary = run_arm(h, args.arm, chosen, splits, args.split)
-    print(json.dumps({**summary.__dict__, "partition_sha256": part.sha256, "dry_run": args.dry_run}, indent=2))
+    print(json.dumps({**summary.__dict__, "partition_sha256": part.sha256, "dry_run": args.dry_run,
+                      "excluded": excluded}, indent=2))
     return 2 if summary.stopped else 0
 
 
