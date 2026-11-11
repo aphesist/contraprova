@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>contraprova replay</title>
+<meta name="description" content="Replay a contraprova event log: task attempts, cost against solve rate, event by event.">
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #0c0d10;
+  --surface: #14161b;
+  --surface-2: #1b1e25;
+  --border: #2a2e37;
+  --grid: #23262e;
+  --text: #ecebe6;
+  --text-2: #b9b8ae;
+  --muted: #7d7c75;
+  --accent: #3987e5;      /* blue: haiku / passed gate / forks on the strip */
+  --warn: #d95926;        /* orange: not solved / blocked / escalated / sonnet */
+  --good: #199e70;        /* aqua: solved / opus */
+  --neutral: #5d6170;     /* not yet known / not applicable */
+  --banner: #c98500;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 var(--sans); }
+body { overflow-x: hidden; }
+a { color: var(--accent); }
+button, select, input { font: inherit; color: inherit; }
+.wrap { max-width: 1320px; margin: 0 auto; padding: 12px 16px 40px; }
+
+#banner { display: none; position: sticky; top: 0; z-index: 20; text-align: center; padding: 6px 12px;
+  font-weight: 700; letter-spacing: .08em; color: #111; font-size: 13px;
+  background: repeating-linear-gradient(135deg, var(--banner) 0 14px, #e0a21c 14px 28px); }
+#banner.on { display: block; }
+
+header { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: baseline; margin: 6px 0 10px; }
+header h1 { margin: 0; font-size: 20px; font-weight: 650; letter-spacing: -.01em; }
+header h1 span { color: var(--muted); font-weight: 400; }
+.src { color: var(--text-2); font: 12px var(--mono); overflow-wrap: anywhere; }
+.check { font: 12px var(--mono); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-2); }
+.check.ok::before { content: "\2713  "; color: var(--good); }
+.check.bad { border-color: var(--warn); color: var(--warn); }
+.check.bad::before { content: "\2717  "; }
+
+details.note { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; color: var(--text-2); }
+details.note summary { cursor: pointer; color: var(--text); font-weight: 600; }
+details.note p { margin: 4px 0; max-width: 110ch; font-size: 13px; }
+
+.controls { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-bottom: 10px; }
+.controls label { color: var(--text-2); font-size: 12px; display: flex; gap: 6px; align-items: center; }
+select { background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; max-width: 100%; }
+.chips { display: flex; gap: 4px; flex-wrap: wrap; }
+.chip { background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; cursor: pointer; font: 12px var(--mono); color: var(--text-2); }
+.chip[aria-pressed="true"] { color: var(--text); border-color: var(--text-2); }
+
+.grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 12px; }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; min-width: 0; }
+.panel h2 { margin: 0 0 2px; font-size: 13px; font-weight: 650; letter-spacing: .02em; }
+.panel .sub { margin: 0 0 6px; color: var(--muted); font-size: 12px; }
+.mapbox { position: relative; }
+#map { width: 100%; display: block; border-radius: 6px; cursor: crosshair; touch-action: manipulation; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--text-2); margin-top: 6px; align-items: center; }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+.sizes { display: inline-flex; align-items: center; gap: 6px; }
+.sizes i { display: inline-block; border-radius: 50%; border: 1px solid var(--text-2); }
+#tip { position: absolute; pointer-events: none; display: none; background: #0b0c0fe8; border: 1px solid var(--border); border-radius: 6px;
+  padding: 6px 8px; font: 12px var(--mono); color: var(--text); max-width: 280px; z-index: 5; white-space: pre-line; }
+
+#pareto { width: 100%; display: block; }
+#pareto text { fill: var(--text-2); font: 11px var(--sans); }
+#pareto .lbl { fill: var(--text); font: 600 12px var(--mono); }
+table.arms { width: 100%; border-collapse: collapse; font: 12px var(--mono); margin-top: 6px; }
+table.arms th, table.arms td { padding: 3px 4px; text-align: right; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+table.arms th { color: var(--muted); font-weight: 500; }
+table.arms th:first-child, table.arms td:first-child { text-align: left; }
+.tablewrap { overflow-x: auto; }
+.esc { font-size: 12px; color: var(--text-2); margin-top: 8px; }
+
+.timeline { margin-top: 12px; }
+.tl-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.tl-row button { background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; min-width: 36px; }
+.tl-row button:hover { border-color: var(--text-2); }
+#scrub { flex: 1 1 260px; accent-color: var(--accent); min-width: 0; }
+#strip { width: 100%; height: 28px; display: block; margin-top: 6px; cursor: pointer; }
+.pos { font: 12px var(--mono); color: var(--text-2); }
+#evcard { margin-top: 8px; font: 12px var(--mono); background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; overflow-wrap: anywhere; }
+#evcard b { color: var(--text); }
+
+.trail { margin-top: 12px; }
+#trail { max-height: 340px; overflow: auto; font: 12px var(--mono); }
+#trail .row { display: grid; grid-template-columns: 4.5em 8.5em minmax(0, 1fr); gap: 8px; padding: 3px 4px; border-bottom: 1px solid var(--grid); cursor: pointer; }
+#trail .row:hover { background: var(--surface-2); }
+#trail .row.mine { color: var(--text); }
+#trail .row.other { color: var(--text-2); }
+#trail .row.future { opacity: .35; }
+#trail .row.now { outline: 1px solid var(--accent); }
+#trail .seq { color: var(--muted); }
+.empty { color: var(--muted); font-size: 12px; }
+
+#loader { display: none; margin: 30px auto; max-width: 560px; }
+#loader.on { display: block; }
+
+@media (max-width: 860px) {
+  .grid { grid-template-columns: minmax(0, 1fr); }
+  #trail .row { grid-template-columns: 3.5em minmax(0, 1fr); }
+  #trail .row .ty { display: none; }
+}
+</style>
+</head>
+<body>
+<div id="banner" role="alert">SYNTHETIC DEMO DATA &mdash; not results</div>
+<div class="wrap">
+  <header>
+    <h1>contraprova <span>replay</span></h1>
+    <div class="src" id="src"></div>
+    <div class="check" id="check" title="The page folds the per-event deltas itself and compares its totals with the ones Python computed at each checkpoint.">replay check: pending</div>
+  </header>
+
+  <div id="loader" class="panel">
+    <h2>No data loaded</h2>
+    <p class="sub" id="loadmsg">Could not fetch the data file (browsers block fetch from file://).</p>
+    <p class="sub">Open an export made with <code>scripts/export_ui_data.py</code>, serve this folder over HTTP, or build a standalone page with <code>--html</code>.</p>
+    <input type="file" id="file" accept=".json,application/json">
+  </div>
+
+  <div id="app" hidden>
+  <details class="note" open>
+    <summary>What am I looking at?</summary>
+    <p>Every panel is a projection of one hash-chained event log, computed in Python and exported as JSON. The timeline replays the log: everything shows the state <em>as of event N</em>.</p>
+    <p><b>Attempts:</b> one point per arm &times; task, including fork re-runs (<code>D:control</code> = same cheap model again, <code>D:treatment</code> = escalated). Position is a deterministic PCA layout of token, request and gate counts &mdash; not semantic meaning. Colour = one logged fact; size = cost. Click a point for its event trail.</p>
+    <p><b>Cost vs solve rate:</b> per arm, with 95% Wilson intervals; dashed line = Pareto frontier over arms A&ndash;D. Hollow = fork re-runs, which cover only failed-once tasks and are not comparable with the arms. Switch price tables to re-price the same history.</p>
+  </details>
+
+  <div class="controls">
+    <label>Price table <select id="table"></select></label>
+    <label>Colour by <select id="colorby">
+      <option value="outcome">outcome (solved)</option>
+      <option value="tier">model tier</option>
+      <option value="escalated">escalated</option>
+      <option value="gate">gate</option>
+    </select></label>
+    <label>Arms <span class="chips" id="armchips"></span></label>
+  </div>
+
+  <div class="grid">
+    <section class="panel" aria-labelledby="h-map">
+      <h2 id="h-map">Attempts</h2>
+      <p class="sub" id="mapsub"></p>
+      <div class="mapbox">
+        <canvas id="map" role="img" aria-label="Point map of task attempts"></canvas>
+        <div id="tip"></div>
+      </div>
+      <div class="legend" id="legend"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="h-par">
+      <h2 id="h-par">Cost per task vs solve rate</h2>
+      <p class="sub" id="parsub"></p>
+      <svg id="pareto" role="img" aria-label="Cost per task against solve rate by arm"></svg>
+      <div class="tablewrap"><table class="arms" id="armtable"></table></div>
+      <div class="esc" id="esc"></div>
+    </section>
+  </div>
+
+  <section class="panel timeline" aria-labelledby="h-tl">
+    <h2 id="h-tl">Replay</h2>
+    <div class="tl-row">
+      <button id="first" title="First event" aria-label="First event">&#x23EE;</button>
+      <button id="prev" title="Previous event" aria-label="Previous event">&#x25C0;</button>
+      <button id="play" title="Play / pause" aria-label="Play">&#x25B6;</button>
+      <button id="next" title="Next event" aria-label="Next event">&#x25B6;&#xFE0E;|</button>
+      <button id="last" title="Last event" aria-label="Last event">&#x23ED;</button>
+      <input type="range" id="scrub" min="0" max="0" value="0" aria-label="Event number">
+      <span class="pos" id="pos"></span>
+      <label class="pos">speed <select id="speed"><option value="250">4/s</option><option value="60" selected>16/s</option><option value="15">64/s</option></select></label>
+    </div>
+    <canvas id="strip" aria-hidden="true"></canvas>
+    <div class="legend"><span><i class="sw" style="background:var(--muted)"></i>event</span><span><i class="sw" style="background:var(--warn)"></i>gate block</span><span><i class="sw" style="background:var(--accent)"></i>fork</span><span><i class="sw" style="background:var(--good)"></i>outcome: solved</span></div>
+    <div id="evcard"></div>
+  </section>
+
+  <section class="panel trail" aria-labelledby="h-trail">
+    <h2 id="h-trail">Event trail</h2>
+    <p class="sub" id="trailsub">Click a point to see every event for its task. Events after the scrubber are dimmed; click a row to jump there.</p>
+    <div id="trail"></div>
+  </section>
+  </div>
+</div>
+<script id="embedded-data" type="application/json"></script>
+<script>
+(function () {
+"use strict";
+const $ = (id) => document.getElementById(id);
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+let D = null;            // exported data
+let N = 0;               // scrubber position (event index, inclusive)
+let tableIx = 0;
+let selected = -1;       // selected attempt index
+let hidden = new Set();  // arms filtered out
+let timer = null;
+let state = null;        // fold result at N
+let mapGeom = null;
+
+const fmtUSD = (x) => x >= 1 ? "$" + x.toFixed(2) : x >= 0.01 ? "$" + x.toFixed(3) : "$" + x.toFixed(4);
+const pct = (x) => (100 * x).toFixed(0) + "%";
+
+// ------------------------------------------------------------ loading
+function start(data) {
+  if (!data || data.schema !== "contraprova-ui/1") { showLoader("This file is not a contraprova-ui/1 export."); return; }
+  D = data;
+  $("loader").classList.remove("on");
+  $("app").hidden = false;
+  $("banner").classList.toggle("on", D.synthetic === true);
+  const s = D.source;
+  $("src").textContent = `${s.log} · ${s.n_events} events · head ${String(s.head_hash).slice(0, 12)} · chain ${s.verified ? "verified" : "NOT verified"} at export`;
+  const sel = $("table");
+  sel.innerHTML = "";
+  D.table_names.forEach((t, i) => { const o = document.createElement("option"); o.value = i; o.textContent = t; sel.appendChild(o); });
+  tableIx = Math.max(0, D.table_names.indexOf(D.default_table));
+  sel.value = tableIx;
+  const chips = $("armchips");
+  chips.innerHTML = "";
+  D.arms.forEach((a) => {
+    const b = document.createElement("button");
+    b.className = "chip"; b.textContent = a.id; b.setAttribute("aria-pressed", "true");
+    b.onclick = () => { if (hidden.has(a.id)) hidden.delete(a.id); else hidden.add(a.id); b.setAttribute("aria-pressed", String(!hidden.has(a.id))); render(); };
+    chips.appendChild(b);
+  });
+  const sc = $("scrub");
+  sc.max = D.events.length - 1;
+  N = D.events.length - 1;
+  sc.value = N;
+  const lm = D.layout || {};
+  const ev = lm.explained_variance || [0, 0];
+  const lt = lm.loadings_top || [[], []];
+  const axisTxt = (k) => (lt[k] || []).slice(0, 2).map((p) => p[0]).join(", ");
+  D._axis = [`layout axis 1 (${pct(ev[0])} var; mostly ${axisTxt(0)})`, `layout axis 2 (${pct(ev[1])} var; mostly ${axisTxt(1)})`];
+  D._axisShort = [`layout axis 1 (${axisTxt(0).split(",")[0]}…)`, `layout axis 2 (${axisTxt(1).split(",")[0]}…)`];
+  if (window.innerWidth < 600) document.querySelector("details.note").open = false;
+  runCheck();
+  render();
+}
+function showLoader(msg) { $("loader").classList.add("on"); if (msg) $("loadmsg").textContent = msg; }
+async function load() {
+  const emb = $("embedded-data").textContent.trim();
+  if (emb) { start(JSON.parse(emb)); return; }
+  const q = new URLSearchParams(location.search).get("data");
+  const urls = [q || "demo-data.json"];
+  for (const u of urls) {
+    try { const r = await fetch(u, { cache: "no-store" }); if (r.ok) { start(await r.json()); return; } } catch (e) { /* try next */ }
+  }
+  showLoader();
+}
+$("file").onchange = (e) => { const f = e.target.files[0]; if (!f) return; f.text().then((t) => start(JSON.parse(t))).catch(() => showLoader("Could not parse that file.")); };
+
+// ------------------------------------------------------------ replay fold
+// Applies the per-event deltas Python wrote. No pricing or task logic lives here.
+function fold(upto, onCheckpoint) {
+  const T = D.table_names.length;
+  const A = D.attempts.map(() => ({ seen: false, cost: new Array(T).fill(0), solved: null, blocked: false, gated: false, escalated: false, tier: -1, status: null, fork: null }));
+  const arms = {};
+  const arm = (id) => arms[id] || (arms[id] = { cost: new Array(T).fill(0), tasks: new Set(), out: {} });
+  const cps = new Map((D.checkpoints || []).map((c) => [c.seq, c]));
+  for (let i = 0; i <= upto; i++) {
+    const e = D.events[i];
+    if (e.p !== undefined) A[e.p].seen = true;
+    for (const [ix, f, v] of e.fx || []) {
+      const a = A[ix], at = D.attempts[ix];
+      if (f === "cost") { for (let j = 0; j < T; j++) a.cost[j] += v[j]; const m = arm(at.arm); for (let j = 0; j < T; j++) m.cost[j] += v[j]; m.tasks.add(at.task_id); }
+      else if (f === "solved") { a.solved = v; const m = arm(at.arm); m.out[at.task_id] = v; m.tasks.add(at.task_id); }
+      else if (f === "blocked") a.blocked = true;
+      else if (f === "escalated") a.escalated = true;
+      else if (f === "model" || f === "route") { a.tier = Math.max(a.tier, D.tier_order.indexOf(v)); }
+      else if (f === "status") a.status = v;
+      else if (f === "fork") { a.fork = v; a.tier = Math.max(a.tier, D.tier_order.indexOf(v.model)); }
+    }
+    for (const [ix, f] of e.fx || []) if (f === "status" || f === "blocked") A[ix].gated = A[ix].gated || e.t === "gate.decided";
+    if (onCheckpoint && cps.has(e.s)) onCheckpoint(cps.get(e.s), summarise(arms));
+  }
+  return { A, arms: summarise(arms) };
+}
+function wilson(k, n, z = 1.959964) {
+  if (n <= 0) return [0, 1];
+  const p = k / n, den = 1 + z * z / n, c = (p + z * z / (2 * n)) / den;
+  const h = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / den;
+  return [k === 0 ? 0 : Math.max(0, c - h), k === n ? 1 : Math.min(1, c + h)];
+}
+function summarise(arms) {
+  const out = {};
+  for (const id of Object.keys(arms).sort()) {
+    const m = arms[id], vals = Object.values(m.out), n = vals.length, k = vals.filter(Boolean).length;
+    out[id] = { cost: m.cost.slice(), n_tasks: m.tasks.size, n_scored: n, n_solved: k, solve_rate: n ? k / n : 0, wilson95: wilson(k, n),
+      cost_per_task: m.cost.map((c) => m.tasks.size ? c / m.tasks.size : 0), out: m.out };
+  }
+  return out;
+}
+function runCheck() {
+  let ok = 0, bad = 0;
+  const close = (a, b) => Math.abs(a - b) <= 1e-9 + 1e-9 * Math.abs(b);
+  fold(D.events.length - 1, (cp, mine) => {
+    let good = Object.keys(cp.arms).length === Object.keys(mine).length;
+    for (const [id, py] of Object.entries(cp.arms)) {
+      const js = mine[id];
+      if (!js) { good = false; continue; }
+      good = good && js.n_tasks === py.n_tasks && js.n_scored === py.n_scored && js.n_solved === py.n_solved
+        && py.cost.every((c, j) => close(js.cost[j], c)) && py.wilson95.every((w, j) => close(js.wilson95[j], w));
+    }
+    if (good) ok++; else bad++;
+  });
+  const el = $("check");
+  el.textContent = `replay check: ${ok}/${ok + bad} checkpoints match Python`;
+  el.className = "check " + (bad ? "bad" : "ok");
+  el.dataset.ok = String(ok); el.dataset.bad = String(bad);
+}
+
+// ------------------------------------------------------------ colour encodings (logged facts only)
+const ENC = {
+  outcome: { keys: [["solved", "--good"], ["not solved", "--warn"], ["not scored yet", "--neutral"]],
+    of: (a) => a.solved === true ? 0 : a.solved === false ? 1 : 2 },
+  tier: { keys: null, of: (a) => a.tier < 0 ? -1 : a.tier },
+  escalated: { keys: [["escalated to a stronger model", "--warn"], ["not escalated", "--neutral"]], of: (a) => a.escalated ? 0 : 1 },
+  gate: { keys: [["blocked by a gate (at least once)", "--warn"], ["passed gate", "--accent"], ["not gated (arms A-C, forks) / not yet", "--neutral"]],
+    of: (a) => a.blocked ? 0 : a.gated ? 1 : 2 },
+};
+const TIER_VARS = ["--accent", "--warn", "--good", "--banner"];
+function encKeys(mode) {
+  if (mode !== "tier") return ENC[mode].keys;
+  return D.tier_order.map((m, i) => [m.replace("claude-", ""), TIER_VARS[i] || "--text-2"]).concat([["no worker call yet", "--neutral"]]);
+}
+function colourOf(mode, a) {
+  const keys = encKeys(mode);
+  let k = ENC[mode].of(a);
+  if (mode === "tier") k = k < 0 ? keys.length - 1 : k;
+  return css(keys[k][1]);
+}
+
+// ------------------------------------------------------------ render
+function render() {
+  if (!D) return;
+  state = fold(N);
+  drawMap();
+  drawLegend();
+  drawPareto();
+  drawStrip();
+  drawEvent();
+  drawTrail();
+}
+
+function sizeCanvas(cv, cssH) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth;
+  cv.style.height = cssH + "px";
+  cv.width = Math.round(w * dpr); cv.height = Math.round(cssH * dpr);
+  const g = cv.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return [g, w, cssH];
+}
+
+function drawMap() {
+  const cv = $("map");
+  const w0 = cv.clientWidth;
+  const [g, W, H] = sizeCanvas(cv, Math.max(280, Math.min(560, Math.round(w0 * 0.68))));
+  const pad = { l: 26, r: 12, t: 12, b: 26 };
+  const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+  g.fillStyle = css("--bg"); g.fillRect(0, 0, W, H);
+  // stipple backdrop: a faint dot lattice (decoration only)
+  g.fillStyle = css("--grid");
+  for (let y = pad.t; y <= H - pad.b; y += 12) for (let x = pad.l + ((y / 12) % 2) * 6; x <= W - pad.r; x += 12) g.fillRect(x, y, 1, 1);
+  g.fillStyle = css("--muted"); g.font = "11px " + css("--sans");
+  const narrow = W < 560;
+  g.fillText((narrow ? D._axisShort[0] : D._axis[0]) + " →", pad.l, H - 8);
+  g.save(); g.translate(13, H - pad.b); g.rotate(-Math.PI / 2); g.fillText((narrow ? D._axisShort[1] : D._axis[1]) + " →", 0, 0); g.restore();
+  if (D.synthetic) { g.fillStyle = css("--banner"); g.globalAlpha = .55; g.font = "600 11px " + css("--mono"); g.textAlign = "right"; g.fillText("SYNTHETIC", W - pad.r - 2, pad.t + 10); g.textAlign = "left"; g.globalAlpha = 1; }
+  const maxCost = Math.max(1e-12, ...D.attempts.map((a) => a.final_cost[tableIx]));
+  const rOf = (c) => 2.2 + 10 * Math.sqrt(Math.max(0, c) / maxCost);
+  const mode = $("colorby").value;
+  const pts = [];
+  const selTask = selected >= 0 ? D.attempts[selected].task_id : null;
+  g.globalCompositeOperation = "lighter";
+  D.attempts.forEach((at, i) => {
+    const a = state.A[i];
+    if (!a.seen || hidden.has(at.arm)) return;
+    const x = pad.l + at.x * iw, y = pad.t + (1 - at.y) * ih, r = rOf(a.cost[tableIx]);
+    pts.push([i, x, y, r]);
+    const col = colourOf(mode, a);
+    g.globalAlpha = selTask && at.task_id !== selTask ? 0.28 : 0.85;
+    g.fillStyle = col;
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+    if (at.arm.includes(":")) { // fork re-runs: hollow centre
+      g.globalCompositeOperation = "source-over"; g.globalAlpha = 1; g.fillStyle = css("--bg");
+      g.beginPath(); g.arc(x, y, Math.max(0.8, r * 0.45), 0, Math.PI * 2); g.fill();
+      g.globalCompositeOperation = "lighter";
+    }
+  });
+  g.globalCompositeOperation = "source-over"; g.globalAlpha = 1;
+  if (selTask) {
+    const used = [];
+    for (const [i, x, y, r] of pts) {
+      if (D.attempts[i].task_id !== selTask) continue;
+      g.strokeStyle = i === selected ? css("--text") : css("--text-2"); g.lineWidth = i === selected ? 2 : 1;
+      g.beginPath(); g.arc(x, y, r + 3, 0, Math.PI * 2); g.stroke();
+      let ly = y + 4; while (used.some(([ux, uy]) => Math.abs(ux - x) < 90 && Math.abs(uy - ly) < 13)) ly += 13;
+      used.push([x, ly]);
+      g.fillStyle = css("--text"); g.font = "600 11px " + css("--mono");
+      const lbl = D.attempts[i].arm, tw = g.measureText(lbl).width;
+      const lx = x + r + 5 + tw > W - pad.r ? x - r - 5 - tw : x + r + 5;
+      g.fillText(lbl, lx, ly);
+    }
+  }
+  mapGeom = { pts, rOf };
+  const vis = pts.length;
+  $("mapsub").textContent = `${vis} of ${D.attempts.length} attempts visible at event ${N}. Deterministic PCA layout, not semantic meaning. Size = cost (${D.table_names[tableIx]}). Hollow = fork re-run.`;
+}
+
+function drawLegend() {
+  const mode = $("colorby").value;
+  const keys = encKeys(mode);
+  const maxCost = Math.max(1e-12, ...D.attempts.map((a) => a.final_cost[tableIx]));
+  const sizes = [0.1, 0.4, 1].map((f) => { const r = 2.2 + 10 * Math.sqrt(f); return `<i style="width:${2 * r}px;height:${2 * r}px"></i>${fmtUSD(f * maxCost)}`; }).join(" ");
+  $("legend").innerHTML = keys.map(([label, v]) => `<span><i class="sw" style="background:var(${v})"></i>${label}</span>`).join("") +
+    `<span class="sizes">size = attempt cost: ${sizes}</span>`;
+}
+
+function hit(ev) {
+  if (!mapGeom) return -1;
+  const rect = $("map").getBoundingClientRect();
+  const mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
+  let best = -1, bd = 1e9;
+  for (const [i, x, y, r] of mapGeom.pts) { const d = Math.hypot(mx - x, my - y); if (d < Math.max(r + 4, 9) && d < bd) { bd = d; best = i; } }
+  return best;
+}
+$("map").addEventListener("mousemove", (ev) => {
+  const i = hit(ev), tip = $("tip");
+  if (i < 0) { tip.style.display = "none"; return; }
+  const at = D.attempts[i], a = state.A[i];
+  const tier = a.tier >= 0 ? D.tier_order[a.tier].replace("claude-", "") : "-";
+  tip.textContent = `${at.arm} · ${at.task_id}\nmodel tier: ${tier}\ncost: ${fmtUSD(a.cost[tableIx])}\nsolved: ${a.solved === null ? "not scored yet" : a.solved ? "yes" : "no"}` +
+    (a.blocked ? "\nblocked by a gate" : "") + (a.escalated ? "\nescalated" : "") + (a.status ? `\ntask status: ${a.status}` : "");
+  const box = $("map").getBoundingClientRect();
+  let x = ev.clientX - box.left + 12, y = ev.clientY - box.top + 12;
+  tip.style.display = "block";
+  if (x + tip.offsetWidth > box.width) x = Math.max(0, x - tip.offsetWidth - 24);
+  if (y + tip.offsetHeight > box.height) y = Math.max(0, y - tip.offsetHeight - 24);
+  tip.style.left = x + "px"; tip.style.top = y + "px";
+});
+$("map").addEventListener("mouseleave", () => { $("tip").style.display = "none"; });
+$("map").addEventListener("click", (ev) => { selected = hit(ev); render(); });
+
+const SVGNS = "http://www.w3.org/2000/svg";
+function el(tag, attrs, parent, text) { const e = document.createElementNS(SVGNS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; parent.appendChild(e); return e; }
+
+function drawPareto() {
+  const svg = $("pareto");
+  const W = svg.clientWidth || 400, H = Math.max(240, Math.min(340, Math.round(W * 0.72)));
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.style.height = H + "px";
+  svg.innerHTML = "";
+  const pad = { l: 40, r: 16, t: 10, b: 34 };
+  const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+  // stable x domain: final cost per task over every arm and every table, so re-pricing moves points, not axes
+  const finals = Object.values(D.final.arms).flatMap((s) => s.cost_per_task).filter((c) => c > 0);
+  let lo = Math.min(...finals) / 2, hi = Math.max(...finals) * 1.6;
+  const lx = (c) => pad.l + (Math.log10(Math.max(c, lo)) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo)) * iw;
+  const ly = (q) => pad.t + (1 - q) * ih;
+  const grid = css("--grid");
+  for (let q = 0; q <= 1.0001; q += 0.25) { el("line", { x1: pad.l, x2: W - pad.r, y1: ly(q), y2: ly(q), stroke: grid }, svg); el("text", { x: pad.l - 6, y: ly(q) + 4, "text-anchor": "end" }, svg, pct(q)); }
+  for (let e = Math.ceil(Math.log10(lo)); e <= Math.floor(Math.log10(hi)); e++) {
+    for (const m of [1, 3]) { const c = m * Math.pow(10, e); if (c < lo || c > hi) continue; const x = lx(c);
+      el("line", { x1: x, x2: x, y1: pad.t, y2: H - pad.b, stroke: grid }, svg); el("text", { x, y: H - pad.b + 14, "text-anchor": "middle" }, svg, fmtUSD(c)); }
+  }
+  el("text", { x: pad.l + iw / 2, y: H - 4, "text-anchor": "middle" }, svg, `cost per task (log scale, ${D.table_names[tableIx]})`);
+  const arms = state.arms;
+  const kinds = Object.fromEntries(D.arms.map((a) => [a.id, a.kind]));
+  const pts = Object.entries(arms).filter(([id, s]) => s.n_scored > 0 && s.n_tasks > 0 && !hidden.has(id)).map(([id, s]) => ({ id, s, c: s.cost_per_task[tableIx], q: s.solve_rate, fork: kinds[id] === "fork" }));
+  // Pareto frontier over the main arms (same rule as contraprova.projections.pareto_frontier)
+  const main = pts.filter((p) => !p.fork);
+  const front = main.filter((p) => !main.some((o) => o.c <= p.c && o.q >= p.q && (o.c < p.c || o.q > p.q))).sort((a, b) => a.c - b.c || b.q - a.q);
+  if (front.length > 1) el("polyline", { points: front.map((p) => `${lx(p.c)},${ly(p.q)}`).join(" "), fill: "none", stroke: css("--accent"), "stroke-width": 2, "stroke-dasharray": "5 4" }, svg);
+  const frontIds = new Set(front.map((p) => p.id));
+  const placed = [];
+  for (const p of pts.sort((a, b) => a.c - b.c)) {
+    const x = lx(p.c), y = ly(p.q), [w0, w1] = p.s.wilson95;
+    el("line", { x1: x, x2: x, y1: ly(w0), y2: ly(w1), stroke: css("--text-2"), "stroke-width": 1.5, opacity: p.fork ? .5 : .8 }, svg);
+    const ink = frontIds.has(p.id) ? css("--accent") : css("--text");
+    el("circle", { cx: x, cy: y, r: 5.5, fill: p.fork ? css("--surface") : ink, stroke: p.fork ? css("--text-2") : css("--surface"), "stroke-width": 2 }, svg);
+    const label = p.fork ? `${p.id} n=${p.s.n_scored}` : p.id;
+    const tw = label.length * 7.4;
+    const right = x + 9 + tw > W - pad.r;
+    const lx0 = right ? x - 9 - tw : x + 9;
+    let ty = y + 4;
+    for (let k = 1; placed.some(([px, py]) => Math.abs(px - lx0) < tw && Math.abs(py - ty) < 13) && k < 8; k++) ty = y + 4 + (k % 2 ? -1 : 1) * 13 * Math.ceil(k / 2);
+    placed.push([lx0, ty]);
+    el("text", { x: lx0, y: ty, class: "lbl" }, svg, label);
+  }
+  $("parsub").textContent = `As of event ${N}. Whiskers: 95% Wilson interval. Dashed: Pareto frontier over arms A–D. Hollow: fork re-runs (failed-once tasks only).`;
+  // table view
+  const rows = Object.entries(arms).map(([id, s]) => {
+    const solvedCost = s.n_solved ? s.cost[tableIx] / s.n_solved : null;
+    return `<tr><td>${id}${frontIds.has(id) ? " *" : ""}</td><td>${s.n_scored}</td><td>${s.n_solved}</td><td>${s.n_scored ? pct(s.solve_rate) : "-"}</td><td>${s.n_scored ? pct(s.wilson95[0]) + "–" + pct(s.wilson95[1]) : "-"}</td><td>${fmtUSD(s.cost_per_task[tableIx])}</td><td>${solvedCost === null ? "-" : fmtUSD(solvedCost)}</td></tr>`;
+  }).join("");
+  $("armtable").innerHTML = `<thead><tr><th>arm</th><th>n</th><th>solved</th><th>rate</th><th>95% CI</th><th>$/task</th><th>$/solved</th></tr></thead><tbody>${rows}</tbody>`;
+  // paired fork summary
+  const ctl = (arms["D:control"] || {}).out || {}, trt = (arms["D:treatment"] || {}).out || {};
+  const pairs = Object.keys(ctl).filter((t) => t in trt);
+  if (pairs.length) {
+    const c = pairs.filter((t) => ctl[t]).length, t = pairs.filter((t) => trt[t]).length;
+    const tOnly = pairs.filter((x) => trt[x] && !ctl[x]).length, cOnly = pairs.filter((x) => ctl[x] && !trt[x]).length;
+    $("esc").innerHTML = `<b>Forks so far:</b> ${pairs.length} paired re-runs from a failed gate. Same-model retry (control) solved ${c}; escalation (treatment) solved ${t}. Discordant pairs: ${tOnly} treatment-only, ${cOnly} control-only.` + (D.synthetic ? " <em>Synthetic numbers: they illustrate the layout, not a finding.</em>" : "");
+  } else $("esc").textContent = "No paired forks yet at this point in the log.";
+}
+
+const TYPE_COLOUR = (e) => e.t === "gate.decided" && e.x.includes(": block") ? "--warn" : e.t === "fork.created" ? "--accent" : e.t === "outcome.scored" && (e.fx || []).some((f) => f[1] === "solved" && f[2]) ? "--good" : null;
+function drawStrip() {
+  const cv = $("strip");
+  const [g, W, H] = sizeCanvas(cv, 28);
+  const n = D.events.length;
+  g.fillStyle = css("--surface-2"); g.fillRect(0, 0, W, H);
+  const xOf = (i) => (i + 0.5) / n * W;
+  for (let i = 0; i < n; i++) {
+    const e = D.events[i], v = TYPE_COLOUR(e);
+    g.fillStyle = v ? css(v) : css("--muted");
+    g.globalAlpha = i <= N ? (v ? 1 : 0.5) : (v ? 0.35 : 0.15);
+    const h = v ? H - 6 : H / 2 - 2;
+    g.fillRect(Math.floor(xOf(i)), (H - h) / 2, Math.max(1, W / n * 0.7), h);
+  }
+  g.globalAlpha = 1; g.fillStyle = css("--text"); g.fillRect(Math.round(xOf(N)) - 1, 0, 2, H);
+}
+$("strip").addEventListener("click", (ev) => { const r = $("strip").getBoundingClientRect(); setN(Math.floor((ev.clientX - r.left) / r.width * D.events.length)); });
+
+function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]); }
+function drawEvent() {
+  const e = D.events[N];
+  $("pos").textContent = `event ${N} / ${D.events.length - 1}`;
+  const cost = e.c ? ` · ${fmtUSD(e.c[tableIx])}` : "";
+  $("evcard").innerHTML = `<b>#${e.s} ${esc(e.t)}</b> · ${esc(e.a)} · ${esc(e.ts)} · hash ${esc(e.h)}…<br>${esc(e.k || "")} ${e.k ? "· " : ""}${esc(e.x)}${cost}${e.st ? " · task → " + esc(e.st) : ""}`;
+}
+
+function drawTrail() {
+  const box = $("trail");
+  if (selected < 0) { box.innerHTML = '<p class="empty">No point selected.</p>'; $("h-trail").textContent = "Event trail"; return; }
+  const at = D.attempts[selected];
+  $("h-trail").textContent = `Event trail · ${at.task_id} (selected: ${at.arm})`;
+  box.innerHTML = D.events.filter((e) => e.k === at.task_id).map((e) => {
+    const mine = e.p === selected;
+    const armOf = e.p !== undefined ? D.attempts[e.p].arm : "";
+    const cls = ["row", mine ? "mine" : "other", e.s > N ? "future" : "", e.s === N ? "now" : ""].join(" ");
+    return `<div class="${cls}" data-s="${e.s}"><span class="seq">#${e.s}</span><span class="ty">${esc(e.t)}</span><span>${armOf ? "[" + esc(armOf) + "] " : ""}${esc(e.x)}${e.c ? " · " + fmtUSD(e.c[tableIx]) : ""}${e.s > N ? " (not yet)" : ""}</span></div>`;
+  }).join("");
+  box.querySelectorAll(".row").forEach((r) => r.addEventListener("click", () => setN(+r.dataset.s)));
+}
+
+// ------------------------------------------------------------ controls
+function setN(n) { N = Math.max(0, Math.min(D.events.length - 1, n)); $("scrub").value = N; render(); }
+$("scrub").addEventListener("input", (e) => setN(+e.target.value));
+$("first").onclick = () => setN(0);
+$("last").onclick = () => setN(D.events.length - 1);
+$("prev").onclick = () => setN(N - 1);
+$("next").onclick = () => setN(N + 1);
+function stop() { clearInterval(timer); timer = null; $("play").innerHTML = "&#x25B6;"; $("play").setAttribute("aria-label", "Play"); }
+$("play").onclick = () => {
+  if (timer) { stop(); return; }
+  if (N >= D.events.length - 1) setN(0);
+  $("play").innerHTML = "&#x23F8;"; $("play").setAttribute("aria-label", "Pause");
+  timer = setInterval(() => { if (N >= D.events.length - 1) stop(); else setN(N + 1); }, +$("speed").value);
+};
+$("speed").onchange = () => { if (timer) { stop(); $("play").click(); } };
+$("table").onchange = (e) => { tableIx = +e.target.value; render(); };
+$("colorby").onchange = render;
+let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 80); });
+window.__contraprova = { setN: (n) => setN(n), select: (i) => { selected = i; render(); }, data: () => D };
+load();
+})();
+</script>
+</body>
+</html>
