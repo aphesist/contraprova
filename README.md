@@ -16,7 +16,8 @@ between them is what escalation actually buys.
 
 ## Status
 
-**v0.1: the kernel.** Nothing has been measured yet. The experiment has not run.
+**v0.2: all parts built and integrated on one event schema ([events.md](docs/events.md)).** Nothing
+has been measured yet. No real API run has happened: every log so far is a dry run or synthetic.
 
 | Part | State |
 |---|---|
@@ -24,11 +25,15 @@ between them is what escalation actually buys.
 | Task projection: claim → submit → gate, attempt limits, done is final | Built, tested |
 | Cost projection from token counts, re-priceable under any price table | Built, tested |
 | Statistics: Wilson intervals, exact McNemar, paired bootstrap, Holm | Built, tested |
-| Lane contracts: declared file scopes, protected test files | Built, tested |
+| Lane contracts and submission gates (scope, protected tests, temp-workspace test runner) | Built, tested |
+| Router fitted from the log, replayable by hash; off-policy estimators with a self-audit | Built, tested on dry-run logs |
+| Messages API client (stdlib), shared budget cap, forks re-run from a logged point | Built, tested offline; never called the API |
+| Aider Polyglot harness, arms A–D, frozen partition, `--dry-run` with offline fakes | Built; dry-run end to end only |
+| MCP edge (`submit_intent`, `query_projection`) | Built, tested |
+| Analysis and `contraprova report`: per-arm, paired, escalation value, gate quality, frontier | Built; run on dry-run and synthetic logs only |
+| Replay UI | Built; shown on a synthetic demo log |
 | Reusable Claude Code orchestrator/worker configuration | Written, not yet evaluated |
-| Messages API runner, forks, router, gates, Aider Polyglot harness | Planned |
 | Local track (Contract Lanes on a rented GPU) | Planned |
-| Replay UI | Planned |
 
 ## Honesty table
 
@@ -58,6 +63,13 @@ pytest
 contraprova verify  path/to/log.jsonl              # check the hash chain and replay every event
 contraprova tasks   path/to/log.jsonl              # task state
 contraprova cost    path/to/log.jsonl --by role    # re-price recorded usage
+contraprova report  path/to/log.jsonl              # study report in Markdown, every number with its interval
+
+# all four arms on the pilot split, offline fakes, $0 (needs a polyglot-benchmark checkout)
+for arm in A B C D; do
+  python -m contraprova.harness.run --arm $arm --split pilot --polyglot PATH --log runs/pilot.jsonl \
+      --budget-usd 5 --dry-run
+done
 ```
 
 Python 3.11+, no runtime dependencies.
@@ -71,6 +83,8 @@ plan, route and review (it has no edit tools), Haiku 5.5 workers bound to file-s
 ## Documents
 
 - [Design](docs/design.md): architecture, kernel rules, what is new and what is not, the experiment
+- [Event payloads](docs/events.md): the one schema every module writes and reads
+- [Statistics](docs/statistics.md), [replay UI](docs/ui.md), [MCP edge](docs/mcp.md)
 - [Related work](docs/related-work.md): ESAA, replay research, routing, verification, parallel lanes
 
 ## Budget

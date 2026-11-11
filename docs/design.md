@@ -53,20 +53,22 @@ every view exactly, including the router.
 - **The orchestrator is mechanically limited.** It has no edit or shell tools. During measured runs it
   also cannot choose a worker's model: the router does, so routing probabilities stay valid.
 
-### Event vocabulary (v0.1)
+### Event vocabulary
+
+The payload of every event, required and optional fields, is defined once in
+[events.md](events.md); code that writes events follows it and code that reads them relies on it.
 
 | Event | Meaning |
 |---|---|
 | `task.created` | A job with its file scope; may `supersedes` a finished task |
 | `task.claimed` | A worker takes the job |
 | `task.submitted` | A worker proposes a result |
-| `gate.decided` | A gate passes or blocks the submission |
+| `gate.decided` | The gates pass or block the submission (one decision per submission) |
 | `route.decided` | Which model gets the job, with the probability of each choice and the router's hash |
-| `fork.created` | A counterfactual re-run from a past point, marked control or treatment |
-| `usage.recorded` | Tokens for one API request, tagged with role, arm and task |
-| `outcome.scored` | Whether an arm solved a task on the hidden score tests |
-
-Planned: `router.trained` (training prefix and weights hash) and gate evidence hashes.
+| `router.trained` | The log prefix a router was fitted on and its weight hash, so the fit can be replayed |
+| `fork.created` | A counterfactual re-run from a past point, marked control or treatment, with its own `fork_id` |
+| `usage.recorded` | Tokens for one API request, tagged with role, arm, task and, for forks, `fork_id` |
+| `outcome.scored` | Whether an arm (or a fork, by `fork_id`) solved a task on the hidden score tests, or whether a blocked patch would have passed (gate replay) |
 
 ## What is new, and what is not
 
