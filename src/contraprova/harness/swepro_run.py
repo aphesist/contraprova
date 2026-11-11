@@ -47,7 +47,7 @@ from ..interfaces import HAIKU, OPUS, SONNET
 from ..llm import AnthropicClient, Budget
 from ..log import EventLog
 from .arms import BudgetGuard
-from .docker import GB, ImageCache, docker_available, ensure_dockerd, image_head, run_verifier, stop_dockerd, system_df
+from .docker import GB, ImageCache, ensure_dockerd, image_head, run_verifier, stop_dockerd, system_df
 from .swepro import (
     DEFAULT_SEED,
     MAX_WORKER_PROMPT_TOKENS,
@@ -104,7 +104,7 @@ def _parser() -> argparse.ArgumentParser:
     ap.add_argument("--max-image-gb", type=float, default=20.0, help="disk cap for cached task images")
     ap.add_argument("--delete-images", action="store_true", help="delete each task's image when it is done")
     ap.add_argument("--context-source", default=None, choices=["image", "raw"],
-                    help="where context files come from (default: image; raw for dry runs without Docker)")
+                    help="where context files come from (default: image; raw for dry runs)")
     ap.add_argument("--test-timeout", type=float, default=1800.0, help="seconds per verifier run")
     ap.add_argument("--max-prompt-tokens", type=int, default=MAX_WORKER_PROMPT_TOKENS,
                     help="exclude tasks whose estimated worker prompt exceeds this (default 90000)")
@@ -281,9 +281,8 @@ def action_run(args, preflight_only: bool = False) -> int:
     log_path = Path(args.log)
     log_path.parent.mkdir(parents=True, exist_ok=True)
 
-    use_docker = not args.dry_run or docker_available()
-    if args.context_source is None:
-        args.context_source = "image" if use_docker else "raw"
+    if args.context_source is None:  # a dry run never pulls an image unless asked to
+        args.context_source = "raw" if args.dry_run else "image"
     started = ensure_dockerd() if (not args.dry_run) else None
     cache = _cache(args) if (args.context_source == "image" or not args.dry_run) else None
     try:
