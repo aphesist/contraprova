@@ -172,6 +172,7 @@ def test_usage_with_1h_breakdown(transport):
 
 def test_key_fallback_and_role_specific_env(transport, monkeypatch):
     monkeypatch.delenv("CONTRAPROVA_KEY_WORKER")
+    monkeypatch.delenv("PROJECTS_ANTHROPIC_KEY", raising=False)
     with pytest.raises(MissingAPIKey) as ei:
         make()[0].complete(model=HAIKU, system="", messages=MSGS, max_tokens=5)
     assert "CONTRAPROVA_KEY_WORKER" in str(ei.value) and "ANTHROPIC_API_KEY" in str(ei.value)
@@ -356,3 +357,15 @@ def test_recording_client(tmp_path):
     assert evs[0].actor == "worker-1"
     assert evs[0].payload["arm"] == "B" and evs[0].payload["request_id"] == "fake_000001"
     assert log.verify() == 2
+
+
+def test_shared_project_key_beats_fallback_and_base_url_is_pinned(transport, monkeypatch):
+    monkeypatch.delenv("CONTRAPROVA_KEY_WORKER")
+    monkeypatch.setenv("PROJECTS_ANTHROPIC_KEY", "shared-key")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "fallback-key")
+    monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://example.invalid")
+    transport["outcomes"] += [FakeResponse(OK_RESPONSE)]
+    make()[0].complete(model=HAIKU, system="", messages=MSGS, max_tokens=5)
+    req = transport["requests"][-1]
+    assert dict((k.lower(), v) for k, v in req.header_items())["x-api-key"] == "shared-key"
+    assert req.full_url == "https://api.anthropic.com/v1/messages"

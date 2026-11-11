@@ -46,6 +46,9 @@ EFFORTS = frozenset({"low", "medium", "high", "xhigh", "max"})
 CACHE_TTLS = frozenset({"5m", "1h"})
 # 408/409/429 and every 5xx (529 is overloaded_error) are retryable; other 4xx are not.
 RETRYABLE_STATUS = frozenset({408, 409, 429})
+# Shared project key first; ANTHROPIC_API_KEY only as a local fallback. The base URL is pinned to
+# API_URL on purpose: ANTHROPIC_BASE_URL is never read, because some runtimes point it elsewhere.
+SHARED_KEY_ENV = "PROJECTS_ANTHROPIC_KEY"
 FALLBACK_KEY_ENV = "ANTHROPIC_API_KEY"
 # Conservative characters-per-token for the pre-call spend estimate (real tokenizers average ~3.5-4).
 CHARS_PER_TOKEN_ESTIMATE = 2.5
@@ -192,7 +195,7 @@ class AnthropicClient(_Metered):
     """:class:`~contraprova.interfaces.LLMClient` over the Claude Messages API, via urllib.
 
     ``role`` selects the key: ``CONTRAPROVA_KEY_<ROLE>`` (or ``key_env`` if given), then
-    ``ANTHROPIC_API_KEY``. The role is also added to every usage payload as the ``role`` tag
+    ``PROJECTS_ANTHROPIC_KEY``, then ``ANTHROPIC_API_KEY``. The role is also added to every usage payload as the ``role`` tag
     unless the caller's tags set one.
     """
 
@@ -218,7 +221,7 @@ class AnthropicClient(_Metered):
             raise ValueError(f"cache_ttl must be one of {sorted(CACHE_TTLS)}")
         super().__init__(budget, on_usage, price_table, cache_ttl if cache_system else None)
         self.role = role
-        self.key_envs: tuple[str, ...] = (key_env or f"CONTRAPROVA_KEY_{role.upper()}", FALLBACK_KEY_ENV)
+        self.key_envs: tuple[str, ...] = (key_env or f"CONTRAPROVA_KEY_{role.upper()}", SHARED_KEY_ENV, FALLBACK_KEY_ENV)
         self.cache_system = cache_system
         self.base_url = base_url
         self.timeout = timeout

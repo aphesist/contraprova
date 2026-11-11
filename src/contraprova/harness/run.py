@@ -16,7 +16,7 @@ output and tests, so use it only inside a sandbox.
 
 The Messages API client: ``--client anthropic`` builds one
 ``contraprova.llm.AnthropicClient`` per harness role (worker, orchestrator,
-reviewer; keys ``CONTRAPROVA_KEY_<ROLE>``, then ``ANTHROPIC_API_KEY``) that
+reviewer; keys ``CONTRAPROVA_KEY_<ROLE>``, then ``PROJECTS_ANTHROPIC_KEY``, then ``ANTHROPIC_API_KEY``) that
 share one ``llm.Budget`` capped at ``--budget-usd`` and seeded with the spend
 already recorded in the log (:func:`anthropic_role_clients`). The harness
 writes ``usage.recorded`` itself, so these clients get no ``on_usage``
