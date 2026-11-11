@@ -1,0 +1,636 @@
+{
+ "spend_total": 1.982955,
+ "spend_by_model": {
+  "claude-opus-5-5": 1.8408679999999997,
+  "claude-haiku-5-5": 0.063997,
+  "claude-sonnet-5-5": 0.07808999999999999
+ },
+ "spend_by_arm_raw": {
+  "A": 0.58138,
+  "B": 0.023902,
+  "C": 0.8434619000000002,
+  "D": 0.5342110999999999
+ },
+ "spend_by_arm_shipped_rule": {
+  "A": 0.58138,
+  "B": 0.023902,
+  "C": 0.8434619000000002,
+  "D": 0.5342110999999999
+ },
+ "per_task_cost": {
+  "smoke": {
+   "A": 0.0332624,
+   "B": 0.00137046,
+   "C": 0.046319860000000004,
+   "D": 0.029442320000000004
+  },
+  "pilot": {
+   "A": 0.0319283076923077,
+   "B": 0.0013115153846153848,
+   "C": 0.04706635384615385,
+   "D": 0.02976919230769231
+  }
+ },
+ "n_tasks": {
+  "smoke": {
+   "A": 5,
+   "B": 5,
+   "C": 5,
+   "D": 5
+  },
+  "pilot": {
+   "A": 13,
+   "B": 13,
+   "C": 13,
+   "D": 13
+  }
+ },
+ "max_prompt_tokens": {
+  "claude-opus-5-5": 7108,
+  "claude-haiku-5-5": 6572,
+  "claude-sonnet-5-5": 4276
+ },
+ "haiku_over_100k": 0,
+ "solved": {
+  "smoke": {
+   "A": "5/5",
+   "B": "4/5",
+   "C": "5/5",
+   "D": "5/5"
+  },
+  "pilot": {
+   "A": "13/13",
+   "B": "13/13",
+   "C": "13/13",
+   "D": "13/13"
+  }
+ },
+ "haiku_first_attempts": [
+  {
+   "task": "B:go/react",
+   "split": "smoke",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "B:java/protein-translation",
+   "split": "smoke",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "B:javascript/food-chain",
+   "split": "smoke",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "B:python/forth",
+   "split": "smoke",
+   "method": "function",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "block",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": [
+    "exit code 1 (failed=1, passed=17)"
+   ]
+  },
+  {
+   "task": "B:rust/variable-length-quantity",
+   "split": "smoke",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "C:go/react",
+   "split": "smoke",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "C:java/protein-translation",
+   "split": "smoke",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "C:javascript/food-chain",
+   "split": "smoke",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "C:python/forth",
+   "split": "smoke",
+   "method": "function",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "pass",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "C:rust/variable-length-quantity",
+   "split": "smoke",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "D:go/react",
+   "split": "smoke",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "D:java/protein-translation",
+   "split": "smoke",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "D:javascript/food-chain",
+   "split": "smoke",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "D:python/forth",
+   "split": "smoke",
+   "method": "function",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "pass",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "B:cpp/perfect-numbers",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "B:go/bowling",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "B:go/poker",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "B:java/go-counting",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "B:java/palindrome-products",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "B:java/twelve-days",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "B:javascript/forth",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "B:javascript/resistor-color-trio",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "B:javascript/word-search",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "B:python/dot-dsl",
+   "split": "pilot",
+   "method": "function",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "block",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": [
+    "exit code 1 (failed=1, passed=3)"
+   ]
+  },
+  {
+   "task": "B:python/transpose",
+   "split": "pilot",
+   "method": "function",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "pass",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "B:rust/pig-latin",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "B:rust/say",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "C:cpp/perfect-numbers",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "C:go/bowling",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "C:go/poker",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "C:java/go-counting",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "C:java/palindrome-products",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "C:java/twelve-days",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "C:javascript/forth",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "C:javascript/resistor-color-trio",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "C:javascript/word-search",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "C:python/dot-dsl",
+   "split": "pilot",
+   "method": "function",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "pass",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "C:python/transpose",
+   "split": "pilot",
+   "method": "function",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "pass",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "C:rust/pig-latin",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "C:rust/say",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "D:cpp/perfect-numbers",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "D:go/bowling",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "D:go/poker",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "D:java/palindrome-products",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "D:java/twelve-days",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "D:javascript/forth",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "D:javascript/word-search",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  },
+  {
+   "task": "D:rust/pig-latin",
+   "split": "pilot",
+   "method": "fallback",
+   "parse_errors": [],
+   "visible": "pass",
+   "private": "n/a",
+   "scope": "pass",
+   "review": "n/a",
+   "reasons": []
+  }
+ ],
+ "haiku_visible_fail": {
+  "k": 0,
+  "n": 48,
+  "rate": 0.0,
+  "wilson95": [
+   0.0,
+   0.07410013074848033
+  ],
+  "forks_train_eval_180": {
+   "point": 0.0,
+   "lo": 0.0,
+   "hi": 13.33802353472646
+  }
+ },
+ "haiku_any_gate_fail": {
+  "k": 2,
+  "n": 48,
+  "wilson95": [
+   0.011501893385757703,
+   0.1397565598003493
+  ],
+  "forks_train_eval_180": {
+   "point": 7.5,
+   "lo": 2.0703408094363867,
+   "hi": 25.15618076406287
+  }
+ },
+ "haiku_visible_pass_private_fail": {
+  "k": 2,
+  "n": 48
+ },
+ "forks_observed": 0,
+ "blocks_observed": [],
+ "orchestrator_submissions": 0
+}

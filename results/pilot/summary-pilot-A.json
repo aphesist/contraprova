@@ -1,0 +1,14 @@
+{
+  "arm": "A",
+  "attempted": 13,
+  "solved": 13,
+  "skipped": 0,
+  "stopped": null,
+  "spent_usd": 0.9670432,
+  "partition_sha256": "97bbfea11d71fe3ecd20317add1309a1807d386c96658529e914bc5ea71e4340",
+  "dry_run": false,
+  "excluded": {
+    "cpp/meetup": "needs the Boost C++ libraries, which are not installed",
+    "go/counter": "excluded on the command line"
+  }
+}

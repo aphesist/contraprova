@@ -1,0 +1,429 @@
+[
+ {
+  "split": "smoke",
+  "id": "go/react",
+  "heuristic": 13,
+  "ref_rc": 0,
+  "discovered": 13,
+  "gates": [
+   [
+    "T0.scope",
+    "pass",
+    ""
+   ],
+   [
+    "T0.visible_tests",
+    "pass",
+    ""
+   ]
+  ],
+  "score_solved": true,
+  "stub_rc": 1
+ },
+ {
+  "split": "smoke",
+  "id": "java/protein-translation",
+  "heuristic": 31,
+  "ref_rc": 0,
+  "discovered": 31,
+  "gates": [
+   [
+    "T0.scope",
+    "pass",
+    ""
+   ],
+   [
+    "T0.visible_tests",
+    "pass",
+    ""
+   ]
+  ],
+  "score_solved": true,
+  "stub_rc": 1
+ },
+ {
+  "split": "smoke",
+  "id": "javascript/food-chain",
+  "heuristic": 10,
+  "ref_rc": 0,
+  "discovered": 10,
+  "gates": [
+   [
+    "T0.scope",
+    "pass",
+    ""
+   ],
+   [
+    "T0.visible_tests",
+    "pass",
+    ""
+   ]
+  ],
+  "score_solved": true,
+  "stub_rc": 1
+ },
+ {
+  "split": "smoke",
+  "id": "python/forth",
+  "heuristic": 54,
+  "ref_rc": 0,
+  "discovered": 54,
+  "gates": [
+   [
+    "T0.scope",
+    "pass",
+    ""
+   ],
+   [
+    "T0.visible_tests",
+    "pass",
+    ""
+   ],
+   [
+    "T1.private_tests",
+    "pass",
+    ""
+   ]
+  ],
+  "score_solved": true,
+  "stub_rc": 1
+ },
+ {
+  "split": "smoke",
+  "id": "rust/variable-length-quantity",
+  "heuristic": 26,
+  "ref_rc": 0,
+  "discovered": 26,
+  "gates": [
+   [
+    "T0.scope",
+    "pass",
+    ""
+   ],
+   [
+    "T0.visible_tests",
+    "pass",
+    ""
+   ]
+  ],
+  "score_solved": true,
+  "stub_rc": 101
+ },
+ {
+  "split": "pilot",
+  "id": "cpp/meetup",
+  "heuristic": 90,
+  "unavailable": "needs the Boost C++ libraries, which are not installed"
+ },
+ {
+  "split": "pilot",
+  "id": "cpp/perfect-numbers",
+  "heuristic": 13,
+  "ref_rc": 1,
+  "discovered": null,
+  "tail": "CMake Error at CMakeLists.txt:35 (add_executable):\n  Cannot find source file:\n\n    ws_test.cpp\n\n  Tried extensions .c .C .c++ .cc .cpp .cxx .cu .mpp .m .M .mm .ixx .cppm\n  .ccm .cxxm .c++m .h .hh .h++ .hm .hpp .hxx .in .txx .f .F .for .f77 .f90\n  .f95 .f03 .hip .ispc\n\n\nCMake Error at CMakeLists.txt:35 (add_executable):\n  No SOURCES given to target: ws\n\n\nCMake Generate step failed.  Build files cannot be regenerated correctly.\n",
+  "gates": [
+   [
+    "T0.scope",
+    "pass",
+    ""
+   ],
+   [
+    "T0.visible_tests",
+    "block",
+    "exit code 1"
+   ]
+  ],
+  "score_solved": false,
+  "stub_rc": 1
+ },
+ {
+  "split": "pilot",
+  "id": "go/bowling",
+  "heuristic": 31,
+  "ref_rc": 0,
+  "discovered": 31,
+  "gates": [
+   [
+    "T0.scope",
+    "pass",
+    ""
+   ],
+   [
+    "T0.visible_tests",
+    "pass",
+    ""
+   ]
+  ],
+  "score_solved": true,
+  "stub_rc": 1
+ },
+ {
+  "split": "pilot",
+  "id": "go/counter",
+  "heuristic": 0,
+  "ref_rc": 0,
+  "discovered": null,
+  "gates": [
+   [
+    "T0.scope",
+    "pass",
+    ""
+   ],
+   [
+    "T0.visible_tests",
+    "pass",
+    ""
+   ]
+  ],
+  "score_solved": true,
+  "stub_rc": 0
+ },
+ {
+  "split": "pilot",
+  "id": "go/poker",
+  "heuristic": 40,
+  "ref_rc": 0,
+  "discovered": 40,
+  "gates": [
+   [
+    "T0.scope",
+    "pass",
+    ""
+   ],
+   [
+    "T0.visible_tests",
+    "pass",
+    ""
+   ],
+   [
+    "T2.review",
+    "block",
+    "review required but no reviewer configured"
+   ]
+  ],
+  "score_solved": true,
+  "stub_rc": 1
+ },
+ {
+  "split": "pilot",
+  "id": "java/go-counting",
+  "heuristic": 11,
+  "ref_rc": 0,
+  "discovered": 11,
+  "gates": [
+   [
+    "T0.scope",
+    "pass",
+    ""
+   ],
+   [
+    "T0.visible_tests",
+    "pass",
+    ""
+   ]
+  ],
+  "score_solved": true,
+  "stub_rc": 1
+ },
+ {
+  "split": "pilot",
+  "id": "java/palindrome-products",
+  "heuristic": 12,
+  "ref_rc": 0,
+  "discovered": 12,
+  "gates": [
+   [
+    "T0.scope",
+    "pass",
+    ""
+   ],
+   [
+    "T0.visible_tests",
+    "pass",
+    ""
+   ]
+  ],
+  "score_solved": true,
+  "stub_rc": 1
+ },
+ {
+  "split": "pilot",
+  "id": "java/twelve-days",
+  "heuristic": 15,
+  "ref_rc": 0,
+  "discovered": 15,
+  "gates": [
+   [
+    "T0.scope",
+    "pass",
+    ""
+   ],
+   [
+    "T0.visible_tests",
+    "pass",
+    ""
+   ]
+  ],
+  "score_solved": true,
+  "stub_rc": 1
+ },
+ {
+  "split": "pilot",
+  "id": "javascript/forth",
+  "heuristic": 49,
+  "ref_rc": 0,
+  "discovered": 49,
+  "gates": [
+   [
+    "T0.scope",
+    "pass",
+    ""
+   ],
+   [
+    "T0.visible_tests",
+    "pass",
+    ""
+   ]
+  ],
+  "score_solved": true,
+  "stub_rc": 1
+ },
+ {
+  "split": "pilot",
+  "id": "javascript/resistor-color-trio",
+  "heuristic": 6,
+  "ref_rc": 0,
+  "discovered": 6,
+  "gates": [
+   [
+    "T0.scope",
+    "pass",
+    ""
+   ],
+   [
+    "T0.visible_tests",
+    "pass",
+    ""
+   ]
+  ],
+  "score_solved": true,
+  "stub_rc": 1
+ },
+ {
+  "split": "pilot",
+  "id": "javascript/word-search",
+  "heuristic": 22,
+  "ref_rc": 0,
+  "discovered": 22,
+  "gates": [
+   [
+    "T0.scope",
+    "pass",
+    ""
+   ],
+   [
+    "T0.visible_tests",
+    "pass",
+    ""
+   ]
+  ],
+  "score_solved": true,
+  "stub_rc": 1
+ },
+ {
+  "split": "pilot",
+  "id": "python/dot-dsl",
+  "heuristic": 12,
+  "ref_rc": 0,
+  "discovered": 12,
+  "gates": [
+   [
+    "T0.scope",
+    "pass",
+    ""
+   ],
+   [
+    "T0.visible_tests",
+    "pass",
+    ""
+   ],
+   [
+    "T1.private_tests",
+    "pass",
+    ""
+   ]
+  ],
+  "score_solved": true,
+  "stub_rc": 1
+ },
+ {
+  "split": "pilot",
+  "id": "python/transpose",
+  "heuristic": 12,
+  "ref_rc": 0,
+  "discovered": 12,
+  "gates": [
+   [
+    "T0.scope",
+    "pass",
+    ""
+   ],
+   [
+    "T0.visible_tests",
+    "pass",
+    ""
+   ],
+   [
+    "T1.private_tests",
+    "pass",
+    ""
+   ]
+  ],
+  "score_solved": true,
+  "stub_rc": 1
+ },
+ {
+  "split": "pilot",
+  "id": "rust/pig-latin",
+  "heuristic": 22,
+  "ref_rc": 101,
+  "discovered": null,
+  "tail": "error[E0432]: unresolved import `regex`\n --> src/lib.rs:3:5\n  |\n3 | use regex::Regex;\n  |     ^^^^^ use of unresolved module or unlinked crate `regex`\n  |\n  = help: if you wanted to use a crate named `regex`, use `cargo add regex` to add it to your `Cargo.toml`\n\nFor more information about this error, try `rustc --explain E0432`.\nerror: could not compile `pig-latin` (lib test) due to 1 previous error\nerror: could not compile `pig-latin` (lib) due to 1 previous error\n",
+  "gates": [
+   [
+    "T0.scope",
+    "pass",
+    ""
+   ],
+   [
+    "T0.visible_tests",
+    "block",
+    "exit code 101"
+   ]
+  ],
+  "score_solved": false,
+  "stub_rc": 101
+ },
+ {
+  "split": "pilot",
+  "id": "rust/say",
+  "heuristic": 19,
+  "ref_rc": 0,
+  "discovered": 19,
+  "gates": [
+   [
+    "T0.scope",
+    "pass",
+    ""
+   ],
+   [
+    "T0.visible_tests",
+    "pass",
+    ""
+   ]
+  ],
+  "score_solved": true,
+  "stub_rc": 101
+ }
+]
