@@ -16,8 +16,11 @@ between them is what escalation actually buys.
 
 ## Status
 
-**v0.2: all parts built and integrated on one event schema ([events.md](docs/events.md)).** Nothing
-has been measured yet. No real API run has happened: every log so far is a dry run or synthetic.
+**v0.2: all parts built and integrated on one event schema ([events.md](docs/events.md)).** One real
+API run so far: a pilot on Aider Polyglot (18 tasks per arm, $1.98).
+[Pilot summary](results/pilot/README.md): **the benchmark was too easy. Haiku 5.5 is already too good
+at it**, so orchestration only added cost and the escalation question could not be tested there. The
+main study moves to harder tasks.
 
 | Part | State |
 |---|---|
@@ -27,10 +30,11 @@ has been measured yet. No real API run has happened: every log so far is a dry r
 | Statistics: Wilson intervals, exact McNemar, paired bootstrap, Holm | Built, tested |
 | Lane contracts and submission gates (scope, protected tests, temp-workspace test runner) | Built, tested |
 | Router fitted from the log, replayable by hash; off-policy estimators with a self-audit | Built, tested on dry-run logs |
-| Messages API client (stdlib), shared budget cap, forks re-run from a logged point | Built, tested offline; never called the API |
-| Aider Polyglot harness, arms A–D, frozen partition, `--dry-run` with offline fakes | Built; dry-run end to end only |
+| Messages API client (stdlib), shared budget cap, forks re-run from a logged point | Built, tested; used for the pilot (forks not yet exercised live) |
+| Aider Polyglot harness, arms A–D, frozen partition, `--dry-run` with offline fakes | Built; pilot run on 18 tasks per arm |
+| Aider Polyglot pilot (5 smoke + 13 pilot exercises, arms A–D) | **Run**: [results](results/pilot/README.md) |
 | MCP edge (`submit_intent`, `query_projection`) | Built, tested |
-| Analysis and `contraprova report`: per-arm, paired, escalation value, gate quality, frontier | Built; run on dry-run and synthetic logs only |
+| Analysis and `contraprova report`: per-arm, paired, escalation value, gate quality, frontier | Built; run on the pilot log |
 | Replay UI | Built; shown on a synthetic demo log |
 | Reusable Claude Code orchestrator/worker configuration | Written, not yet evaluated |
 | Local track (Contract Lanes on a rented GPU) | Planned |
@@ -43,13 +47,14 @@ Every claim this project will make, and what kind of evidence stands behind it t
 |---|---|---|
 | Replay is deterministic; finished tasks never change; any edit to history is detected | **Tested** (property-based, not proof) | Hypothesis runs in `tests/test_properties.py` |
 | Re-pricing the history is exact and linear in the price table | **Tested** | `tests/test_pricing.py` |
-| The governed swarm costs less per solved task than a single Opus at low effort | Hypothesis | Paired bootstrap CI on 90 tasks |
-| Escalating to Sonnet beats a same-model Haiku retry | Hypothesis | Paired CI over about 60 forks, with the control as noise floor |
+| On Aider Polyglot, single Haiku 5.5 matches the orchestrated arms at ~1/25 of Opus's cost | **Measured (pilot, n=18; benchmark at ceiling)** | [results/pilot](results/pilot/README.md): Haiku 17/18 (94% [74%, 99%]) vs 18/18 for A, C, D; $0.0013 [$0.0011, $0.0016] vs Opus $0.0323 [$0.0275, $0.0372] per task |
+| The governed swarm costs less per solved task than a single Opus at low effort | Hypothesis, pending the harder benchmark | Paired bootstrap CI on 90 tasks |
+| Escalating to Sonnet beats a same-model Haiku retry | Hypothesis, pending the harder benchmark (Polyglot gives too few forks) | Paired CI over about 60 forks, with the control as noise floor |
 | A router learned from the log beats a fixed cascade | Hypothesis | Regret against the full fork matrix |
 | Log-only (off-policy) estimates recover the true policy value | Hypothesis | Estimate minus full-matrix truth |
 | Lane contracts and a test gate beat an ungated merge of the same lane outputs | Hypothesis | Shadow merge, exact McNemar |
 | A Sonnet reviewer is an independent check on Haiku | Hypothesis, and probably weak | Same vendor; correlated errors expected |
-| Results generalise beyond Aider Polyglot | Hypothesis | Out of scope for this study |
+| Results generalise beyond one benchmark | Hypothesis | Out of scope for this study |
 
 Rows move from *hypothesis* to *measured* only when a result with its confidence interval is committed
 under `results/`.
