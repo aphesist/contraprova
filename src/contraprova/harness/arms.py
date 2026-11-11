@@ -329,6 +329,9 @@ class ArmConfig:
     cheap_model: str = HAIKU
     worker_effort: str | None = "medium"  # Haiku and Sonnet workers (arm A's single model uses strong_effort)
     worker_max_tokens: int = 8000
+    # Per-model overrides of worker_max_tokens, as (model, max_tokens) pairs (e.g. SWE-bench Pro:
+    # Haiku 16K, Opus 12K). Empty: every worker model uses worker_max_tokens.
+    worker_max_tokens_by_model: tuple[tuple[str, int], ...] = ()
     orchestrator_max_tokens: int = 1000
     feedback_chars: int = 2000
     # Arm D's T2.review diff judge. None means no reviewer: T2 is then recorded as skipped by
@@ -496,7 +499,8 @@ class Harness:
             "split": split, "partition_sha256": self.partition_sha256, **extra,
         })
 
-    def submit(self, task_id: str, attempt: int, model: str, parsed: ParsedFiles, ex: Exercise) -> Submission:
+    def submit(self, task_id: str, attempt: int, model: str, parsed: ParsedFiles, ex: Exercise,
+               response: str | None = None) -> Submission:
         files = {p: c for p, c in parsed.files.items()}
         self.emit("task.submitted", f"worker:{model}", {
             "task_id": task_id, "attempt": attempt, "model": model, "files": sorted(files),
@@ -536,7 +540,7 @@ class Harness:
                                   brief=b, stubs=format_files(ex.stubs()),
                                   tests=format_files(materialize_tests(ex, ts, "visible")) or "(none)")
 
-    def retry_prompt(self, base: str, previous: Mapping[str, str], feedback: str) -> str:
+    def retry_prompt(self, base: str, previous: Mapping[str, str], feedback: str, ex: Exercise | None = None) -> str:
         fb = feedback.strip()[: self.config.feedback_chars] or "(no details)"
         return base + "\n" + WORKER_RETRY.format(previous=format_files(previous) or "(no files parsed)", feedback=fb)
 
@@ -546,10 +550,26 @@ class Harness:
         self.emit("task.claimed", f"worker:{model}", {"task_id": task_id, "worker": model, "attempt": attempt})
         if effort is None:
             effort = self.config.worker_effort
-        c = self.call(arm=arm, role=role, task_id=task_id, model=model, system=WORKER_SYSTEM, user=prompt,
-                      max_tokens=self.config.worker_max_tokens, effort=effort, fork_id=fork_id,
+        c = self.call(arm=arm, role=role, task_id=task_id, model=model, system=self.worker_system, user=prompt,
+                      max_tokens=self.worker_max_tokens(model), effort=effort, fork_id=fork_id,
                       cache_upto=cache_upto)
-        return self.submit(task_id, attempt, model, parse_files(c.text), ex)
+        return self.submit(task_id, attempt, model, self.parse_reply(c.text, ex), ex, response=c.text)
+
+    # ---- hooks a benchmark-specific harness overrides (``swepro.ProHarness``)
+
+    worker_system = WORKER_SYSTEM  # class attributes, not dataclass fields
+    lead_system = LEAD_SYSTEM
+    brief_request = BRIEF_REQUEST
+
+    def worker_max_tokens(self, model: str) -> int:
+        return dict(self.config.worker_max_tokens_by_model).get(model, self.config.worker_max_tokens)
+
+    def parse_reply(self, text: str, ex: Exercise) -> ParsedFiles:
+        return parse_files(text)
+
+    def review_prompt(self, context: str, sub: Submission, ex: Exercise) -> str:
+        """Arm C's review request: the lead context, then the submitted files."""
+        return context + REVIEW_REQUEST.format(files=format_files(sub.files) or "(no files parsed)")
 
     def lead_context(self, ex: Exercise, ts: TestSplit) -> str:
         """The exercise part shared by the orchestrator's brief and arm C's review (same bytes)."""
@@ -560,7 +580,8 @@ class Harness:
     def _brief(self, arm: str, task_id: str, ex: Exercise, ts: TestSplit, cache_context: bool = False) -> str:
         context = self.lead_context(ex, ts)
         c = self.call(arm=arm, role="orchestrator", task_id=task_id, model=self.config.strong_model,
-                      system=LEAD_SYSTEM, user=context + BRIEF_REQUEST, max_tokens=self.config.orchestrator_max_tokens,
+                      system=self.lead_system, user=context + self.brief_request,
+                      max_tokens=self.config.orchestrator_max_tokens,
                       effort=self.config.strong_effort, cache_upto=len(context) if cache_context else 0)
         return c.text
 
@@ -632,8 +653,8 @@ class Harness:
         base = self.worker_prompt(ex, ts, brief)
         sub = self._work(arm, tid, ex, cfg.cheap_model, base, 1)
         context = self.lead_context(ex, ts)
-        review = context + REVIEW_REQUEST.format(files=format_files(sub.files) or "(no files parsed)")
-        c = self.call(arm=arm, role="reviewer", task_id=tid, model=cfg.strong_model, system=LEAD_SYSTEM,
+        review = self.review_prompt(context, sub, ex)
+        c = self.call(arm=arm, role="reviewer", task_id=tid, model=cfg.strong_model, system=self.lead_system,
                       user=review, max_tokens=cfg.orchestrator_max_tokens, effort=cfg.strong_effort,
                       cache_upto=len(context))
         first, _, rest = c.text.strip().partition("\n")
@@ -643,7 +664,7 @@ class Harness:
             "reason": (rest.strip() or first.strip())[: cfg.feedback_chars], "results": [],
         })
         if redispatch:
-            sub = self._work(arm, tid, ex, cfg.cheap_model, self.retry_prompt(base, sub.files, rest or first), 2)
+            sub = self._work(arm, tid, ex, cfg.cheap_model, self.retry_prompt(base, sub.files, rest or first, ex), 2)
             self._accept(tid, 2, "C.accept_after_redispatch", "one re-dispatch allowed; no further review")
         return self.score(arm, sub, TaskContext(arm, tid, ex, ts, cfg.cheap_model, sub.attempt, split=split))
 
@@ -702,7 +723,7 @@ class Harness:
         # First gate failure: fork from the blocking gate.decided and re-execute both ways.
         fork_point = self.log.events()[-1].seq
         feedback = "\n".join(f"[{r.gate}] {r.reason}" for r in results if r.verdict != "pass")
-        retry = self.retry_prompt(base, sub.files, feedback)
+        retry = self.retry_prompt(base, sub.files, feedback, ex)
         # After the gate failure: the gate's evidence about the blocked attempt.
         action = self._route(arm, tid, "after_gate_failure",
                              self.features(ex, ts, attempt=2, submission=sub, results=results, contract=contract))
