@@ -140,6 +140,28 @@ fixed seed before any pilot: 5 smoke, 15 pilot, 90 router training, 90 evaluatio
 are split into visible (seen by workers), gate-private (seen only by the governed arm's gate) and score
 (seen by no model and no gate).
 
+**The three-way test split is Python-only.** Only Python exercises are split at test-function level
+(and only those with enough tests). Every other exercise uses the fallback: visible and score are both
+the full suite and there are no gate-private tests (`TestSplit.method == "fallback"`). On those
+exercises the score tests are not hidden from workers, so passing the visible tests means solving the
+task, and the governed arm's gate is no stronger than the visible tests. Analyses must report
+fallback exercises separately. In the pilot, 41 of the 48 Haiku first attempts were on fallback
+exercises.
+
+**Toolchains run offline.** Rust runs `cargo test --offline` with no crates vendored, so any solution
+that adds a dependency fails to build. rust/pig-latin's own reference solution needs `regex` and fails
+this way. The T2 diff judge treats a new dependency as a reason to block. Java runs as `javac` plus the
+JUnit console launcher instead of the Gradle wrapper, and JavaScript links one shared jest install.
+
+**Exercise exclusions.** Two pilot exercises were left out, and the same rule should hold for the main run:
+
+- **cpp/meetup** needs Boost `date_time`, which is not installed. `runners.exercise_unavailable`
+  excludes any C++ exercise whose CMake file asks for Boost when Boost is missing (2 of 26 C++
+  exercises), so the main run needs Boost installed, or these exercises are dropped by that rule.
+- **go/counter** is a deprecated "write the test suite" exercise with an empty test file, so every
+  submission passes, including the unchanged stub. It should be dropped, along with any exercise
+  whose runner finds 0 tests.
+
 | Arm | Setup |
 |---|---|
 | A | Single Opus 5.5 at low effort (the fair strong baseline) |
