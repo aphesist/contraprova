@@ -8,6 +8,7 @@ from contraprova.events import Event
 from contraprova.forks import (
     conversation_prefix,
     fork,
+    fork_id_for,
     fork_pair,
     list_forks,
     run_fork,
@@ -63,6 +64,16 @@ def test_fork_created_payload(log):
     assert list_forks(log)[fid].seq == ev.seq
     # forks do not change task state
     assert project_tasks(log.events())["t1"].status == "todo"
+
+
+def test_fork_extra_optional_fields(log):
+    fid = fork(log, "t1", 3, HAIKU, "control", 7, extra={"fork_task_id": "t1:control-1", "branch": "control-1", "arm": "D"})
+    p = log.events()[-1].payload
+    assert p["fork_task_id"] == "t1:control-1" and p["branch"] == "control-1" and p["arm"] == "D"
+    # Optional fields are not part of the id.
+    assert fid == fork_id_for("t1", 3, HAIKU, "control", 7, log.events()[3].hash)
+    with pytest.raises(ValueError):
+        fork(log, "t1", 3, HAIKU, "control", 8, extra={"model": SONNET})
 
 
 def test_fork_validation(log):

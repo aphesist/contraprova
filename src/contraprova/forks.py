@@ -20,6 +20,9 @@ Written, ``fork.created``::
                        (the Messages API has no sampling seed: each run is an independent sample)
     prefix_hash  str   the chain hash of the event at from_seq, which commits to every event up to it
 
+    Optional (``extra``, not hashed into fork_id): fork_task_id (kernel id of the child task),
+    branch (e.g. "control-1"), arm (the parent arm). See docs/events.md.
+
 Read, only from events with ``seq <= from_seq`` and ``payload.task_id == task_id``:
 
     task.created    task_id, title, prompt (optional), scope (optional list), system (optional)
@@ -159,8 +162,11 @@ def list_forks(source: Any) -> dict[str, Fork]:
 
 
 def fork(log: Any, task_id: str, from_seq: int, model: str, role: str, seed: int, *,
-         actor: str = "forker", ts: str | None = None) -> str:
+         actor: str = "forker", ts: str | None = None, extra: Mapping[str, Any] | None = None) -> str:
     """Append a ``fork.created`` event and return the fork id.
+
+    ``extra`` adds the optional fields of docs/events.md (``fork_task_id``, ``branch``, ``arm``);
+    it cannot override a required field. They are not part of the fork id.
 
     Raises ValueError if ``role`` is not control/treatment, the fork point is not one of the
     task's events, the prefix there does not end on a user turn (it could not be re-run without
@@ -181,6 +187,10 @@ def fork(log: Any, task_id: str, from_seq: int, model: str, role: str, seed: int
         raise ValueError(f"fork {fid} already exists")
     payload = {"fork_id": fid, "task_id": task_id, "from_seq": from_seq, "model": model, "role": role,
                "seed": seed, "prefix_hash": prefix.prefix_hash}
+    clash = sorted(set(extra or {}) & set(payload))
+    if clash:
+        raise ValueError(f"extra may not override {clash}")
+    payload.update(extra or {})
     log.append("fork.created", actor, payload, ts)
     return fid
 
