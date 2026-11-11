@@ -1,0 +1,606 @@
+{
+ "instance_NodeBB__NodeBB-da0211b1a001d45d73b4c84c6417a4f1b0312575-vf2cf3cbd463b7ad942381f1c6d077626485a1e9e": {
+  "B": {
+   "prompt": 2890,
+   "out": 1954,
+   "usd": 0.001266,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 2,
+   "solved": true,
+   "ev": {
+    "f2p_passed": 2,
+    "f2p_total": 2,
+    "p2p_passed": 23,
+    "p2p_total": 23,
+    "reward": 1
+   }
+  },
+  "B2": {
+   "prompt": 2890,
+   "out": 1809,
+   "usd": 0.0011935,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 2,
+   "solved": true,
+   "ev": {
+    "f2p_passed": 2,
+    "f2p_total": 2,
+    "p2p_passed": 23,
+    "p2p_total": 23,
+    "reward": 1
+   }
+  },
+  "A": {
+   "prompt": 2890,
+   "out": 796,
+   "usd": 0.02748,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 2,
+   "solved": true,
+   "ev": {
+    "f2p_passed": 2,
+    "f2p_total": 2,
+    "p2p_passed": 23,
+    "p2p_total": 23,
+    "reward": 1
+   }
+  }
+ },
+ "instance_internetarchive__openlibrary-58999808a17a26b387f8237860a7a524d1e2d262-v08d8e8889ec945ab821fb156c04c7d2e2810debb": {
+  "B": {
+   "prompt": 3494,
+   "out": 610,
+   "usd": 0.0006544000000000001,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 1,
+   "solved": true,
+   "ev": {
+    "f2p_passed": 3,
+    "f2p_total": 3,
+    "p2p_passed": 0,
+    "p2p_total": 0,
+    "reward": 1
+   }
+  },
+  "B2": {
+   "prompt": 3494,
+   "out": 875,
+   "usd": 0.0007869000000000001,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 1,
+   "solved": true,
+   "ev": {
+    "f2p_passed": 3,
+    "f2p_total": 3,
+    "p2p_passed": 0,
+    "p2p_total": 0,
+    "reward": 1
+   }
+  },
+  "A": {
+   "prompt": 3494,
+   "out": 688,
+   "usd": 0.027736,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 1,
+   "solved": true,
+   "ev": {
+    "f2p_passed": 3,
+    "f2p_total": 3,
+    "p2p_passed": 0,
+    "p2p_total": 0,
+    "reward": 1
+   }
+  }
+ },
+ "instance_element-hq__element-web-41dfec20bfe9b62cddbbbf621bef2e9aa9685157-vnan": {
+  "B": {
+   "prompt": 6353,
+   "out": 3174,
+   "usd": 0.0022223,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 2,
+   "solved": false,
+   "ev": {
+    "f2p_passed": 1,
+    "f2p_total": 3,
+    "p2p_passed": 102,
+    "p2p_total": 102,
+    "reward": 0
+   }
+  },
+  "B2": {
+   "prompt": 6353,
+   "out": 2530,
+   "usd": 0.0019003000000000002,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 2,
+   "solved": false,
+   "ev": {
+    "f2p_passed": 0,
+    "f2p_total": 3,
+    "p2p_passed": 99,
+    "p2p_total": 102,
+    "reward": 0
+   }
+  },
+  "A": {
+   "prompt": 6353,
+   "out": 773,
+   "usd": 0.040872,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 2,
+   "solved": true,
+   "ev": {
+    "f2p_passed": 3,
+    "f2p_total": 3,
+    "p2p_passed": 102,
+    "p2p_total": 102,
+    "reward": 1
+   }
+  }
+ },
+ "instance_ansible__ansible-29aea9ff3466e4cd2ed00524b9e56738d568ce8b-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5": {
+  "B": {
+   "prompt": 9189,
+   "out": 5271,
+   "usd": 0.0035544,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 3,
+   "solved": true,
+   "ev": {
+    "f2p_passed": 4,
+    "f2p_total": 4,
+    "p2p_passed": 10,
+    "p2p_total": 10,
+    "reward": 1
+   }
+  },
+  "B2": {
+   "prompt": 9189,
+   "out": 5173,
+   "usd": 0.0035054,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 3,
+   "solved": true,
+   "ev": {
+    "f2p_passed": 4,
+    "f2p_total": 4,
+    "p2p_passed": 10,
+    "p2p_total": 10,
+    "reward": 1
+   }
+  },
+  "A": {
+   "prompt": 9189,
+   "out": 1817,
+   "usd": 0.073096,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 3,
+   "solved": true,
+   "ev": {
+    "f2p_passed": 4,
+    "f2p_total": 4,
+    "p2p_passed": 10,
+    "p2p_total": 10,
+    "reward": 1
+   }
+  }
+ },
+ "instance_qutebrowser__qutebrowser-a84ecfb80a00f8ab7e341372560458e3f9cfffa2-v2ef375ac784985212b1805e1d0431dc8f1b3c171": {
+  "B": {
+   "prompt": 16576,
+   "out": 755,
+   "usd": 0.0020351,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 2,
+   "solved": true,
+   "ev": {
+    "f2p_passed": 3,
+    "f2p_total": 3,
+    "p2p_passed": 28,
+    "p2p_total": 28,
+    "reward": 1
+   }
+  },
+  "B2": {
+   "prompt": 16576,
+   "out": 1204,
+   "usd": 0.0022596000000000005,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 2,
+   "solved": true,
+   "ev": {
+    "f2p_passed": 3,
+    "f2p_total": 3,
+    "p2p_passed": 28,
+    "p2p_total": 28,
+    "reward": 1
+   }
+  },
+  "A": {
+   "prompt": 16576,
+   "out": 452,
+   "usd": 0.075344,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 2,
+   "solved": true,
+   "ev": {
+    "f2p_passed": 3,
+    "f2p_total": 3,
+    "p2p_passed": 28,
+    "p2p_total": 28,
+    "reward": 1
+   }
+  }
+ },
+ "instance_element-hq__element-web-ad26925bb6628260cfe0fcf90ec0a8cba381f4a4-vnan": {
+  "B": {
+   "prompt": 15883,
+   "out": 16000,
+   "usd": 0.0095883,
+   "stop": null,
+   "parse_errors": [
+    "block 2: no '=======' line after SEARCH (block dropped)"
+   ],
+   "nfiles": 1,
+   "solved": false,
+   "ev": {
+    "f2p_passed": 3,
+    "f2p_total": 17,
+    "p2p_passed": 184,
+    "p2p_total": 184,
+    "reward": 0
+   }
+  },
+  "B2": {
+   "prompt": 15883,
+   "out": 16000,
+   "usd": 0.0095883,
+   "stop": null,
+   "parse_errors": [
+    "block 2: no '>>>>>>> REPLACE' line (block truncated or malformed; dropped)"
+   ],
+   "nfiles": 1,
+   "solved": false,
+   "ev": {
+    "f2p_passed": 0,
+    "f2p_total": 17,
+    "p2p_passed": 0,
+    "p2p_total": 184,
+    "reward": 0
+   }
+  },
+  "A": {
+   "prompt": 15883,
+   "out": 8878,
+   "usd": 0.241092,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 5,
+   "solved": true,
+   "ev": {
+    "f2p_passed": 17,
+    "f2p_total": 17,
+    "p2p_passed": 184,
+    "p2p_total": 184,
+    "reward": 1
+   }
+  }
+ },
+ "instance_ansible__ansible-a20a52701402a12f91396549df04ac55809f68e9-v1055803c3a812189a1133297f7f5468579283f86": {
+  "B": {
+   "prompt": 19408,
+   "out": 1613,
+   "usd": 0.0027473000000000003,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 2,
+   "solved": true,
+   "ev": {
+    "f2p_passed": 1,
+    "f2p_total": 1,
+    "p2p_passed": 56,
+    "p2p_total": 56,
+    "reward": 1
+   }
+  },
+  "B2": {
+   "prompt": 19408,
+   "out": 995,
+   "usd": 0.0024383,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 2,
+   "solved": true,
+   "ev": {
+    "f2p_passed": 1,
+    "f2p_total": 1,
+    "p2p_passed": 56,
+    "p2p_total": 56,
+    "reward": 1
+   }
+  },
+  "A": {
+   "prompt": 19408,
+   "out": 681,
+   "usd": 0.091252,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 2,
+   "solved": true,
+   "ev": {
+    "f2p_passed": 1,
+    "f2p_total": 1,
+    "p2p_passed": 56,
+    "p2p_total": 56,
+    "reward": 1
+   }
+  }
+ },
+ "instance_NodeBB__NodeBB-f2082d7de85eb62a70819f4f3396dd85626a0c0a-vd59a5728dfc977f44533186ace531248c2917516": {
+  "B": {
+   "prompt": 24584,
+   "out": 2321,
+   "usd": 0.0036189,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 3,
+   "solved": true,
+   "ev": {
+    "f2p_passed": 6,
+    "f2p_total": 6,
+    "p2p_passed": 111,
+    "p2p_total": 111,
+    "reward": 1
+   }
+  },
+  "B2": {
+   "prompt": 24584,
+   "out": 2514,
+   "usd": 0.0037154,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 2,
+   "solved": true,
+   "ev": {
+    "f2p_passed": 6,
+    "f2p_total": 6,
+    "p2p_passed": 111,
+    "p2p_total": 111,
+    "reward": 1
+   }
+  },
+  "A": {
+   "prompt": 24584,
+   "out": 1882,
+   "usd": 0.135976,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 5,
+   "solved": true,
+   "ev": {
+    "f2p_passed": 6,
+    "f2p_total": 6,
+    "p2p_passed": 111,
+    "p2p_total": 111,
+    "reward": 1
+   }
+  }
+ },
+ "instance_internetarchive__openlibrary-6e889f4a733c9f8ce9a9bd2ec6a934413adcedb9-ve8c8d62a2b60610a3c4631f5f23ed866bada9818": {
+  "B": {
+   "prompt": 22745,
+   "out": 4130,
+   "usd": 0.0043395,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 2,
+   "solved": false,
+   "ev": {
+    "f2p_passed": 6,
+    "f2p_total": 7,
+    "p2p_passed": 10,
+    "p2p_total": 10,
+    "reward": 0
+   }
+  },
+  "B2": {
+   "prompt": 22745,
+   "out": 4076,
+   "usd": 0.0043125,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 2,
+   "solved": false,
+   "ev": {
+    "f2p_passed": 6,
+    "f2p_total": 7,
+    "p2p_passed": 10,
+    "p2p_total": 10,
+    "reward": 0
+   }
+  },
+  "A": {
+   "prompt": 22745,
+   "out": 1564,
+   "usd": 0.12226,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 2,
+   "solved": false,
+   "ev": {
+    "f2p_passed": 6,
+    "f2p_total": 7,
+    "p2p_passed": 10,
+    "p2p_total": 10,
+    "reward": 0
+   }
+  }
+ },
+ "instance_internetarchive__openlibrary-25858f9f0c165df25742acf8309ce909773f0cdd-v13642507b4fc1f8d234172bf8129942da2c2ca26": {
+  "B": {
+   "prompt": 26206,
+   "out": 7029,
+   "usd": 0.0061351,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 4,
+   "solved": true,
+   "ev": {
+    "f2p_passed": 13,
+    "f2p_total": 13,
+    "p2p_passed": 33,
+    "p2p_total": 33,
+    "reward": 1
+   }
+  },
+  "B2": {
+   "prompt": 26206,
+   "out": 6693,
+   "usd": 0.0059671,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 4,
+   "solved": true,
+   "ev": {
+    "f2p_passed": 13,
+    "f2p_total": 13,
+    "p2p_passed": 33,
+    "p2p_total": 33,
+    "reward": 1
+   }
+  },
+  "A": {
+   "prompt": 26206,
+   "out": 4626,
+   "usd": 0.197344,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 4,
+   "solved": true,
+   "ev": {
+    "f2p_passed": 13,
+    "f2p_total": 13,
+    "p2p_passed": 33,
+    "p2p_total": 33,
+    "reward": 1
+   }
+  }
+ },
+ "instance_ansible__ansible-34db57a47f875d11c4068567b9ec7ace174ec4cf-v1055803c3a812189a1133297f7f5468579283f86": {
+  "B": {
+   "prompt": 36660,
+   "out": 2086,
+   "usd": 0.004709,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 2,
+   "solved": true,
+   "ev": {
+    "f2p_passed": 3,
+    "f2p_total": 3,
+    "p2p_passed": 0,
+    "p2p_total": 0,
+    "reward": 1
+   }
+  },
+  "B2": {
+   "prompt": 36660,
+   "out": 1985,
+   "usd": 0.0046585,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 2,
+   "solved": true,
+   "ev": {
+    "f2p_passed": 3,
+    "f2p_total": 3,
+    "p2p_passed": 0,
+    "p2p_total": 0,
+    "reward": 1
+   }
+  },
+  "A": {
+   "prompt": 36660,
+   "out": 618,
+   "usd": 0.159,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 2,
+   "solved": true,
+   "ev": {
+    "f2p_passed": 3,
+    "f2p_total": 3,
+    "p2p_passed": 0,
+    "p2p_total": 0,
+    "reward": 1
+   }
+  }
+ },
+ "instance_qutebrowser__qutebrowser-5fdc83e5da6222fe61163395baaad7ae57fa2cb4-v363c8a7e5ccdf6968fc7ab84a2053ac78036691d": {
+  "B": {
+   "prompt": 38726,
+   "out": 1869,
+   "usd": 0.004807100000000001,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 3,
+   "solved": true,
+   "ev": {
+    "f2p_passed": 11,
+    "f2p_total": 11,
+    "p2p_passed": 46,
+    "p2p_total": 46,
+    "reward": 1
+   }
+  },
+  "B2": {
+   "prompt": 38726,
+   "out": 1835,
+   "usd": 0.0047901,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 3,
+   "solved": true,
+   "ev": {
+    "f2p_passed": 11,
+    "f2p_total": 11,
+    "p2p_passed": 46,
+    "p2p_total": 46,
+    "reward": 1
+   }
+  },
+  "A": {
+   "prompt": 38726,
+   "out": 921,
+   "usd": 0.173324,
+   "stop": null,
+   "parse_errors": [],
+   "nfiles": 3,
+   "solved": true,
+   "ev": {
+    "f2p_passed": 11,
+    "f2p_total": 11,
+    "p2p_passed": 46,
+    "p2p_total": 46,
+    "reward": 1
+   }
+  }
+ }
+}
