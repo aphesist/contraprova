@@ -368,3 +368,46 @@ def test_report_markdown_content(three, tmp_path):
     fmd = report_markdown(fevs, iters=ITERS)
     assert f"| {SONNET} vs {HAIKU} | 30 | 18/30 | 6/30 | 12 | 0 |" in fmd
     assert "+40.0 pts" in fmd and "(n=30 pairs)" in fmd
+
+
+def test_canonical_harness_shaped_events(tmp_path):
+    """docs/events.md shapes: kernel ids on usage, pairing keys on outcomes, fork outcomes by fork_id."""
+    log = EventLog(tmp_path / "h.jsonl")
+    for arm in ("B", "D"):
+        add(log, "task.created", {"task_id": f"{arm}:ex/a", "title": "ex/a", "scope": ["a.py"], "arm": arm, "exercise_id": "ex/a"})
+    usage(log, HAIKU, {"input_tokens": 1000, "output_tokens": 100}, arm="B", role="worker", task_id="B:ex/a")
+    outcome(log, "B", "ex/a", False, log_task_id="B:ex/a")
+    usage(log, OPUS, {"input_tokens": 1000, "output_tokens": 100}, arm="D", role="orchestrator", task_id="D:ex/a")
+    add(log, "task.claimed", {"task_id": "D:ex/a"})
+    add(log, "task.submitted", {"task_id": "D:ex/a", "files": ["a.py"]})
+    gate = add(log, "gate.decided", {"task_id": "D:ex/a", "gate": "T0.visible_tests", "verdict": "block", "reason": "x"})
+    fids = []
+    for i, (branch, role, model) in enumerate((("control-1", "control", HAIKU), ("control-2", "control", HAIKU),
+                                               ("treatment", "treatment", SONNET))):
+        fid = f"fork-{i:016d}"
+        fids.append(fid)
+        add(log, "fork.created", {"fork_id": fid, "task_id": "D:ex/a", "from_seq": gate.seq, "model": model, "role": role,
+                                  "seed": 100 + i, "prefix_hash": gate.hash, "fork_task_id": f"D:ex/a:{branch}",
+                                  "branch": branch, "arm": "D"})
+        usage(log, model, {"input_tokens": 1000, "output_tokens": 100}, arm="D", role="worker",
+              task_id=f"D:ex/a:{branch}", fork_id=fid)
+        outcome(log, "D", "ex/a", role == "treatment" or branch == "control-2", fork_id=fid,
+                log_task_id=f"D:ex/a:{branch}", gate_passed=True, branch=branch)
+    outcome(log, "D", "ex/a", True, log_task_id="D:ex/a", branch_task_id="D:ex/a:treatment", shipped=True)
+    add(log, "outcome.scored", {"gate_seq": gate.seq, "solved": True})
+
+    r = analyze(log.events(), iters=200)
+    assert set(r.arms) == {"B", "D"}
+    d = r.arms["D"]
+    assert (d.n, d.solved) == (1, 1)
+    # Only the orchestrator is D's own cost; fork usage is fork cost even though it names arm D.
+    assert close(d.total_cost, T[OPUS].input * 1000 / 1e6 + T[OPUS].output * 100 / 1e6, 1e-9)
+    assert d.unattributed_cost == pytest.approx(0, abs=1e-12)  # kernel id D:ex/a mapped to pairing key ex/a
+    assert r.arms["B"].unattributed_cost == pytest.approx(0, abs=1e-12)
+    (e,) = r.escalation
+    assert (e.treatment_model, e.control_model, e.n, e.treatment_solved, e.control_solved) == (SONNET, HAIKU, 1, 1, 0)
+    assert r.noise_floors[HAIKU].n == 1 and r.noise_floors[HAIKU].value == 1.0  # the two controls disagree
+    assert r.gates[0].replayed == 1 and r.gates[0].false_blocks == 1
+    assert not [w for w in r.warnings if "unknown fork" in w or "no outcome" in w]
+    md = report_markdown(log.events(), iters=200)
+    assert f"| {SONNET} vs {HAIKU} | 1 |" in md

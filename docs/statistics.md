@@ -101,17 +101,18 @@ rate, McNemar p or EV.
 
 ## Data the analysis reads
 
-Missing **required** fields raise an error, because silently dropping an outcome would bias the result. A
+Payload shapes are defined in [events.md](events.md); this table lists only what the analysis
+enforces. Missing **required** fields raise an error, because silently dropping an outcome would bias the result. A
 usage record whose model has no price in the table also raises. Missing **optional** tags are handled and
 listed under "Warnings" in the report.
 
 | Event | Required | Optional, and what happens without it |
 |---|---|---|
-| `outcome.scored` (arm outcome) | `arm`, `task_id`, `solved` | A later score for the same (arm, task) replaces an earlier one |
+| `outcome.scored` (arm outcome) | `arm`, `task_id` (pairing key), `solved` | A later score for the same (arm, task) replaces an earlier one. `log_task_id` maps the kernel task to the pairing key for cost attribution |
 | `outcome.scored` (fork outcome) | `fork_id`, `solved` | Never counts toward an arm's solve rate. An unknown `fork_id` is a warning |
 | `outcome.scored` (gate replay) | `gate_seq` (seq of the `gate.decided` block replayed), `solved` (did the blocked patch pass the score tests) | `task_id` is informational. Pointing at a pass or a non-gate event is a warning |
-| `usage.recorded` | `model` and token counts, as written by `usage.usage_payload` | `arm`: without it (and without `fork_id`) the cost is "untagged". `task_id`: without it the cost is in the arm total but not in per-task statistics. `role`: only `"orchestrator"` counts toward the orchestrator share. `fork_id`: the cost belongs to that fork and not to any arm |
-| `fork.created` | `task_id`, `model`, `role` (`"control"` or `"treatment"`) | `from_seq`: forks are grouped into fork points by (`task_id`, `from_seq`). `seed`: two controls count toward the noise floor only if their seeds differ. `fork_id`: defaults to `fork@<seq>`, the seq of the `fork.created` event |
+| `usage.recorded` | `model` and token counts, as written by `usage.usage_payload` | `arm`: without it (and without `fork_id`) the cost is "untagged". `task_id`: without it the cost is in the arm total but not in per-task statistics; a kernel task id is mapped to its pairing key (via `task.created.exercise_id` or an outcome's `log_task_id`). `role`: only `"orchestrator"` counts toward the orchestrator share. `fork_id`: the cost belongs to that fork and not to any arm |
+| `fork.created` | `task_id`, `model`, `role` (`"control"` or `"treatment"`); events.md also requires `fork_id`, `from_seq`, `seed` | Extra fields (`prefix_hash`, `fork_task_id`, `branch`, `arm`) are ignored. `from_seq`: forks are grouped into fork points by (`task_id`, `from_seq`). `seed`: two controls count toward the noise floor only if their seeds differ. `fork_id`: defaults to `fork@<seq>`, the seq of the `fork.created` event |
 | `gate.decided` | `gate`, `verdict` | `evidence.tier` overrides the tier taken from the gate name. `evidence.replay_solved` (bool) is an inline alternative to a gate-replay outcome; a replay outcome event takes precedence |
 
 Definitions used throughout: tokens of a request = prompt tokens (input + cache reads + cache writes) +

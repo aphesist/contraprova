@@ -6,21 +6,31 @@ can be re-priced without re-running anything. Bootstrap resampling is seeded
 per statistic from ``seed`` and a stable label, so a result does not depend on
 which other arms or contrasts happen to be in the log.
 
-Payload fields read (see docs/statistics.md, "Data the analysis reads"):
+Payloads follow docs/events.md (see also docs/statistics.md, "Data the
+analysis reads"). Unknown extra fields are ignored. Fields read:
 
 ``outcome.scored``
-    Arm outcome: ``arm``, ``task_id``, ``solved`` (all required).
-    Fork outcome: ``fork_id``, ``solved`` (required); ``arm``/``task_id`` ignored.
+    Arm outcome: ``arm``, ``task_id`` (the pairing key), ``solved`` (all
+    required); optional ``log_task_id`` (the kernel task it scores).
+    Fork outcome: ``fork_id``, ``solved`` (required); ``arm`` (the parent
+    arm, informational), ``task_id`` and ``log_task_id`` are ignored.
     Gate replay: ``gate_seq`` (seq of the ``gate.decided`` event replayed) and
     ``solved`` (did the blocked patch pass the score tests).
     A later score for the same key replaces an earlier one.
 ``usage.recorded``
     ``model`` and token counts (required, as written by ``usage_payload``);
-    optional tags ``arm``, ``role``, ``task_id``, ``fork_id``.
+    optional tags ``arm``, ``role``, ``task_id`` (a kernel task id), ``fork_id``.
+    Usage with a ``fork_id`` is fork cost, never arm cost, even if it also
+    names an ``arm``. Arm usage is attributed to the pairing key of its kernel
+    task: the ``exercise_id`` of its ``task.created`` or the ``task_id`` of an
+    arm outcome whose ``log_task_id`` names it; otherwise the kernel id itself.
 ``fork.created``
-    ``task_id``, ``model``, ``role`` ("control" | "treatment") required;
-    ``from_seq``, ``seed``, ``fork_id`` optional (``fork_id`` defaults to
-    ``"fork@<seq>"``, the seq of the ``fork.created`` event).
+    ``fork_id``, ``task_id`` (parent kernel task), ``from_seq``, ``model``,
+    ``role`` ("control" | "treatment"), ``seed`` per docs/events.md;
+    ``task_id``, ``model`` and ``role`` are enforced. For older logs
+    ``fork_id`` defaults to ``"fork@<seq>"`` and ``from_seq``/``seed`` may be
+    absent. Optional ``prefix_hash``, ``fork_task_id``, ``branch``, ``arm``
+    are ignored.
 ``gate.decided``
     ``gate``, ``verdict`` required; ``evidence.tier`` and
     ``evidence.replay_solved`` optional.
@@ -298,6 +308,14 @@ def _require(ev: Event, *keys: str) -> None:
 
 def _parse(events: Sequence[Event], table: Mapping[str, ModelPrice]) -> _Data:
     d = _Data()
+    pair_key: dict[str, str] = {}  # kernel task id -> pairing key
+    for ev in events:
+        p = ev.payload
+        if ev.type == "task.created" and p.get("exercise_id") is not None:
+            pair_key[str(p["task_id"])] = str(p["exercise_id"])
+        elif (ev.type == "outcome.scored" and p.get("fork_id") is None and p.get("gate_seq") is None
+              and p.get("log_task_id") is not None and p.get("task_id") is not None):
+            pair_key.setdefault(str(p["log_task_id"]), str(p["task_id"]))
     for ev in events:
         if ev.type != "fork.created":
             continue
@@ -346,7 +364,8 @@ def _parse(events: Sequence[Event], table: Mapping[str, ModelPrice]) -> _Data:
                 arm = str(p["arm"])
                 d.arm_usage.setdefault(arm, _Usage()).add(p, usd)
                 if p.get("task_id") is not None:
-                    d.task_usage.setdefault(arm, {}).setdefault(str(p["task_id"]), _Usage()).add(p, usd)
+                    key = pair_key.get(str(p["task_id"]), str(p["task_id"]))
+                    d.task_usage.setdefault(arm, {}).setdefault(key, _Usage()).add(p, usd)
             else:
                 d.untagged.add(p, usd)
         elif ev.type == "gate.decided":
