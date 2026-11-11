@@ -37,7 +37,7 @@ from . import __version__
 from .events import EVENT_TYPES, ChainError, canonical_json
 from .log import EventLog
 from .pricing import DEFAULT_TABLE, PRICE_TABLES, cost_by
-from .projections import InvalidTransition, project_tasks, usage_records
+from .projections import InvalidTransition, arm_usage_records, project_tasks, usage_records
 
 # ------------------------------------------------------------------ protocol constants
 
@@ -466,7 +466,8 @@ class McpEdge:
             if prices not in PRICE_TABLES:
                 raise ToolInputError(f"prices must be one of {', '.join(sorted(PRICE_TABLES))}")
             try:
-                totals = cost_by(usage_records(events), PRICE_TABLES[prices], by)
+                records = arm_usage_records(events) if by == "arm" else usage_records(events)
+                totals = cost_by(records, PRICE_TABLES[prices], by)
             except KeyError as e:
                 return _tool_error("PricingError", str(e.args[0]) if e.args else "missing price")
             ordered = dict(sorted(totals.items()))

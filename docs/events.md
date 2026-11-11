@@ -62,15 +62,21 @@ The synthetic demo log (`scripts/make_demo_log.py`) uses the same featurizer wit
 | Event | Required | Optional |
 |---|---|---|
 | `usage.recorded` | `model`, token counts (`input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_write_5m_tokens`, `cache_write_1h_tokens`) | `role` (`orchestrator`/`worker`/`reviewer`), `arm`, `task_id`, `fork_id`, `request_id`, `batch` |
-| `outcome.scored`, arm outcome | `arm`, `task_id` (pairing key), `solved` | `log_task_id`, `shipped`, `split`, `model`, `evidence`, `gate_passed`, `router_action` |
+| `outcome.scored`, arm outcome | `arm`, `task_id` (pairing key), `solved` | `log_task_id`, `branch_task_id` (kernel id of the fork branch shipped, if any), `branch`, `shipped`, `split`, `model`, `evidence`, `gate_passed`, `router_action` |
 | `outcome.scored`, fork outcome | `fork_id`, `task_id` (pairing key), `solved` | `log_task_id`, `arm` (the parent arm, informational), `gate_passed` |
 | `outcome.scored`, gate replay | `gate_seq` (seq of the blocked `gate.decided`), `solved` (would the blocked patch have passed the score tests) | `task_id` |
 
 Rules:
 
 - An `outcome.scored` with a `fork_id` is a **fork outcome**. It never counts toward an arm's solve
-  rate (`projections.outcomes` skips it). Fork usage carries the same `fork_id` and is likewise kept
-  out of arm totals.
+  rate (`projections.outcomes` skips it). Fork usage carries the same `fork_id`.
+- **Fork cost rule.** An arm outcome that shipped a fork branch names it in `branch_task_id` (the
+  branch's kernel task id, equal to that fork's `fork_task_id`). That one fork's usage is part of the
+  arm's cost: an arm's cost per task is its own usage (no `fork_id`) plus the usage of the branch it
+  shipped (`projections.shipped_forks`). All other fork usage (controls, an unshipped treatment) is
+  **measurement overhead**: it exists only to measure escalation value, is in no arm's cost, and is
+  reported separately (by parent arm and fork role; `contraprova cost --by arm` shows it as
+  `<arm>:measurement`). Budget guards count all spend. See [statistics.md](statistics.md).
 - Usage is written exactly once, by whoever owns the log for that run (the harness). Clients return
   usage in `Completion.usage` and do not write to the log themselves unless wrapped by
   `RecordingClient` in a context where nothing else records it.

@@ -14,7 +14,8 @@ from contraprova.analysis import (
     resolve_table,
 )
 from contraprova.log import EventLog
-from contraprova.pricing import PRICE_TABLES, ModelPrice, scale_table
+from contraprova.pricing import PRICE_TABLES, ModelPrice, request_cost, scale_table
+from contraprova.projections import usage_records
 from contraprova.stats import wilson_interval
 from contraprova.usage import usage_payload
 
@@ -400,8 +401,14 @@ def test_canonical_harness_shaped_events(tmp_path):
     assert set(r.arms) == {"B", "D"}
     d = r.arms["D"]
     assert (d.n, d.solved) == (1, 1)
-    # Only the orchestrator is D's own cost; fork usage is fork cost even though it names arm D.
-    assert close(d.total_cost, T[OPUS].input * 1000 / 1e6 + T[OPUS].output * 100 / 1e6, 1e-9)
+    # D's cost is its own orchestrator plus the treatment branch it shipped; the controls are overhead.
+    opus = T[OPUS].input * 1000 / 1e6 + T[OPUS].output * 100 / 1e6
+    sonnet = T[SONNET].input * 1000 / 1e6 + T[SONNET].output * 100 / 1e6
+    haiku = T[HAIKU].input * 1000 / 1e6 + T[HAIKU].output * 100 / 1e6
+    assert close(d.total_cost, opus + sonnet, 1e-9) and close(d.shipped_fork_cost, sonnet, 1e-9)
+    assert close(d.cost_per_solved.value, opus + sonnet, 1e-9)
+    assert [(o.arm, o.role, o.forks) for o in r.measurement_overhead] == [("D", "control", 2)]
+    assert close(r.measurement_overhead_cost, 2 * haiku, 1e-9)
     assert d.unattributed_cost == pytest.approx(0, abs=1e-12)  # kernel id D:ex/a mapped to pairing key ex/a
     assert r.arms["B"].unattributed_cost == pytest.approx(0, abs=1e-12)
     (e,) = r.escalation
@@ -411,3 +418,118 @@ def test_canonical_harness_shaped_events(tmp_path):
     assert not [w for w in r.warnings if "unknown fork" in w or "no outcome" in w]
     md = report_markdown(log.events(), iters=200)
     assert f"| {SONNET} vs {HAIKU} | 1 |" in md
+
+
+def shipped_branch_log(path, ship):
+    """Two D tasks with forks. ex/a ships the branch ``ship``; ex/b passes its first gate (no fork).
+
+    Token counts differ per request so every dollar figure below has one source.
+    """
+    log = EventLog(path)
+    add(log, "task.created", {"task_id": "D:ex/a", "title": "ex/a", "scope": ["a.py"], "arm": "D", "exercise_id": "ex/a"})
+    add(log, "task.created", {"task_id": "D:ex/b", "title": "ex/b", "scope": ["b.py"], "arm": "D", "exercise_id": "ex/b"})
+    usage(log, OPUS, {"input_tokens": 2000, "output_tokens": 300}, arm="D", role="orchestrator", task_id="D:ex/a")
+    usage(log, HAIKU, {"input_tokens": 5000, "output_tokens": 700}, arm="D", role="worker", task_id="D:ex/a")
+    add(log, "task.claimed", {"task_id": "D:ex/a"})
+    add(log, "task.submitted", {"task_id": "D:ex/a", "files": ["a.py"]})
+    gate = add(log, "gate.decided", {"task_id": "D:ex/a", "gate": "T0.visible_tests", "verdict": "block", "reason": "x"})
+    branches = (("control-1", "control", HAIKU, 4000, 600), ("control-2", "control", HAIKU, 4100, 650),
+                ("treatment", "treatment", SONNET, 4200, 800))
+    for i, (branch, role, model, tin, tout) in enumerate(branches):
+        fid = f"fork-{branch}"
+        add(log, "fork.created", {"fork_id": fid, "task_id": "D:ex/a", "from_seq": gate.seq, "model": model, "role": role,
+                                  "seed": i, "fork_task_id": f"D:ex/a:{branch}", "branch": branch, "arm": "D"})
+        usage(log, model, {"input_tokens": tin, "output_tokens": tout}, arm="D", role="worker",
+              task_id=f"D:ex/a:{branch}", fork_id=fid)
+        outcome(log, "D", "ex/a", role == "treatment", fork_id=fid, log_task_id=f"D:ex/a:{branch}")
+    outcome(log, "D", "ex/a", ship == "treatment", log_task_id="D:ex/a", branch_task_id=f"D:ex/a:{ship}", branch=ship)
+    usage(log, HAIKU, {"input_tokens": 3000, "output_tokens": 500}, arm="D", role="worker", task_id="D:ex/b")
+    outcome(log, "D", "ex/b", True, log_task_id="D:ex/b", branch="initial")
+    return log, {b[0]: (b[2], b[3], b[4]) for b in branches}
+
+
+def _usd(model, tin, tout):
+    return (T[model].input * tin + T[model].output * tout) / 1e6
+
+
+@pytest.mark.parametrize("ship", ["treatment", "control-1"])
+def test_arm_d_cost_includes_only_the_shipped_branch(tmp_path, ship):
+    log, branches = shipped_branch_log(tmp_path / "s.jsonl", ship)
+    evs = log.events()
+    r = analyze(evs, iters=200)
+    d = r.arms["D"]
+    own_a = _usd(OPUS, 2000, 300) + _usd(HAIKU, 5000, 700)
+    own_b = _usd(HAIKU, 3000, 500)
+    shipped = _usd(*branches[ship])
+    assert close(d.total_cost, own_a + own_b + shipped, 1e-9)
+    assert close(d.shipped_fork_cost, shipped, 1e-9)
+    assert d.unattributed_cost == pytest.approx(0, abs=1e-12)
+    assert close(d.cost_per_task.value, (own_a + own_b + shipped) / 2, 1e-9)
+    solved = 1 + (ship == "treatment")
+    assert close(d.cost_per_solved.value, (own_a + own_b + shipped) / solved, 1e-9)
+    assert d.requests == 4  # orchestrator, worker, shipped branch, ex/b worker
+
+    # Everything not shipped is measurement overhead, by role.
+    unshipped = {b: _usd(*v) for b, v in branches.items() if b != ship}
+    by_role = {(o.arm, o.role): o for o in r.measurement_overhead}
+    ctl = sum(v for b, v in unshipped.items() if b.startswith("control"))
+    trt = sum(v for b, v in unshipped.items() if b == "treatment")
+    assert close(by_role[("D", "control")].cost, ctl, 1e-9)
+    assert by_role[("D", "control")].forks == (1 if ship.startswith("control") else 2)
+    if ship == "treatment":
+        assert ("D", "treatment") not in by_role
+    else:
+        assert close(by_role[("D", "treatment")].cost, trt, 1e-9) and by_role[("D", "treatment")].forks == 1
+    assert close(r.measurement_overhead_cost, sum(unshipped.values()), 1e-9)
+
+    # Escalation value still prices every fork.
+    (e,) = r.escalation
+    assert close(e.extra_cost_per_fork.value, _usd(*branches["treatment"]) - _usd(*branches["control-1"]), 1e-9)
+
+    # Nothing is lost or double-counted: arm cost + overhead = all recorded spend, which the
+    # budget guard counts in full.
+    from contraprova.harness.arms import BudgetGuard
+
+    total = sum(request_cost(u, T) for u in usage_records(evs))
+    assert close(d.total_cost + r.measurement_overhead_cost, total, 1e-9)
+    guard = BudgetGuard(None)
+    assert close(guard.spent(log), total, 1e-9) and guard.spent(log) > d.total_cost
+
+    md = report_markdown(evs, iters=200)
+    assert "## Measurement overhead" in md and "| D | control |" in md
+    assert "Arm cost includes the one fork branch" in md
+
+
+def test_no_shipped_branch_means_all_fork_spend_is_overhead(tmp_path):
+    """The demo log's shape: D retries in its own task, so its outcome names no branch_task_id."""
+    log, branches = shipped_branch_log(tmp_path / "s.jsonl", "treatment")
+    evs = [e for e in log.events()]
+    # Drop branch_task_id by rebuilding the outcome payloads in a fresh log.
+    log2 = EventLog(tmp_path / "s2.jsonl")
+    for e in evs:
+        p = {k: v for k, v in e.payload.items() if k != "branch_task_id"}
+        log2.append(e.type, e.actor, p, ts=TS)
+    r = analyze(log2.events(), iters=50)
+    assert r.arms["D"].shipped_fork_cost == 0.0
+    assert close(r.measurement_overhead_cost, sum(_usd(*v) for v in branches.values()), 1e-9)
+
+
+def test_cli_cost_by_arm_splits_shipped_branch_from_measurement(tmp_path, capsys):
+    from contraprova import cli
+    from contraprova.projections import arm_usage_records
+
+    log, branches = shipped_branch_log(tmp_path / "s.jsonl", "treatment")
+    assert cli.main(["cost", str(log.path), "--by", "arm"]) == 0
+    rows = dict(line.split("\t")[:2] for line in capsys.readouterr().out.strip().splitlines())
+    d = _usd(OPUS, 2000, 300) + _usd(HAIKU, 5000, 700) + _usd(HAIKU, 3000, 500) + _usd(*branches["treatment"])
+    overhead = _usd(*branches["control-1"]) + _usd(*branches["control-2"])
+    assert set(rows) == {"D", "D:measurement", "total"}
+    assert rows["D"] == f"${d:.6f}" and rows["D:measurement"] == f"${overhead:.6f}"
+    total = sum(request_cost(u, T) for u in usage_records(log.events()))
+    assert rows["total"] == f"${total:.6f}"
+    # Other groupings are unchanged: generic cost_by over the raw records.
+    assert cli.main(["cost", str(log.path), "--by", "role"]) == 0
+    roles = dict(line.split("\t")[:2] for line in capsys.readouterr().out.strip().splitlines())
+    assert set(roles) == {"orchestrator", "worker", "total"}
+    assert all(":" not in str(u.get("arm")) for u in usage_records(log.events()))  # the log itself is untouched
+    assert len(arm_usage_records(log.events())) == len(usage_records(log.events()))

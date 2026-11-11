@@ -20,8 +20,13 @@ analysis reads"). Unknown extra fields are ignored. Fields read:
 ``usage.recorded``
     ``model`` and token counts (required, as written by ``usage_payload``);
     optional tags ``arm``, ``role``, ``task_id`` (a kernel task id), ``fork_id``.
-    Usage with a ``fork_id`` is fork cost, never arm cost, even if it also
-    names an ``arm``. Arm usage is attributed to the pairing key of its kernel
+    Usage with a ``fork_id`` is fork cost (escalation value uses all of it).
+    Exactly one fork per task can also be arm cost: the branch the arm shipped
+    (its arm outcome's ``branch_task_id`` is the fork's ``fork_task_id``, see
+    ``projections.shipped_forks``); that usage counts toward the arm's totals
+    and the shipped task's cost. Every other fork's usage is **measurement
+    overhead**, reported per (parent arm, fork role) and never in an arm's
+    cost. Arm usage is attributed to the pairing key of its kernel
     task: the ``exercise_id`` of its ``task.created`` or the ``task_id`` of an
     arm outcome whose ``log_task_id`` names it; otherwise the kernel id itself.
 ``fork.created``
@@ -29,8 +34,9 @@ analysis reads"). Unknown extra fields are ignored. Fields read:
     ``role`` ("control" | "treatment"), ``seed`` per docs/events.md;
     ``task_id``, ``model`` and ``role`` are enforced. For older logs
     ``fork_id`` defaults to ``"fork@<seq>"`` and ``from_seq``/``seed`` may be
-    absent. Optional ``prefix_hash``, ``fork_task_id``, ``branch``, ``arm``
-    are ignored.
+    absent. ``fork_task_id`` identifies the shipped branch; ``arm`` (else the
+    usage's ``arm``) names the parent arm of overhead. ``prefix_hash`` and
+    ``branch`` are ignored.
 ``gate.decided``
     ``gate``, ``verdict`` required; ``evidence.tier`` and
     ``evidence.replay_solved`` optional.
@@ -46,7 +52,7 @@ from typing import Callable, Iterable, Mapping, Sequence
 
 from .events import Event, canonical_json
 from .pricing import DEFAULT_TABLE, PRICE_TABLES, ModelPrice, prompt_tokens, request_cost
-from .projections import pareto_frontier
+from .projections import pareto_frontier, shipped_forks
 from .stats import discordant, holm, mcnemar_exact, paired_bootstrap_ci, wilson_interval
 
 Contrast = tuple[str, str]
@@ -99,12 +105,24 @@ class ArmSummary:
     solve_rate: Estimate
     cost_per_task: Estimate  # USD, over scored tasks
     cost_per_solved: Estimate  # USD, over scored tasks
-    total_cost: float  # USD, every usage record tagged with this arm (no fork_id)
+    total_cost: float  # USD, the arm's own usage (no fork_id) plus the fork branches it shipped
     unattributed_cost: float  # part of total_cost not tied to a scored task
     requests: int
     orchestrator_token_share: Estimate
     orchestrator_cost_share: Estimate
     cache_read_share: Estimate  # cache-read tokens / prompt tokens
+    shipped_fork_cost: float = 0.0  # part of total_cost spent in the fork branches the arm shipped
+
+
+@dataclass(frozen=True)
+class OverheadRow:
+    """Fork spend an arm did not ship: it exists only to measure escalation value."""
+
+    arm: str  # the parent arm of the forks
+    role: str  # "control" | "treatment"
+    forks: int  # forks with overhead usage
+    requests: int
+    cost: float  # USD
 
 
 @dataclass(frozen=True)
@@ -171,7 +189,12 @@ class Analysis:
     pareto_points: list[tuple[str, float, float]]
     frontier: list[tuple[str, float, float]]
     untagged_cost: float
+    measurement_overhead: list[OverheadRow] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+
+    @property
+    def measurement_overhead_cost(self) -> float:
+        return math.fsum(o.cost for o in self.measurement_overhead)
 
 
 # ------------------------------------------------------------------ helpers
@@ -284,6 +307,7 @@ class _Fork:
     model: str
     role: str
     seed: object
+    arm: str | None = None
 
 
 @dataclass
@@ -294,6 +318,9 @@ class _Data:
     fork_cost: dict[str, float] = field(default_factory=dict)
     task_usage: dict[str, dict[str, _Usage]] = field(default_factory=dict)
     arm_usage: dict[str, _Usage] = field(default_factory=dict)
+    shipped_cost: dict[str, float] = field(default_factory=dict)  # arm -> usage of the fork branches it shipped
+    overhead: dict[tuple[str, str], _Usage] = field(default_factory=dict)  # (parent arm, role) -> unshipped fork usage
+    overhead_forks: dict[tuple[str, str], set[str]] = field(default_factory=dict)
     untagged: _Usage = field(default_factory=_Usage)
     gates: list[Event] = field(default_factory=list)
     replays: dict[int, bool] = field(default_factory=dict)
@@ -328,7 +355,9 @@ def _parse(events: Sequence[Event], table: Mapping[str, ModelPrice]) -> _Data:
         if fid in d.forks:
             d.warnings.append(f"duplicate fork_id {fid!r} at seq {ev.seq}; the later one is used")
         fs = p.get("from_seq")
-        d.forks[fid] = _Fork(fid, ev.seq, str(p["task_id"]), None if fs is None else int(fs), p["model"], p["role"], p.get("seed"))
+        d.forks[fid] = _Fork(fid, ev.seq, str(p["task_id"]), None if fs is None else int(fs), p["model"], p["role"],
+                             p.get("seed"), None if p.get("arm") is None else str(p["arm"]))
+    shipped = shipped_forks(events)
 
     unknown_fork_usage = 0
     for ev in events:
@@ -357,6 +386,16 @@ def _parse(events: Sequence[Event], table: Mapping[str, ModelPrice]) -> _Data:
                 fid = str(p["fork_id"])
                 if fid in d.forks:
                     d.fork_cost[fid] = d.fork_cost.get(fid, 0.0) + usd
+                    if fid in shipped:  # the branch the arm shipped: arm cost
+                        arm, key = shipped[fid]
+                        d.arm_usage.setdefault(arm, _Usage()).add(p, usd)
+                        d.task_usage.setdefault(arm, {}).setdefault(key, _Usage()).add(p, usd)
+                        d.shipped_cost[arm] = d.shipped_cost.get(arm, 0.0) + usd
+                    else:  # measurement overhead
+                        f = d.forks[fid]
+                        okey = (f.arm or str(p.get("arm") or "?"), f.role)
+                        d.overhead.setdefault(okey, _Usage()).add(p, usd)
+                        d.overhead_forks.setdefault(okey, set()).add(fid)
                     continue
                 unknown_fork_usage += 1
                 d.untagged.add(p, usd)
@@ -390,8 +429,10 @@ def _arm_summary(arm: str, d: _Data, seed: int, iters: int) -> ArmSummary:
     attributed = sum(r.cost for r in rows)
     requests = arm_total.requests
 
+    shipped = d.shipped_cost.get(arm, 0.0)
     if n == 0:
-        return ArmSummary(arm, 0, 0, _none(), _none(), _none(), arm_total.cost, arm_total.cost, requests, _none(), _none(), _none())
+        return ArmSummary(arm, 0, 0, _none(), _none(), _none(), arm_total.cost, arm_total.cost, requests, _none(), _none(),
+                          _none(), shipped)
 
     cols = {
         "one": [1.0] * n,
@@ -432,6 +473,7 @@ def _arm_summary(arm: str, d: _Data, seed: int, iters: int) -> ArmSummary:
         orchestrator_token_share=est("orch_tokens", totals["tokens"] > 0),
         orchestrator_cost_share=est("orch_cost", totals["cost"] > 0),
         cache_read_share=est("cache", totals["prompt"] > 0),
+        shipped_fork_cost=shipped,
     )
 
 
@@ -716,6 +758,10 @@ def analyze(
         d.warnings.append(f"{len(unscored)} fork(s) have no outcome and are left out of escalation value")
 
     points = [(a, s.cost_per_task.value, s.solve_rate.value) for a, s in arms.items() if s.n > 0]
+    overhead = [
+        OverheadRow(arm, role, len(d.overhead_forks[(arm, role)]), u.requests, u.cost)
+        for (arm, role), u in sorted(d.overhead.items(), key=lambda kv: (_arm_key(kv[0][0]), kv[0][1]))
+    ]
     return Analysis(
         table_name=name,
         table_fingerprint=fp,
@@ -732,6 +778,7 @@ def analyze(
         pareto_points=points,
         frontier=pareto_frontier(points),
         untagged_cost=d.untagged.cost,
+        measurement_overhead=overhead,
         warnings=d.warnings,
     )
 
@@ -841,6 +888,20 @@ def report_markdown(
         ["Arm", "n tasks", "Solved", "Solve rate [95% CI]", "Cost per task [95% CI]", "Cost per solved task [95% CI]", "Total recorded cost"],
         rows,
     ) if rows else ["No arm outcomes or usage in the log."]
+    shipped_arms = [s for s in r.arms.values() if s.shipped_fork_cost > 0]
+    if shipped_arms:
+        L += ["", "Arm cost includes the one fork branch each task shipped: "
+              + ", ".join(f"{s.arm} {_usd(s.shipped_fork_cost)}" for s in shipped_arms) + "."]
+
+    if r.measurement_overhead:
+        L += ["", "## Measurement overhead", ""]
+        L += _table(
+            ["Parent arm", "Fork role", "Forks", "Requests", "Cost"],
+            [[o.arm, o.role, str(o.forks), str(o.requests), _usd(o.cost)] for o in r.measurement_overhead],
+        )
+        L += ["", f"Measurement overhead total: {_usd(r.measurement_overhead_cost)}. This is fork spend no arm shipped "
+              "(controls and unshipped treatments): it exists only to measure escalation value, would not be spent "
+              "in production, and is in no arm's cost. Escalation value still prices every fork."]
 
     L += ["", "## Arms: token mix", ""]
     rows = [

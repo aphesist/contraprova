@@ -84,6 +84,27 @@ bootstrap interval. **Dollars per extra solve** is the total extra cost divided 
 (treatment-only minus control-only). It is undefined when there are no net extra solves, and its interval
 is unbounded above when some resamples have none.
 
+## Arm cost and measurement overhead
+
+Arm D forks the log at its first gate failure and runs three branches (two Haiku controls and one
+Sonnet treatment), but in production it would run only the one it routes to. So:
+
+- **Arm D's cost per task** = D's own usage (records without `fork_id`: orchestrator, first attempt)
+  **+ the usage of the one fork branch it shipped**. The shipped branch is found from D's arm outcome:
+  its `branch_task_id` is the `fork_task_id` of a `fork.created`, whose `fork_id` tags that branch's
+  usage (`projections.shipped_forks`). Arm totals, cost per task, cost per solved task, contrasts and
+  the frontier all use this cost. A task whose first gate passed ships no fork branch.
+- **Measurement overhead** = every other fork's usage: the controls, and the treatment when D shipped
+  a control. It exists only to measure escalation value, would not be spent by D in production, and
+  is in no arm's cost. The report lists it in its own table by parent arm and fork role, with a total.
+- **Escalation value** still prices every fork (treatment cost − control cost), shipped or not.
+- **The budget guard** counts all recorded spend, arm cost and overhead alike: it caps what the
+  experiment spends, not what an arm costs.
+
+`contraprova cost --by arm` uses the same rule: shipped-branch usage is grouped under its arm and the
+rest of the fork usage under `<arm>:measurement`. Other groupings (`role`, `model`, `task_id`) group
+the raw records.
+
 ## Gate quality
 
 For each gate (and each tier: `T0`, `T1`, ... taken from the gate name prefix or `evidence.tier`) the report
@@ -108,16 +129,17 @@ listed under "Warnings" in the report.
 
 | Event | Required | Optional, and what happens without it |
 |---|---|---|
-| `outcome.scored` (arm outcome) | `arm`, `task_id` (pairing key), `solved` | A later score for the same (arm, task) replaces an earlier one. `log_task_id` maps the kernel task to the pairing key for cost attribution |
+| `outcome.scored` (arm outcome) | `arm`, `task_id` (pairing key), `solved` | A later score for the same (arm, task) replaces an earlier one. `log_task_id` maps the kernel task to the pairing key for cost attribution. `branch_task_id` names the fork branch the arm shipped, whose usage becomes arm cost |
 | `outcome.scored` (fork outcome) | `fork_id`, `solved` | Never counts toward an arm's solve rate. An unknown `fork_id` is a warning |
 | `outcome.scored` (gate replay) | `gate_seq` (seq of the `gate.decided` block replayed), `solved` (did the blocked patch pass the score tests) | `task_id` is informational. Pointing at a pass or a non-gate event is a warning |
-| `usage.recorded` | `model` and token counts, as written by `usage.usage_payload` | `arm`: without it (and without `fork_id`) the cost is "untagged". `task_id`: without it the cost is in the arm total but not in per-task statistics; a kernel task id is mapped to its pairing key (via `task.created.exercise_id` or an outcome's `log_task_id`). `role`: only `"orchestrator"` counts toward the orchestrator share. `fork_id`: the cost belongs to that fork and not to any arm |
-| `fork.created` | `task_id`, `model`, `role` (`"control"` or `"treatment"`); events.md also requires `fork_id`, `from_seq`, `seed` | Extra fields (`prefix_hash`, `fork_task_id`, `branch`, `arm`) are ignored. `from_seq`: forks are grouped into fork points by (`task_id`, `from_seq`). `seed`: two controls count toward the noise floor only if their seeds differ. `fork_id`: defaults to `fork@<seq>`, the seq of the `fork.created` event |
+| `usage.recorded` | `model` and token counts, as written by `usage.usage_payload` | `arm`: without it (and without `fork_id`) the cost is "untagged". `task_id`: without it the cost is in the arm total but not in per-task statistics; a kernel task id is mapped to its pairing key (via `task.created.exercise_id` or an outcome's `log_task_id`). `role`: only `"orchestrator"` counts toward the orchestrator share. `fork_id`: the cost belongs to that fork; it is also arm cost if the fork is the branch the arm shipped, otherwise measurement overhead (see above) |
+| `fork.created` | `task_id`, `model`, `role` (`"control"` or `"treatment"`); events.md also requires `fork_id`, `from_seq`, `seed` | `fork_task_id` identifies the branch an arm outcome shipped (via its `branch_task_id`); `arm` names the parent arm of overhead (else the usage's `arm`). `prefix_hash` and `branch` are ignored. `from_seq`: forks are grouped into fork points by (`task_id`, `from_seq`). `seed`: two controls count toward the noise floor only if their seeds differ. `fork_id`: defaults to `fork@<seq>`, the seq of the `fork.created` event |
 | `gate.decided` | `gate`, `verdict` | `evidence.tier` overrides the tier taken from the gate name. `evidence.replay_solved` (bool) is an inline alternative to a gate-replay outcome; a replay outcome event takes precedence |
 
 Definitions used throughout: tokens of a request = prompt tokens (input + cache reads + cache writes) +
 output tokens. Cache-read share = cache-read tokens / prompt tokens. Per-arm cost statistics use only usage
-tied to a scored task of that arm; "Total recorded cost" includes every usage record tagged with the arm.
+tied to a scored task of that arm; "Total recorded cost" includes every usage record tagged with the arm
+(without `fork_id`) plus the fork branches the arm shipped.
 
 ## Worked example
 

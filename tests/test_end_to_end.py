@@ -17,6 +17,7 @@ from contraprova.harness.run import FakeClient, UniformRouter, dry_run_gates, no
 from contraprova.interfaces import HAIKU, SONNET
 from contraprova.log import EventLog
 from contraprova.ope import ips, snips, steps_from_examples
+from contraprova.pricing import DEFAULT_TABLE, PRICE_TABLES, request_cost
 from contraprova.projections import outcomes, usage_records
 from contraprova.router import training_examples
 
@@ -80,6 +81,10 @@ def test_report_has_all_arms_and_an_escalation_row(run):
     assert (esc.treatment_model, esc.control_model, esc.n) == (SONNET, HAIKU, n_points)
     assert r.noise_floors[HAIKU].n == n_points  # two controls with distinct seeds at every fork point
     assert not r.warnings, r.warnings
+    # Arm D's cost: its own usage plus the one branch it shipped; the rest of the fork spend is overhead.
+    total = sum(request_cost(u, PRICE_TABLES[DEFAULT_TABLE]) for u in usage_records(evs))
+    assert sum(s.total_cost for s in r.arms.values()) + r.measurement_overhead_cost == pytest.approx(total, rel=1e-9)
+    assert {(o.arm, o.role) for o in r.measurement_overhead} == {("D", "control"), ("D", "treatment")}
     md = report_markdown(evs, iters=200)
     for arm in ARMS:
         assert f"\n| {arm} | {len(exercises)} |" in md
@@ -132,9 +137,19 @@ def test_ui_export_reads_the_same_log(run, tmp_path):
         assert final[label]["n_scored"] == n_points
     # Attempts are keyed by exercise id, so arms line up task by task.
     assert {a["task_id"] for a in data["attempts"]} == {x.id for x in exercises}
-    # Every usage record's cost lands under its arm or its fork's label.
-    total = sum(s["cost"][0] for s in final.values())
     from contraprova.pricing import request_cost
 
     table = export_ui_data.ui_price_tables()[data["table_names"][0]]
-    assert total == pytest.approx(sum(request_cost(u, table) for u in usage_records(log.events())), rel=1e-9)
+    total = sum(request_cost(u, table) for u in usage_records(log.events()))
+    # Every usage record's cost lands under its fork's label or its arm, and the arm also carries
+    # the branch it shipped; so main arms + measurement overhead = all spend, and the fork labels
+    # sum to the shipped branches + overhead.
+    overhead = sum(c[0] for roles in data["final"]["measurement_overhead"].values() for c in roles.values())
+    main = sum(final[a]["cost"][0] for a in ARMS)
+    assert main + overhead == pytest.approx(total, rel=1e-9)
+    from contraprova.analysis import analyze
+
+    r = analyze(log.events(), data["table_names"][0], iters=10)
+    assert final["D"]["cost"][0] == pytest.approx(r.arms["D"].total_cost, rel=1e-9)
+    assert overhead == pytest.approx(r.measurement_overhead_cost, rel=1e-9)
+    assert r.arms["D"].shipped_fork_cost > 0  # the dry run ships a fork branch for every blocked task

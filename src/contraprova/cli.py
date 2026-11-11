@@ -8,7 +8,7 @@ import sys
 from .events import ChainError
 from .log import EventLog
 from .pricing import DEFAULT_TABLE, PRICE_TABLES, cost_by
-from .projections import InvalidTransition, project_tasks, usage_records
+from .projections import InvalidTransition, arm_usage_records, project_tasks, usage_records
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -27,7 +27,8 @@ def main(argv: list[str] | None = None) -> int:
         if name == "report":
             p.add_argument("--seed", type=int, default=0)
         if name == "cost":
-            p.add_argument("--by", default="role", help="usage field to group by (role, model, arm, task_id)")
+            p.add_argument("--by", default="role", help="usage field to group by (role, model, arm, task_id); "
+                           "with arm, fork spend an arm did not ship is grouped as '<arm>:measurement'")
     args = ap.parse_args(argv)
     log = EventLog(args.log)
 
@@ -38,7 +39,9 @@ def main(argv: list[str] | None = None) -> int:
             for t in project_tasks(log.events()).values():
                 print(f"{t.task_id}\t{t.status}\tattempts={t.attempts}\t{t.title}")
         elif args.cmd == "cost":
-            totals = cost_by(usage_records(log.events()), PRICE_TABLES[args.prices], args.by)
+            evs = log.events()
+            records = arm_usage_records(evs) if args.by == "arm" else usage_records(evs)
+            totals = cost_by(records, PRICE_TABLES[args.prices], args.by)
             for k, usd in sorted(totals.items(), key=lambda kv: -kv[1]):
                 print(f"{k}\t${usd:.6f}")
             print(f"total\t${sum(totals.values()):.6f}\t(prices: {args.prices})")

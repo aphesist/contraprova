@@ -122,6 +122,61 @@ def outcomes(events: Iterable[Event]) -> dict[tuple[str, str], bool]:
     return out
 
 
+def fork_id_of(ev: Event) -> str:
+    """The id of a ``fork.created`` event: its ``fork_id``, else ``"fork@<seq>"`` (older logs)."""
+    fid = ev.payload.get("fork_id")
+    return str(fid) if fid is not None else f"fork@{ev.seq}"
+
+
+def shipped_forks(events: Iterable[Event]) -> dict[str, tuple[str, str]]:
+    """fork_id -> (arm, pairing key) for every fork branch an arm shipped as its result.
+
+    An arm outcome names the branch it shipped in ``branch_task_id``; the fork whose
+    ``fork.created`` has that ``fork_task_id`` is the shipped branch. Its usage is part of
+    that arm's cost: the arm would have spent it in production. Every other fork's usage
+    (controls, unshipped treatments) is measurement overhead (docs/statistics.md). A later
+    outcome for the same (arm, pairing key) replaces an earlier one, as in ``outcomes``.
+    """
+    child: dict[str, str] = {}  # fork_task_id -> fork_id
+    shipped: dict[tuple[str, str], str | None] = {}
+    for ev in events:
+        p = ev.payload
+        if ev.type == "fork.created" and p.get("fork_task_id") is not None:
+            child[str(p["fork_task_id"])] = fork_id_of(ev)
+        elif (ev.type == "outcome.scored" and is_arm_outcome(p)
+              and p.get("arm") is not None and p.get("task_id") is not None):
+            branch = p.get("branch_task_id")
+            shipped[(str(p["arm"]), str(p["task_id"]))] = child.get(str(branch)) if branch is not None else None
+    return {fid: key for key, fid in shipped.items() if fid is not None}
+
+
+MEASUREMENT = "measurement"
+
+
+def arm_usage_records(events: Iterable[Event]) -> list[Mapping]:
+    """Usage records with ``arm`` set to the arm whose cost they are (docs/statistics.md).
+
+    Usage without a ``fork_id`` keeps its ``arm``. Usage of the fork branch an arm shipped
+    (``projections.shipped_forks``) is that arm's. Every other fork's usage is measurement
+    overhead and is grouped as ``"<arm>:measurement"``, with the fork's ``arm`` (else the
+    usage's own ``arm``) as the parent.
+    """
+    events = list(events)
+    shipped = shipped_forks(events)
+    fork_arm = {fork_id_of(e): e.payload.get("arm") for e in events if e.type == "fork.created"}
+    out = []
+    for u in usage_records(events):
+        fid = u.get("fork_id")
+        if fid is None:
+            out.append(u)
+        elif str(fid) in shipped:
+            out.append({**u, "arm": shipped[str(fid)][0]})
+        else:
+            parent = fork_arm.get(str(fid)) or u.get("arm") or "unknown"
+            out.append({**u, "arm": f"{parent}:{MEASUREMENT}"})
+    return out
+
+
 def pareto_frontier(points: Iterable[tuple[str, float, float]]) -> list[tuple[str, float, float]]:
     """Non-dominated (name, cost, quality) points: lower cost and higher quality are better.
 
