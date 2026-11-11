@@ -4,7 +4,7 @@ import pytest
 
 from contraprova.events import ChainError
 from contraprova.log import EventLog
-from contraprova.projections import InvalidTransition, project_tasks
+from contraprova.projections import InvalidTransition, is_arm_outcome, outcomes, project_tasks
 
 TS = "2026-11-11T00:00:00.000Z"
 
@@ -92,3 +92,29 @@ def test_unknown_event_type(tmp_path):
     log = EventLog(tmp_path / "log.jsonl")
     with pytest.raises(ValueError):
         log.append("task.vanished", "x", {}, TS)
+
+
+# ------------------------------------------------------------------ outcomes
+
+
+def test_outcomes_skip_fork_outcomes_and_gate_replays(tmp_path):
+    log = EventLog(tmp_path / "log.jsonl")
+    new_task(log, "D:ex/a", exercise_id="ex/a")
+    run_once(log, "D:ex/a", "block")
+    gate_seq = len(log.events()) - 1
+    log.append("outcome.scored", "scorer", {"arm": "D", "task_id": "ex/a", "solved": False, "log_task_id": "D:ex/a"}, TS)
+    # A fork outcome with an informational parent arm must not replace D's own outcome.
+    log.append("outcome.scored", "scorer", {"fork_id": "fork-1", "arm": "D", "task_id": "ex/a", "solved": True}, TS)
+    # A gate replay, with and without a task_id.
+    log.append("outcome.scored", "scorer", {"gate_seq": gate_seq, "task_id": "ex/a", "solved": True}, TS)
+    log.append("outcome.scored", "scorer", {"gate_seq": gate_seq, "solved": True}, TS)
+    log.append("outcome.scored", "scorer", {"arm": "B", "task_id": "ex/a", "solved": True}, TS)
+    assert outcomes(log.events()) == {("D", "ex/a"): False, ("B", "ex/a"): True}
+
+
+def test_is_arm_outcome():
+    assert is_arm_outcome({"arm": "A", "task_id": "x", "solved": True})
+    assert is_arm_outcome({"arm": "A", "task_id": "x", "solved": True, "fork_id": None})
+    assert not is_arm_outcome({"fork_id": "fork-1", "task_id": "x", "solved": True})
+    assert not is_arm_outcome({"gate_seq": 0, "solved": True})
+    assert not is_arm_outcome({"gate_seq": 0, "solved": True, "arm": "D", "task_id": "x"})

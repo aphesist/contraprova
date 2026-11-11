@@ -102,11 +102,22 @@ def usage_records(events: Iterable[Event]) -> list[Mapping]:
     return [ev.payload for ev in events if ev.type == "usage.recorded"]
 
 
+def is_arm_outcome(payload: Mapping) -> bool:
+    """True for an arm outcome; False for a fork outcome (``fork_id``) or a gate replay (``gate_seq``)."""
+    return payload.get("fork_id") is None and payload.get("gate_seq") is None
+
+
 def outcomes(events: Iterable[Event]) -> dict[tuple[str, str], bool]:
-    """(arm, task_id) -> solved. A later score for the same pair replaces an earlier one."""
+    """(arm, task_id) -> solved, over arm outcomes only (see docs/events.md).
+
+    ``task_id`` here is the pairing key (the benchmark exercise id), not the kernel task id.
+    Fork outcomes (with ``fork_id``) and gate replays (with ``gate_seq``) are skipped: they never
+    count toward an arm's solve rate, even when they carry an informational ``arm``. A later score
+    for the same pair replaces an earlier one.
+    """
     out: dict[tuple[str, str], bool] = {}
     for ev in events:
-        if ev.type == "outcome.scored":
+        if ev.type == "outcome.scored" and is_arm_outcome(ev.payload):
             out[(ev.payload["arm"], ev.payload["task_id"])] = bool(ev.payload["solved"])
     return out
 
