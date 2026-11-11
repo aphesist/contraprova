@@ -44,8 +44,11 @@ from contraprova.stats import wilson_interval  # noqa: E402
 
 SCHEMA = "contraprova-ui/1"
 HAIKU = "claude-haiku-5-5"
-# Lifecycle events (route/claim/submit/gate) and forks carry no arm tag; they belong
-# to the governed arm. Fork re-runs are recorded as arms "D:control" / "D:treatment".
+# Lifecycle events (route/claim/submit/gate) are attributed to the arm named by their
+# task's task.created, else to the governed arm. Payloads follow docs/events.md: fork
+# re-runs are fork events and fork outcomes keyed by fork_id. For display only, each
+# fork gets the label "<parent arm>:<role>" ("D:control", "D:treatment"); a second
+# control at the same fork point is "D:control-2", and so on.
 GOVERNED_ARM = "D"
 CHEAP_MODELS = frozenset({HAIKU})
 # Strength order used only to label an attempt's "model tier" (strongest worker model).
@@ -104,7 +107,12 @@ def summarise(ev: Event) -> str:
     if t == "usage.recorded":
         return f"{p.get('model')} {p.get('role', '')}: in {prompt_tokens(p)} / out {p.get('output_tokens', 0)} tok"
     if t == "outcome.scored":
-        return f"arm {p['arm']} {'SOLVED' if p['solved'] else 'not solved'}"
+        verdict = "SOLVED" if p["solved"] else "not solved"
+        if p.get("fork_id") is not None:
+            return f"fork {p['fork_id']} {verdict}"
+        if p.get("gate_seq") is not None:
+            return f"replay of gate #{p['gate_seq']}: {'would pass' if p['solved'] else 'would fail'}"
+        return f"arm {p['arm']} {verdict}"
     return t
 
 
@@ -202,6 +210,33 @@ def build_export(events: list[Event], log_name: str = "log.jsonl") -> dict[str, 
             feats.append({"in": 0.0, "out": 0.0, "requests": 0.0, "gates": 0.0, "cache": 0.0})
         return attempt_index[key]
 
+    # Kernel task id -> pairing key (exercise id), and the display label of each fork.
+    pair_key: dict[str, str] = {}
+    task_arm: dict[str, str] = {}
+    fork_label: dict[str, str] = {}  # fork_id -> label
+    fork_parent: dict[str, str] = {}  # fork_id -> parent kernel task id
+    child_fork: dict[str, str] = {}  # fork child kernel task id -> fork_id
+    fork_point_roles: dict[tuple[str, Any, str], int] = {}
+    for ev in events:
+        p = ev.payload
+        if ev.type == "task.created":
+            pair_key[p["task_id"]] = str(p.get("exercise_id") or p["task_id"])
+            if p.get("arm") is not None:
+                task_arm[p["task_id"]] = str(p["arm"])
+        elif ev.type == "fork.created":
+            fid = str(p["fork_id"]) if p.get("fork_id") is not None else f"fork@{ev.seq}"
+            arm = str(p.get("arm") or task_arm.get(p["task_id"]) or GOVERNED_ARM)
+            role = str(p.get("role"))
+            point = (p["task_id"], p.get("from_seq"), role)
+            k = fork_point_roles[point] = fork_point_roles.get(point, 0) + 1
+            fork_label[fid] = f"{arm}:{role}" + (f"-{k}" if k > 1 else "")
+            fork_parent[fid] = p["task_id"]
+            if p.get("fork_task_id"):
+                child_fork[str(p["fork_task_id"])] = fid
+
+    def key(kernel_tid: str) -> str:
+        return pair_key.get(kernel_tid, kernel_tid)
+
     tasks: dict = {}
     out_events: list[dict[str, Any]] = []
     # Running totals for checkpoints, computed straight from payloads with pricing.request_cost.
@@ -214,35 +249,49 @@ def build_export(events: list[Event], log_name: str = "log.jsonl") -> dict[str, 
     for ev in events:
         p = ev.payload
         tid = p.get("task_id")
+        kernel_tid = tid
+        if ev.type == "outcome.scored":
+            pass  # task_id is already the pairing key
+        elif ev.type == "fork.created" or (ev.type == "usage.recorded" and p.get("fork_id") is not None):
+            parent = fork_parent.get(str(p.get("fork_id")), p.get("task_id")) if ev.type == "usage.recorded" else tid
+            tid = key(parent) if parent is not None else tid
+        elif tid is not None:
+            tid = key(tid)
         rec: dict[str, Any] = {"s": ev.seq, "t": ev.type, "a": ev.actor, "ts": ev.ts, "h": ev.hash[:12], "x": summarise(ev)}
         if tid is not None:
             rec["k"] = tid
         fx: list[list[Any]] = []
 
         if ev.type == "task.created":
-            task_lang[tid] = str(p.get("language") or (tid.split("/")[0] if "/" in tid else "?"))
+            task_lang.setdefault(tid, str(p.get("language") or (tid.split("/")[0] if "/" in tid else "?")))
         elif ev.type in ("task.claimed", "task.submitted", "gate.decided", "route.decided"):
-            # Only the governed arm goes through the claim/submit/gate lifecycle.
-            i = attempt(GOVERNED_ARM, tid, ev.seq)
+            # Lifecycle events belong to their task's arm; a fork child's belong to its fork.
+            fid = child_fork.get(kernel_tid)
+            label = fork_label[fid] if fid is not None else task_arm.get(kernel_tid, GOVERNED_ARM)
+            i = attempt(label, tid, ev.seq)
             rec["p"] = i
             if ev.type == "route.decided":
                 action = p.get("action")
                 fx.append([i, "route", action])
-                if action and action not in CHEAP_MODELS and int((p.get("features") or {}).get("attempt", 1)) > 1:
+                retry = p.get("decision") == "after_gate_failure" or int((p.get("features") or {}).get("attempt", 1) or 1) > 1
+                if action and action not in CHEAP_MODELS and retry:
                     fx.append([i, "escalated", True])
             elif ev.type == "gate.decided":
                 feats[i]["gates"] += 1
                 if p.get("verdict") == "block":
                     fx.append([i, "blocked", True])
         elif ev.type == "fork.created":
-            arm = f"{GOVERNED_ARM}:{p.get('role')}"
-            i = attempt(arm, tid, ev.seq)
+            fid = str(p["fork_id"]) if p.get("fork_id") is not None else f"fork@{ev.seq}"
+            i = attempt(fork_label[fid], tid, ev.seq)
             rec["p"] = i
             fx.append([i, "fork", {"role": p.get("role"), "from_seq": p.get("from_seq"), "model": p.get("model")}])
             if p.get("role") == "treatment" and p.get("model") not in CHEAP_MODELS:
                 fx.append([i, "escalated", True])
         elif ev.type == "usage.recorded":
-            arm = str(p.get("arm", "unknown"))
+            if p.get("fork_id") is not None and str(p["fork_id"]) in fork_label:
+                arm = fork_label[str(p["fork_id"])]  # fork cost never counts toward the parent arm
+            else:
+                arm = str(p.get("arm", "unknown"))
             if tid is None:
                 tid = "(untagged)"
                 rec["k"] = tid
@@ -264,17 +313,21 @@ def build_export(events: list[Event], log_name: str = "log.jsonl") -> dict[str, 
             tc = att_cost.setdefault(i, [0.0] * len(tvals))
             for j, c in enumerate(costs):
                 tc[j] += c
-        elif ev.type == "outcome.scored":
-            arm = str(p["arm"])
-            i = attempt(arm, tid, ev.seq)
-            rec["p"] = i
-            fx.append([i, "solved", bool(p["solved"])])
-            arm_outcome.setdefault(arm, {})[tid] = bool(p["solved"])
-            arm_tasks.setdefault(arm, set()).add(tid)
+        elif ev.type == "outcome.scored" and p.get("gate_seq") is None:
+            if p.get("fork_id") is not None:
+                arm = fork_label.get(str(p["fork_id"]))
+            else:
+                arm = str(p["arm"])
+            if arm is not None:  # an outcome naming an unknown fork is shown but not counted
+                i = attempt(arm, tid, ev.seq)
+                rec["p"] = i
+                fx.append([i, "solved", bool(p["solved"])])
+                arm_outcome.setdefault(arm, {})[tid] = bool(p["solved"])
+                arm_tasks.setdefault(arm, set()).add(tid)
 
-        before = tasks.get(tid).status if tid in tasks else None
+        before = tasks.get(kernel_tid).status if kernel_tid in tasks else None
         tasks = apply_task_event(tasks, ev)
-        after = tasks.get(tid).status if tid in tasks else None
+        after = tasks.get(kernel_tid).status if kernel_tid in tasks else None
         if after is not None and after != before:
             rec["st"] = after
             if "p" in rec:
@@ -316,6 +369,11 @@ def build_export(events: list[Event], log_name: str = "log.jsonl") -> dict[str, 
 
     main_arms = sorted(a for a in final_arms if is_main_arm(a))
     fork_arms = sorted(a for a in final_arms if not is_main_arm(a))
+    fork_meta = {}
+    for label in fork_arms:
+        parent, _, rest = label.partition(":")
+        role, _, k = rest.partition("-")
+        fork_meta[label] = {"parent": parent, "role": role, "replicate": int(k) if k.isdigit() else 1}
 
     return {
         "schema": SCHEMA,
@@ -329,7 +387,7 @@ def build_export(events: list[Event], log_name: str = "log.jsonl") -> dict[str, 
         "default_table": DEFAULT_TABLE,
         "table_names": table_names,
         "price_tables": {name: describe_table(t) for name, t in tables.items()},
-        "arms": [{"id": a, "kind": "arm"} for a in main_arms] + [{"id": a, "kind": "fork"} for a in fork_arms],
+        "arms": [{"id": a, "kind": "arm"} for a in main_arms] + [{"id": a, "kind": "fork", **fork_meta[a]} for a in fork_arms],
         "tier_order": TIER_ORDER,
         "attempts": attempts,
         "layout": layout["meta"],

@@ -130,7 +130,7 @@ table.arms th:first-child, table.arms td:first-child { text-align: left; }
   <details class="note" open>
     <summary>What am I looking at?</summary>
     <p>Every panel is a projection of one hash-chained event log, computed in Python and exported as JSON. The timeline replays the log: everything shows the state <em>as of event N</em>.</p>
-    <p><b>Attempts:</b> one point per arm &times; task, including fork re-runs (<code>D:control</code> = same cheap model again, <code>D:treatment</code> = escalated). Position is a deterministic PCA layout of token, request and gate counts &mdash; not semantic meaning. Colour = one logged fact; size = cost. Click a point for its event trail.</p>
+    <p><b>Attempts:</b> one point per arm &times; task, including fork re-runs, labelled from each fork's role (<code>D:control</code> = same cheap model again, <code>D:treatment</code> = escalated; a second control at the same fork point is <code>D:control-2</code>). Fork re-runs are fork events and fork outcomes in the log, never arms. Position is a deterministic PCA layout of token, request and gate counts &mdash; not semantic meaning. Colour = one logged fact; size = cost. Click a point for its event trail.</p>
     <p><b>Cost vs solve rate:</b> per arm, with 95% Wilson intervals; dashed line = Pareto frontier over arms A&ndash;D. Hollow = fork re-runs, which cover only failed-once tasks and are not comparable with the arms. Switch price tables to re-price the same history.</p>
   </details>
 
@@ -502,7 +502,8 @@ function drawPareto() {
   }).join("");
   $("armtable").innerHTML = `<thead><tr><th>arm</th><th>n</th><th>solved</th><th>rate</th><th>95% CI</th><th>$/task</th><th>$/solved</th></tr></thead><tbody>${rows}</tbody>`;
   // paired fork summary
-  const ctl = (arms["D:control"] || {}).out || {}, trt = (arms["D:treatment"] || {}).out || {};
+  const forkArm = (role) => (D.arms.find((a) => a.kind === "fork" && a.role === role && a.replicate === 1) || {}).id;
+  const ctl = (arms[forkArm("control")] || {}).out || {}, trt = (arms[forkArm("treatment")] || {}).out || {};
   const pairs = Object.keys(ctl).filter((t) => t in trt);
   if (pairs.length) {
     const c = pairs.filter((t) => ctl[t]).length, t = pairs.filter((t) => trt[t]).length;

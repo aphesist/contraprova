@@ -3,7 +3,8 @@
 `ui/index.html` is a static page that shows an event log as evidence. It has three linked
 panels, all showing the state **as of event N** on the timeline:
 
-1. **Attempts**: one point per (arm, task), including fork re-runs (`D:control`, `D:treatment`).
+1. **Attempts**: one point per (arm, task), including fork re-runs (labelled `D:control`, `D:treatment` from
+   each fork's role).
 2. **Cost per task vs solve rate**: one point per arm with a 95% Wilson interval, the Pareto
    frontier over arms A–D, a price-table selector and a table view of the same numbers.
 3. **Replay**: a scrubber, play/step buttons and an event strip. Clicking a point lists every event
@@ -54,18 +55,25 @@ analytics. It works on GitHub Pages as-is (it loads `demo-data.json` next to it)
 |---|---|
 | `task.created` | `task_id`, optional `language`, optional `synthetic` |
 | `route.decided` | `task_id`, `action` (model), `propensities`, `router_hash`, `features.attempt` |
-| `fork.created` | `task_id`, `from_seq`, `model`, `role` (`control` or `treatment`), `seed` |
-| `usage.recorded` | the `contraprova.usage.usage_payload` fields plus tags `arm`, `role`, `task_id` |
-| `outcome.scored` | `arm`, `task_id`, `solved` |
+| `fork.created` | `fork_id`, `task_id` (parent), `from_seq`, `model`, `role` (`control` or `treatment`), optional `arm`, `fork_task_id` |
+| `usage.recorded` | the `contraprova.usage.usage_payload` fields plus tags `arm`, `role`, `task_id`, `fork_id` |
+| `outcome.scored` | arm outcome `arm`, `task_id`, `solved`; fork outcome `fork_id`, `task_id`, `solved`; gate replays are listed but not counted |
 | `gate.decided` | `task_id`, `gate`, `verdict`, `reason` |
 
-- Task lifecycle events (route, claim, submit, gate) carry no arm tag. They are attributed to the
-  governed arm `D`; only that arm goes through the single writer's lifecycle.
-- Fork re-runs are recorded under arms `D:control` and `D:treatment`, so their outcomes never replace
-  D's own outcome (`projections.outcomes` keys on (arm, task)).
+Payloads follow [events.md](events.md).
+
+- Attempts are keyed by the pairing key (the outcome's `task_id`). A kernel task id is mapped to it
+  through `task.created.exercise_id`, so harness logs (`D:python/leap`) and the demo (one shared task
+  per exercise) both work.
+- Task lifecycle events (route, claim, submit, gate) are attributed to the arm named by their task's
+  `task.created`, else to the governed arm `D`; a fork child's (`fork_task_id`) go to its fork.
+- Fork re-runs are fork events: usage and outcomes keyed by `fork_id`. For display only, the exporter
+  labels each fork `<parent arm>:<role>` (`D:control`, `D:treatment`; further controls at the same
+  fork point are `D:control-2`, ...), and lists those labels in `arms` with `kind: "fork"`, `parent`,
+  `role` and `replicate`. Fork cost is shown under the fork's label, never under its parent arm.
 - An attempt's **model tier** is the strongest model that did worker work on it (roles `worker`,
   `control`, `treatment`, or the routed model). **Escalated** means a route to a non-Haiku model on a
-  retry (`features.attempt > 1`) or a treatment fork. **Blocked** means at least one `gate.decided`
+  retry (`features.attempt > 1` or `decision: after_gate_failure`) or a treatment fork. **Blocked** means at least one `gate.decided`
   with verdict `block`. **Solved** comes only from `outcome.scored`.
 - Cost per task for an arm is its total cost divided by the number of tasks it has usage or
   outcomes for, so far.

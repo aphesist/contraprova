@@ -102,16 +102,49 @@ def test_costs_match_request_cost(demo):
         for j, name in enumerate(data["table_names"]):
             assert close(rec["c"][j], request_cost(ev.payload, tables[name]))
     assert n_usage > 0
-    # Arm totals agree with the library's own grouping, under every table.
+    # Arm totals agree with the library's own grouping, under every table. Fork usage
+    # (with a fork_id) is shown under the fork's label, never under its parent arm.
+    labels = fork_labels(events)
+    records = usage_records(events)
+    arm_usage = [u for u in records if "fork_id" not in u]
+    fork_usage = [{**u, "label": labels[u["fork_id"]]} for u in records if "fork_id" in u]
+    assert fork_usage
     for j, name in enumerate(data["table_names"]):
-        totals = cost_by(usage_records(events), tables[name], "arm")
+        totals = {**cost_by(arm_usage, tables[name], "arm"), **cost_by(fork_usage, tables[name], "label")}
+        assert set(totals) == set(data["final"]["arms"])
         for arm, usd in totals.items():
             assert close(data["final"]["arms"][arm]["cost"][j], usd)
 
 
+def fork_labels(events):
+    return {e.payload["fork_id"]: f"D:{e.payload['role']}" for e in events if e.type == "fork.created"}
+
+
+def test_demo_uses_canonical_fork_events(demo):
+    path, data = demo
+    events = EventLog(path).events()
+    forks = [e.payload for e in events if e.type == "fork.created"]
+    assert forks and all({"fork_id", "task_id", "from_seq", "model", "role", "seed", "prefix_hash"} <= set(f) for f in forks)
+    assert all(events[f["from_seq"]].hash == f["prefix_hash"] for f in forks)
+    ids = {f["fork_id"] for f in forks}
+    fork_outs = [e.payload for e in events if e.type == "outcome.scored" and "fork_id" in e.payload]
+    assert len(fork_outs) == len(forks) and {o["fork_id"] for o in fork_outs} == ids
+    # No arm uses the old "D:control" convention in the log itself; the label exists only in the export.
+    assert all(":" not in str(u.get("arm", "")) for u in usage_records(events))
+    assert all(":" not in str(e.payload.get("arm", "")) for e in events if e.type == "outcome.scored")
+    meta = {a["id"]: a for a in data["arms"] if a["kind"] == "fork"}
+    assert meta == {"D:control": {"id": "D:control", "kind": "fork", "parent": "D", "role": "control", "replicate": 1},
+                    "D:treatment": {"id": "D:treatment", "kind": "fork", "parent": "D", "role": "treatment", "replicate": 1}}
+
+
 def test_outcomes_and_frontier_match_the_projections(demo):
     path, data = demo
-    outs = outcomes(EventLog(path).events())
+    events = EventLog(path).events()
+    outs = dict(outcomes(events))
+    labels = fork_labels(events)
+    for e in events:
+        if e.type == "outcome.scored" and "fork_id" in e.payload:
+            outs[(labels[e.payload["fork_id"]], e.payload["task_id"])] = e.payload["solved"]
     for arm, s in data["final"]["arms"].items():
         mine = [v for (a, _), v in outs.items() if a == arm]
         assert s["n_scored"] == len(mine) and s["n_solved"] == sum(mine)

@@ -17,10 +17,15 @@ Conventions used (the replay UI relies on them):
 * ``task.created`` is shared by all arms; ``max_attempts`` is 2.
 * Arms A, B and C only record ``usage.recorded`` and ``outcome.scored``.
 * Arm D (governed) goes through route -> claim -> submit -> gate, up to twice.
-* When D's first gate blocks, the log is forked at that gate event and the task
-  is re-run twice: arm ``D:control`` (same cheap model) and ``D:treatment``
-  (stronger model). Their usage and outcomes are recorded under those arm names
-  so they never overwrite D's own outcome.
+* When D's first gate blocks, the log is forked at that gate event with
+  ``contraprova.forks.fork`` and the task is re-run twice: a ``control`` fork
+  (same cheap model) and a ``treatment`` fork (stronger model). Payloads follow
+  docs/events.md: fork usage carries the ``fork_id``, and each re-run is scored
+  as a fork outcome keyed by ``fork_id``, so it never overwrites or counts
+  toward D's own outcome. The exporter labels the re-runs ``D:control`` and
+  ``D:treatment`` from the fork's role, for display only.
+* There is one task per exercise, shared by every arm, so the kernel task id
+  and the pairing key are the same string.
 """
 
 from __future__ import annotations
@@ -34,6 +39,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from contraprova.forks import fork  # noqa: E402
 from contraprova.log import EventLog  # noqa: E402
 from contraprova.usage import usage_payload  # noqa: E402
 
@@ -56,11 +62,18 @@ class Writer:
         self.log = EventLog(path)
         self.n = 0
 
+    def ts(self) -> str:
+        return (T0 + timedelta(seconds=7 * self.n)).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
     def emit(self, type_: str, actor: str, payload: dict):
-        ts = (T0 + timedelta(seconds=7 * self.n)).isoformat(timespec="milliseconds").replace("+00:00", "Z")
-        ev = self.log.append(type_, actor, payload, ts)
+        ev = self.log.append(type_, actor, payload, self.ts())
         self.n += 1
         return ev
+
+    def fork(self, tid: str, from_seq: int, model: str, role: str, seed: int) -> str:
+        fid = fork(self.log, tid, from_seq, model, role, seed, actor="forker", ts=self.ts(), extra={"arm": "D"})
+        self.n += 1
+        return fid
 
 
 def tokens(rng: random.Random, model: str, role: str) -> dict:
@@ -136,18 +149,19 @@ def run_governed(w: Writer, rng: random.Random, tid: str, lang: str, d: float) -
             fork_counterfactuals(w, rng, tid, d, gate.seq)
     # Hidden score tests occasionally disagree with the gate.
     solved = passed and rng.random() > 0.06
-    w.emit("outcome.scored", "scorer", {"arm": "D", "task_id": tid, "solved": solved})
+    w.emit("outcome.scored", "scorer", {"arm": "D", "task_id": tid, "log_task_id": tid, "solved": solved})
 
 
 def fork_counterfactuals(w: Writer, rng: random.Random, tid: str, d: float, from_seq: int) -> None:
     for role, model in (("control", HAIKU), ("treatment", SONNET)):
-        arm = f"D:{role}"
         seed = rng.randint(0, 2**31 - 1)
-        w.emit("fork.created", "forker", {"task_id": tid, "from_seq": from_seq, "model": model, "role": role, "seed": seed})
+        fid = w.fork(tid, from_seq, model, role, seed)
         for _ in range(rng.choice([1, 2])):
-            w.emit("usage.recorded", f"fork-{role}", usage_payload(tokens(rng, model, "worker"), model, arm=arm, role=role, task_id=tid))
+            w.emit("usage.recorded", f"fork-{role}",
+                   usage_payload(tokens(rng, model, "worker"), model, arm="D", role="worker", task_id=tid, fork_id=fid))
         # A task that already failed once is harder than average for its model.
-        w.emit("outcome.scored", "scorer", {"arm": arm, "task_id": tid, "solved": solves(rng, model, d + 0.15)})
+        w.emit("outcome.scored", "scorer",
+               {"fork_id": fid, "task_id": tid, "log_task_id": tid, "arm": "D", "solved": solves(rng, model, d + 0.15)})
 
 
 def build(path: Path, seed: int = 20261111, n_tasks: int = 30) -> int:
