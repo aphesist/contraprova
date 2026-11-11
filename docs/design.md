@@ -148,6 +148,23 @@ are split into visible (seen by workers), gate-private (seen only by the governe
 | D | Governed swarm with learned escalation |
 | L1, La, Lb, Lc | Local track: single local worker, Contract Lanes in separate contexts, Contract Lanes on a shared blackboard, local worker escalating to Haiku |
 
+**T2.review in arm D.** The gates add `T2.review` when a submission touches a manifest file
+(`Cargo.toml`, `go.mod`, `package.json`, ...) or changes more than 200 lines. Rust lists `Cargo.toml`
+as a solution file, and some correct reference solutions are over 200 lines (go/poker is 288). If T2
+blocked whenever no reviewer was configured, those correct submissions would become gate failures and
+spurious forks. So:
+
+- With `--client anthropic`, arm D configures a cheap diff judge (`Harness.t2_reviewer`): Sonnet 5.5
+  at low effort, called through the same injected client, so the call is budgeted and recorded with
+  role `reviewer` and, in a fork branch, its `fork_id`. It sees the unified diff against the starting
+  files and a short rubric. It blocks only for a dependency an offline build cannot fetch, a broken
+  build or manifest, weakened tests, or code unrelated to the exercise, and leaves correctness to the
+  tests. Its reply must be exactly `PASS` or `BLOCK: <reason>`. Any other reply blocks, with
+  `parse_error` in the evidence. `--no-t2-review` turns it off, and dry runs never configure it.
+- With no reviewer, `runners.polyglot_gates` records T2 as skipped: a pass whose evidence says
+  `status: skipped`, so the missing check is in the log but never causes a fork. The library default
+  in `gates.run_gates` still blocks (`missing_reviewer="block"`).
+
 All arms see the same tasks, so comparisons are paired: exact McNemar tests and paired bootstrap
 intervals, with Holm correction across the primary contrasts. At 90 tasks a solve rate carries about
 ±10 points of uncertainty, and a paired comparison detects differences of about 16 points.

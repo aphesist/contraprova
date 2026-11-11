@@ -588,3 +588,97 @@ def test_worker_prompt_puts_the_brief_last(exercises):
     ts = split_tests(e, 7)
     plain, briefed = h.worker_prompt(e, ts), h.worker_prompt(e, ts, "use min and max")
     assert briefed.startswith(plain) and briefed.rstrip().endswith("use min and max")
+
+
+# ------------------------------------------------------------------ T2.review in arm D
+
+
+@pytest.mark.parametrize("reply,expect", [
+    ("PASS", ("pass", "")),
+    ("  PASS\n", ("pass", "")),
+    ("BLOCK: adds the regex crate", ("block", "adds the regex crate")),
+    ("pass", (None, "")),
+    ("PASS\nlooks fine", (None, "")),
+    ("BLOCK:", (None, "")),
+    ("BLOCK adds a crate", (None, "")),
+    ("**PASS**", (None, "")),
+    ("ACCEPT", (None, "")),
+    ("", (None, "")),
+])
+def test_review_verdict_is_parsed_strictly(reply, expect):
+    from contraprova.harness.arms import parse_review_verdict
+
+    assert parse_review_verdict(reply) == expect
+
+
+def _t2_gates(sub, ctx):
+    """Every attempt needs T2: run the context's reviewer, or skip when there is none."""
+    from contraprova.gates import review_gate
+
+    return [review_gate(sub, ctx.contract, ctx.reviewer, missing_reviewer="skip")]
+
+
+def test_t2_reviewer_off_by_default_records_skipped(exercises, tmp_path):
+    ex = [by_id(exercises, "python/clamp")]
+    c = FakeClient(review="BLOCK: never asked")
+    h = harness(tmp_path, client=c, router=FixedRouter(HAIKU), gates=_t2_gates)
+    run_arm(h, "D", ex, splits_for(ex))
+    evs = h.log.events()
+    gate = next(e.payload for e in evs if e.type == "gate.decided")
+    assert gate["verdict"] == "pass" and gate["results"][0]["evidence"]["status"] == "skipped"
+    assert not [e for e in evs if e.type == "fork.created"]
+    assert [x["role"] for x in c.calls] == ["orchestrator", "worker"]
+
+
+def test_t2_reviewer_judges_the_diff_and_is_recorded(exercises, tmp_path):
+    from contraprova.harness.arms import ArmConfig, T2_REVIEW_SYSTEM
+
+    ex = [by_id(exercises, "python/clamp")]
+    c = FakeClient(edits={"clamp.py": "def clamp(x, lo, hi):\n    return max(lo, min(x, hi))\n"}, review="PASS")
+    h = harness(tmp_path, client=c, router=FixedRouter(HAIKU), gates=_t2_gates)
+    h.config = ArmConfig(t2_review_model=SONNET)
+    run_arm(h, "D", ex, splits_for(ex))
+    evs = h.log.events()
+    review = [x for x in c.calls if x["role"] == "reviewer"]
+    assert len(review) == 1 and review[0]["model"] == SONNET and review[0]["effort"] == "low"
+    assert review[0]["system"] == T2_REVIEW_SYSTEM
+    assert "+    return max(lo, min(x, hi))" in review[0]["prompt"]  # the unified diff against the stub
+    gate = next(e.payload for e in evs if e.type == "gate.decided")
+    assert gate["verdict"] == "pass" and gate["results"][0]["evidence"]["status"] == "reviewed"
+    rev_usage = [u for u in usage_records(evs) if u["role"] == "reviewer"]
+    assert len(rev_usage) == 1 and rev_usage[0]["model"] == SONNET and rev_usage[0]["task_id"] == "D:python/clamp"
+
+
+def test_t2_block_and_bad_reply_fork_with_tagged_usage(exercises, tmp_path):
+    from contraprova.harness.arms import ArmConfig
+
+    ex = [by_id(exercises, "python/clamp")]
+    for reply, reason in (("BLOCK: adds a dependency", "adds a dependency"), ("Looks fine to me.", "not PASS")):
+        c = FakeClient(review=reply)
+        h = harness(tmp_path / reason.replace(" ", "_"), client=c, router=FixedRouter(HAIKU), gates=_t2_gates)
+        h.config = ArmConfig(t2_review_model=SONNET)
+        run_arm(h, "D", ex, splits_for(ex))
+        evs = h.log.events()
+        first = next(e.payload for e in evs if e.type == "gate.decided")
+        assert first["verdict"] == "block" and reason in first["reason"]
+        assert ("parse_error" in first["results"][0]["evidence"]) == (reason == "not PASS")
+        forks = {e.payload["fork_id"]: e.payload["fork_task_id"] for e in evs if e.type == "fork.created"}
+        assert len(forks) == 3
+        rev_usage = [u for u in usage_records(evs) if u["role"] == "reviewer"]
+        # One review of the first attempt (no fork id) and one per fork branch (tagged with it).
+        assert len(rev_usage) == 4 and "fork_id" not in rev_usage[0]
+        assert {u["fork_id"]: u["task_id"] for u in rev_usage[1:]} == forks
+
+
+def test_cli_t2_review_only_with_the_anthropic_client(tmp_path, monkeypatch, capsys):
+    from contraprova.llm import AnthropicClient
+
+    monkeypatch.setattr(AnthropicClient, "_post", lambda self, data: (fake_api_response(json.loads(data)["model"]), None))
+    base = ["--split", "train", "--polyglot", str(FIXTURES), "--budget-usd", "1", "--limit", "1"]
+    assert main(["--arm", "D", "--log", str(tmp_path / "dry.jsonl"), "--dry-run", *base]) == 0
+    assert json.loads(capsys.readouterr().out)["t2_review_model"] is None
+    real = ["--arm", "B", "--client", "anthropic", "--scorer", "contraprova.harness.run:no_exec_scorer", *base]
+    assert main([*real, "--log", str(tmp_path / "a.jsonl")]) == 0
+    assert json.loads(capsys.readouterr().out)["t2_review_model"] == SONNET
+    assert main([*real, "--log", str(tmp_path / "b.jsonl"), "--no-t2-review"]) == 0
+    assert json.loads(capsys.readouterr().out)["t2_review_model"] is None

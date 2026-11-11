@@ -24,6 +24,11 @@ callback and are not wrapped in ``RecordingClient``; the harness refuses a
 client that would record usage too. ``--client contraprova.llm:AnthropicClient``
 also works, but then every role uses the worker key and only the log-based
 kill switch applies. Nothing here calls the API until a run starts.
+
+Arm D's T2.review (gates require it for a manifest edit or a diff over 200 lines) is judged by
+Sonnet 5.5 at low effort through the same client (``Harness.t2_reviewer``), but only with
+``--client anthropic``; ``--no-t2-review`` turns it off. With no reviewer, T2 is recorded as
+skipped by ``runners.polyglot_gates`` instead of blocking. The dry run never configures one.
 """
 
 from __future__ import annotations
@@ -220,6 +225,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--scorer", help="module:attr of a scorer callable")
     ap.add_argument("--exclude", action="append", default=[], metavar="EXERCISE_ID",
                     help="leave this exercise out (repeatable); reported in the summary")
+    ap.add_argument("--no-t2-review", action="store_true",
+                    help="do not configure arm D's T2.review diff judge (on by default with --client anthropic)")
     ap.add_argument("--exclude-unrunnable", action="store_true",
                     help="leave out exercises whose tests cannot run here (contraprova.harness.runners)")
     args = ap.parse_args(argv)
@@ -243,6 +250,7 @@ def main(argv: list[str] | None = None) -> int:
     chosen = [ex for ex in chosen if ex.id not in excluded]
     splits = {e.id: TestSplit.from_dict(e.id, part.test_splits[e.id]) for e in chosen}
 
+    config = ArmConfig()
     if args.dry_run:
         client, router, gates, scorer = FakeClient(), UniformRouter(), dry_run_gates, no_exec_scorer
     else:
@@ -255,17 +263,19 @@ def main(argv: list[str] | None = None) -> int:
         if args.client == "anthropic":
             spent = guard.spent(EventLog(log_path))
             client = anthropic_role_clients(Budget(args.budget_usd, spent_usd=spent))
+            if not args.no_t2_review:
+                config = ArmConfig(t2_review_model=SONNET)
         else:
             client = load_object(args.client)
         scorer = load_object(args.scorer)
         router = load_object(args.router) if args.router else None
         gates = load_object(args.gates) if args.gates else None
 
-    h = Harness(EventLog(log_path), client, scorer, gates, router, BudgetGuard(args.budget_usd), ArmConfig(),
+    h = Harness(EventLog(log_path), client, scorer, gates, router, BudgetGuard(args.budget_usd), config,
                 part.sha256)
     summary = run_arm(h, args.arm, chosen, splits, args.split)
     print(json.dumps({**summary.__dict__, "partition_sha256": part.sha256, "dry_run": args.dry_run,
-                      "excluded": excluded}, indent=2))
+                      "t2_review_model": config.t2_review_model, "excluded": excluded}, indent=2))
     return 2 if summary.stopped else 0
 
 

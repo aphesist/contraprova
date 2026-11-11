@@ -9,7 +9,9 @@ Tiers, cheapest first:
 - ``T1.private_tests``: gate-private tests pass on a temp copy.
 - ``T2.review``: only when the blast radius is large (build/manifest files,
   many changed lines, or after an escalation). The reviewer is an injected
-  callable; nothing here calls a model.
+  callable; nothing here calls a model. With no reviewer, T2 blocks by default;
+  ``missing_reviewer="skip"`` records it as skipped (a pass whose evidence says
+  ``status: skipped``) instead.
 
 ``run_gates`` runs the required tiers in order and stops at the first block.
 Every result's evidence carries ``tests_sha256`` so it can be bound into the
@@ -194,9 +196,20 @@ def run_test_gate(
     return GateResult(gate, "block", reason, evidence)
 
 
-def review_gate(submission: Submission, contract: LaneContract, reviewer: Reviewer | None) -> GateResult:
-    """T2.review: delegate to the injected reviewer; block if none is configured."""
+MISSING_REVIEWER = ("block", "skip")
+
+
+def review_gate(submission: Submission, contract: LaneContract, reviewer: Reviewer | None,
+                missing_reviewer: str = "block") -> GateResult:
+    """T2.review: delegate to the injected reviewer. With none configured, block, or with
+    ``missing_reviewer="skip"`` pass with ``status: skipped`` in the evidence, so the missing
+    check is recorded but never turns a submission into a gate failure."""
+    if missing_reviewer not in MISSING_REVIEWER:
+        raise ValueError(f"missing_reviewer must be one of {MISSING_REVIEWER}, got {missing_reviewer!r}")
     if reviewer is None:
+        if missing_reviewer == "skip":
+            return GateResult(T2_REVIEW, "pass", "review required but no reviewer configured; skipped",
+                              {"status": "skipped"})
         return GateResult(T2_REVIEW, "block", "review required but no reviewer configured", {})
     res = reviewer(submission, contract)
     if res.verdict not in ("pass", "block"):
@@ -227,6 +240,7 @@ def run_gates(
     test_hashes: Mapping[str, str] | None = None,
     escalated: bool = False,
     reviewer: Reviewer | None = None,
+    missing_reviewer: str = "block",
     timeout: float = 60.0,
     max_changed_lines: int = DEFAULT_MAX_CHANGED_LINES,
     dir_name: str = "ws",
@@ -238,7 +252,8 @@ def run_gates(
     detect tampering done directly in the workspace. ``private_dir`` is copied
     over the temp workspace before ``private_command`` runs (gate-private tests
     the worker never saw). If ``private_command`` is None, T1 is skipped and is
-    absent from both the results and the recorded tier plan.
+    absent from both the results and the recorded tier plan. ``missing_reviewer``
+    is passed to :func:`review_gate`.
     """
     current = hash_protected_files(workspace, contract)
     before = current if test_hashes is None else dict(test_hashes)
@@ -263,7 +278,7 @@ def run_gates(
             res = run_test_gate(T1_PRIVATE, submission, workspace, private_command, timeout=timeout, overlay=private_dir,
                                 dir_name=dir_name)
         else:
-            res = review_gate(submission, contract, reviewer)
+            res = review_gate(submission, contract, reviewer, missing_reviewer)
         res = GateResult(res.gate, res.verdict, res.reason, {**res.evidence, **common})
         results.append(res)
         if res.verdict == "block":

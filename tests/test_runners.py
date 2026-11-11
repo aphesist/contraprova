@@ -136,3 +136,36 @@ def test_javascript_reference_passes_with_jest(tmp_path):
     ctx = ctx_for(ex)
     sub = Submission(ctx.task_id, {"shout.js": ex.read(".meta/proof.ci.js")}, 1)
     assert polyglot_scorer(sub, ctx).solved
+
+
+def _big(clamp):
+    return clamp.read(".meta/example.py") + "".join(f"# padding line {i}\n" for i in range(250))
+
+
+def test_t2_without_a_reviewer_is_skipped_not_blocked(clamp):
+    ctx = ctx_for(clamp)
+    sub = Submission(ctx.task_id, {"clamp.py": _big(clamp)}, 1)
+    results = polyglot_gates(sub, ctx)
+    assert [r.gate for r in results] == ["T0.scope", "T0.visible_tests", "T1.private_tests", "T2.review"]
+    t2 = results[-1]
+    assert t2.verdict == "pass" and t2.evidence["status"] == "skipped" and "skipped" in t2.reason
+    assert all(r.verdict == "pass" for r in results)
+
+
+def test_t2_uses_the_context_reviewer(clamp):
+    from dataclasses import replace
+
+    from contraprova.interfaces import GateResult
+
+    seen = []
+
+    def reviewer(sub, contract):
+        seen.append(sorted(sub.files))
+        return GateResult("T2.review", "block", "adds a dependency", {"status": "reviewed"})
+
+    ctx = replace(ctx_for(clamp), reviewer=reviewer)
+    results = polyglot_gates(Submission(ctx.task_id, {"clamp.py": _big(clamp)}, 1), ctx)
+    assert results[-1].gate == "T2.review" and results[-1].verdict == "block" and seen == [["clamp.py"]]
+    # A small diff never reaches T2, so the reviewer is not called.
+    small = polyglot_gates(Submission(ctx.task_id, {"clamp.py": clamp.read(".meta/example.py")}, 1), ctx)
+    assert "T2.review" not in [r.gate for r in small] and len(seen) == 1

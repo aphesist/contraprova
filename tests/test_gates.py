@@ -243,6 +243,15 @@ def test_run_gates_review_hook(ws, contract):
     assert len(calls) == 1
     no_reviewer = run_gates(s, contract, ws, visible_command=PYTEST, escalated=True)
     assert no_reviewer[-1].verdict == "block" and "no reviewer" in no_reviewer[-1].reason
+    skipped = run_gates(s, contract, ws, visible_command=PYTEST, escalated=True, missing_reviewer="skip")
+    assert skipped[-1].gate == T2_REVIEW and skipped[-1].verdict == "pass"
+    assert skipped[-1].evidence["status"] == "skipped" and skipped[-1].evidence["tiers"][-1] == T2_REVIEW
+    # "skip" only covers a missing reviewer; a configured one still decides.
+    judged = run_gates(s, contract, ws, visible_command=PYTEST, escalated=True, reviewer=reviewer,
+                       missing_reviewer="skip")
+    assert judged[-1].verdict == "block" and len(calls) == 2
+    with pytest.raises(ValueError):
+        run_gates(s, contract, ws, visible_command=PYTEST, escalated=True, missing_reviewer="ignore")
 
 
 def test_evidence_is_deterministic(ws, contract):

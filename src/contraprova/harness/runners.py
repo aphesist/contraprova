@@ -241,10 +241,13 @@ def _write(files: Mapping[str, str], dest: Path) -> Path:
 
 
 def polyglot_gates(sub: Submission, ctx: TaskContext, *, timeout: float = DEFAULT_TIMEOUT) -> list[GateResult]:
-    """T0.scope, T0.visible_tests and (when the split has any) T1.private_tests, via ``run_gates``.
+    """T0.scope, T0.visible_tests, (when the split has any) T1.private_tests and, when the blast
+    radius calls for it, T2.review, via ``run_gates``.
 
     The workspace holds the exercise stubs and the visible tests; the gate-private tests are an
     overlay that replaces the test files before the private command runs, so T1 runs only them.
+    T2 uses the harness's reviewer (``ctx.reviewer``); with none configured it is recorded as
+    skipped rather than blocking, so a large but correct solution is not turned into a fork.
     """
     r = runner_for(ctx.exercise)
     visible = r.prepare(ctx.test_files("visible"))
@@ -255,7 +258,8 @@ def polyglot_gates(sub: Submission, ctx: TaskContext, *, timeout: float = DEFAUL
         return run_gates(sub, ctx.contract or default_contract(ctx), ws,
                          visible_command=r.command(list(visible)),
                          private_command=r.command(list(private)) if private else None,
-                         private_dir=pdir, timeout=timeout, dir_name=ctx.exercise.name)
+                         private_dir=pdir, reviewer=ctx.reviewer, missing_reviewer="skip",
+                         timeout=timeout, dir_name=ctx.exercise.name)
 
 
 def polyglot_scorer(sub: Submission, ctx: TaskContext, *, timeout: float = DEFAULT_TIMEOUT) -> ScoreResult:

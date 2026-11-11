@@ -39,7 +39,9 @@ from typing import Any, Callable, Mapping, Sequence
 
 from ..contracts import DEFAULT_PROTECTED, LaneContract, check_scope
 from ..forks import fork as create_fork
-from ..gates import changed_lines
+import difflib
+
+from ..gates import DEFAULT_MAX_CHANGED_LINES, Reviewer, changed_lines, touches_manifest
 from ..interfaces import HAIKU, OPUS, SONNET, Completion, GateResult, LLMClient, Message, Router, Submission
 from ..llm import RecordingClient
 from ..log import EventLog
@@ -132,6 +134,51 @@ or REDISPATCH on the first line followed by at most 100 words of concrete feedba
 
 ## Submitted files
 {files}"""
+
+# T2.review in arm D: a cheap diff judge, run only when the gates call for a review (a manifest
+# file touched or a large diff). Correctness is the tests' job; this checks what tests miss.
+T2_REVIEW_SYSTEM = (
+    "You check one diff to a small programming exercise before it is merged. Tests run separately: "
+    "do not judge whether the code is correct. Block only if the diff (1) adds a dependency that an "
+    "offline build cannot fetch, such as a new crate, package or module in a manifest; (2) breaks the "
+    "build or manifest configuration; (3) disables, deletes or weakens tests; or (4) does something "
+    "unrelated to the exercise, such as network, file-system or process access, or obfuscated code. "
+    "Otherwise pass. Reply with exactly one line: PASS, or BLOCK: followed by one sentence naming the "
+    "rule broken."
+)
+
+T2_REVIEW_TASK = """Exercise: {exercise_id} ({language})
+Files changed: {files}
+Lines changed: {changed}
+Review required because: {why}
+
+## Diff against the starting files
+{diff}
+"""
+
+_T2_VERDICT = re.compile(r"\A(?:PASS|BLOCK: (\S.*))\Z")
+
+
+def parse_review_verdict(text: str) -> tuple[str | None, str]:
+    """Strictly parse a T2 reviewer reply: exactly one line, ``PASS`` or ``BLOCK: <reason>``.
+
+    Returns ``("pass", "")``, ``("block", reason)``, or ``(None, "")`` for anything else
+    (extra lines, other words, lower case, markdown)."""
+    m = _T2_VERDICT.match(text.strip())
+    if not m:
+        return None, ""
+    return ("block", m.group(1).strip()) if m.group(1) is not None else ("pass", "")
+
+
+def unified_diff(original: Mapping[str, str], files: Mapping[str, str]) -> str:
+    """A unified diff of ``files`` against ``original`` (new files diff against empty)."""
+    parts = []
+    for path in sorted(files):
+        a = original.get(path, "")
+        parts.extend(difflib.unified_diff(a.splitlines(keepends=True), files[path].splitlines(keepends=True),
+                                          fromfile=f"a/{path}", tofile=f"b/{path}"))
+    return "".join(p if p.endswith("\n") else p + "\n" for p in parts)
+
 
 # ------------------------------------------------------------------ file format
 
@@ -227,6 +274,9 @@ class TaskContext:
     attempt: int = 1
     contract: LaneContract | None = None
     split: str = ""
+    # The T2.review callable for this attempt (None: no reviewer configured). Built by the
+    # harness so its model call is budgeted and recorded like every other request.
+    reviewer: Reviewer | None = None
 
     def test_files(self, subset: str) -> dict[str, str]:
         return materialize_tests(self.exercise, self.test_split, subset)
@@ -281,6 +331,12 @@ class ArmConfig:
     worker_max_tokens: int = 8000
     orchestrator_max_tokens: int = 1000
     feedback_chars: int = 2000
+    # Arm D's T2.review diff judge. None means no reviewer: T2 is then recorded as skipped by
+    # gates that support it (runners.polyglot_gates). run.py sets it only with --client anthropic.
+    t2_review_model: str | None = None
+    t2_review_effort: str | None = "low"
+    t2_review_max_tokens: int = 1000
+    t2_diff_chars: int = 40000
 
 
 # ------------------------------------------------------------------ harness
@@ -508,6 +564,48 @@ class Harness:
                       effort=self.config.strong_effort, cache_upto=len(context) if cache_context else 0)
         return c.text
 
+    def t2_reviewer(self, arm: str, task_id: str, ex: Exercise, fork_id: str | None = None) -> Reviewer | None:
+        """A ``gates.Reviewer`` for T2.review that asks ``config.t2_review_model`` to judge the
+        diff against the stubs, or None when no review model is configured.
+
+        The request goes through :meth:`call` (role ``reviewer``, the fork's ``fork_id`` if any),
+        so it is budgeted and recorded once. The reply is parsed strictly
+        (:func:`parse_review_verdict`); a reply in any other form blocks, with
+        ``parse_error`` in the evidence."""
+        cfg = self.config
+        if cfg.t2_review_model is None:
+            return None
+        model = cfg.t2_review_model
+        stubs = ex.stubs()
+
+        def review(sub: Submission, contract: LaneContract) -> GateResult:
+            del contract
+            diff = unified_diff(stubs, sub.files)
+            truncated = len(diff) > cfg.t2_diff_chars
+            if truncated:
+                diff = diff[: cfg.t2_diff_chars] + "\n[diff truncated]\n"
+            changed = changed_lines(sub, stubs)
+            why = []
+            if touches_manifest(sub):
+                why.append("touches " + ", ".join(touches_manifest(sub)))
+            if changed > DEFAULT_MAX_CHANGED_LINES:
+                why.append(f"more than {DEFAULT_MAX_CHANGED_LINES} changed lines")
+            user = T2_REVIEW_TASK.format(exercise_id=ex.id, language=ex.language,
+                                         files=", ".join(sorted(sub.files)) or "(none)", changed=changed,
+                                         why="; ".join(why) or "requested by the gate", diff=diff or "(no changes)")
+            c = self.call(arm=arm, role="reviewer", task_id=task_id, model=model, system=T2_REVIEW_SYSTEM,
+                          user=user, max_tokens=cfg.t2_review_max_tokens, effort=cfg.t2_review_effort,
+                          fork_id=fork_id)
+            verdict, reason = parse_review_verdict(c.text)
+            evidence = {"status": "reviewed", "model": c.model or model, "reply": c.text.strip()[:500],
+                        "diff_truncated": truncated}
+            if verdict is None:
+                return GateResult("T2.review", "block", "reviewer reply was not PASS or BLOCK: <reason>",
+                                  {**evidence, "parse_error": True})
+            return GateResult("T2.review", verdict, reason, evidence)
+
+        return review
+
     def _accept(self, task_id: str, attempt: int, gate: str, reason: str) -> None:
         self.emit("gate.decided", "harness", {"task_id": task_id, "attempt": attempt, "verdict": "pass",
                                               "gate": gate, "reason": reason, "results": []})
@@ -596,7 +694,7 @@ class Harness:
         # Initial decision: only what is known before the attempt (attempt 1, no failures yet).
         tier = self._route(arm, tid, "initial", self.features(ex, ts))
         sub = self._work(arm, tid, ex, tier, base, 1)
-        ctx = TaskContext(arm, tid, ex, ts, tier, 1, contract, split)
+        ctx = TaskContext(arm, tid, ex, ts, tier, 1, contract, split, self.t2_reviewer(arm, tid, ex))
         passed, results = self._gate(sub, ctx)
         if passed:
             return self.score(arm, sub, ctx, gate_passed=True, branch="initial")
@@ -621,7 +719,7 @@ class Harness:
             # the first writes the whole prompt to the cache and the next reads it.
             shared = sum(1 for _, _, m in FORK_BRANCHES if m == model) > 1
             csub = self._work(arm, child, ex, model, retry, 1, fork_id=fid, cache_upto=len(retry) if shared else 0)
-            cctx = TaskContext(arm, child, ex, ts, model, 1, contract, split)
+            cctx = TaskContext(arm, child, ex, ts, model, 1, contract, split, self.t2_reviewer(arm, child, ex, fid))
             cpassed, _ = self._gate(csub, cctx)
             r = self.evaluate(csub, cctx)
             self.fork_outcome(fid, csub, cctx, r, arm=arm, gate_passed=cpassed, branch=branch)
