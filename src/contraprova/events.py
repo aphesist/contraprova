@@ -23,6 +23,7 @@ EVENT_TYPES = frozenset(
         "gate.decided",
         # routing and escalation
         "route.decided",
+        "router.trained",
         "fork.created",
         # measurement
         "usage.recorded",
