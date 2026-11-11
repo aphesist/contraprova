@@ -33,6 +33,7 @@ from contraprova.harness.polyglot import (
 )
 from contraprova.harness.run import FakeClient, FixedRouter, UniformRouter, dry_run_gates, local_python_scorer, main, no_exec_scorer
 from contraprova.interfaces import HAIKU, OPUS, SONNET, GateResult
+from contraprova.forks import list_forks
 from contraprova.log import EventLog
 from contraprova.projections import outcomes, project_tasks, usage_records
 
@@ -280,15 +281,33 @@ def test_arm_d_forks_on_first_gate_failure(exercises, tmp_path):
     assert h.log.verify()
     evs = h.log.events()
     forks = [e.payload for e in evs if e.type == "fork.created"]
-    assert [(f["branch"], f["model"]) for f in forks] == [("control", HAIKU), ("control", HAIKU), ("treatment", SONNET)]
-    assert len({f["fork_point_seq"] for f in forks}) == 1
+    gate_seq = next(e.seq for e in evs if e.type == "gate.decided")
+    assert [(f["branch"], f["role"], f["model"]) for f in forks] == [
+        ("control-1", "control", HAIKU), ("control-2", "control", HAIKU), ("treatment", "treatment", SONNET)]
+    # Canonical fork.created (docs/events.md), made by contraprova.forks.fork.
+    assert all(f["task_id"] == "D:python/word-tally" and f["from_seq"] == gate_seq and f["arm"] == "D" for f in forks)
+    assert all(f["prefix_hash"] == evs[gate_seq].hash for f in forks)
+    assert [f["fork_task_id"] for f in forks] == [f"D:python/word-tally:{b}" for b in ("control-1", "control-2", "treatment")]
+    assert len({f["fork_id"] for f in forks}) == 3 and set(list_forks(evs)) == {f["fork_id"] for f in forks}
+    assert forks[0]["seed"] != forks[1]["seed"]
     routes = [e.payload for e in evs if e.type == "route.decided"]
     assert [r["decision"] for r in routes] == ["initial", "after_gate_failure"]
-    assert all(abs(sum(r["propensities"].values()) - 1) < 1e-9 and r["router_hash"] for r in routes)
-    outs = outcomes(evs)
-    assert set(a for a, _ in outs) == {"D", "D/control-1", "D/control-2", "D/treatment"}
-    d = [e.payload for e in evs if e.type == "outcome.scored" and e.payload["arm"] == "D"][0]
-    assert d["branch"] == "treatment" and d["router_action"] == SONNET
+    assert all(abs(sum(r["propensities"].values()) - 1) < 1e-9 and r["router_hash"] and r["arm"] == "D" for r in routes)
+    # Fork outcomes are keyed by fork_id and stay out of the arm outcomes.
+    fork_outs = [e.payload for e in evs if e.type == "outcome.scored" and "fork_id" in e.payload]
+    assert [o["fork_id"] for o in fork_outs] == [f["fork_id"] for f in forks]
+    assert all(o["task_id"] == "python/word-tally" and o["log_task_id"] == f["fork_task_id"]
+               for o, f in zip(fork_outs, forks))
+    assert set(outcomes(evs)) == {("D", "python/word-tally")}
+    # Fork usage carries the fork id; the shared orchestrator and the first attempt do not.
+    fork_usage = [u for u in usage_records(evs) if "fork_id" in u]
+    assert sorted(u["fork_id"] for u in fork_usage) == sorted(f["fork_id"] for f in forks)
+    assert all(u["task_id"] == next(f["fork_task_id"] for f in forks if f["fork_id"] == u["fork_id"]) for u in fork_usage)
+    d = [e.payload for e in evs if e.type == "outcome.scored" and "fork_id" not in e.payload][0]
+    assert d["arm"] == "D" and d["branch"] == "treatment" and d["router_action"] == SONNET
+    assert d["log_task_id"] == "D:python/word-tally" and d["branch_task_id"] == "D:python/word-tally:treatment"
+    gates = [e.payload for e in evs if e.type == "gate.decided"]
+    assert all("reason" in g for g in gates) and "2 failed" in gates[0]["reason"]
     tasks = project_tasks(evs)
     assert tasks["D:python/word-tally"].status == "failed"
     assert tasks["D:python/word-tally:treatment"].status == "done"
@@ -304,7 +323,7 @@ def test_arm_d_gate_block_means_not_shipped(exercises, tmp_path):
     h = harness(tmp_path, router=FixedRouter(HAIKU),
                 gates=lambda s, c: [GateResult("T0.visible_tests", "block", "fail")], scorer=oracle_scorer)
     run_arm(h, "D", ex, splits_for(ex))
-    d = [e.payload for e in h.log.events() if e.type == "outcome.scored" and e.payload["arm"] == "D"][0]
+    d = [e.payload for e in h.log.events() if e.type == "outcome.scored" and "fork_id" not in e.payload][0]
     assert d["branch"] == "control-1" and d["shipped"] is False and d["solved"] is False
 
 
@@ -368,3 +387,80 @@ def test_cli_real_run_requires_parts(tmp_path):
     with pytest.raises(SystemExit):
         main(["--arm", "D", "--split", "pilot", "--polyglot", str(FIXTURES), "--log", str(tmp_path / "x.jsonl"),
               "--budget-usd", "1"])
+
+
+# ------------------------------------------------------------------ real client wiring (no network)
+
+
+def fake_api_response(model):
+    return {"id": "msg_test", "model": model, "stop_reason": "end_turn",
+            "content": [{"type": "text", "text": "<<<FILE clamp.py>>>\ndef clamp(x, lo, hi):\n    return x\n<<<END>>>"}],
+            "usage": {"input_tokens": 1000, "output_tokens": 200, "cache_read_input_tokens": 0,
+                      "cache_creation_input_tokens": 0}}
+
+
+def test_harness_refuses_clients_that_record_usage_themselves(tmp_path):
+    from contraprova.harness.run import RoleClients, anthropic_role_clients
+    from contraprova.llm import Budget, RecordingClient, usage_recorder
+
+    log = EventLog(tmp_path / "x.jsonl")
+    for bad in (RecordingClient(FakeClient(), log),
+                AnthropicClient_with_recorder(log),
+                RoleClients({"worker": FakeClient(), "reviewer": RecordingClient(FakeClient(), log)})):
+        with pytest.raises(ValueError, match="twice"):
+            Harness(log, bad, no_exec_scorer)
+    with pytest.raises(ValueError):
+        anthropic_role_clients(Budget(1.0), on_usage=usage_recorder(log))
+    Harness(log, anthropic_role_clients(Budget(1.0)), no_exec_scorer)  # accepted, and no request made
+    assert not log.path.exists()
+
+
+def AnthropicClient_with_recorder(log):
+    from contraprova.llm import AnthropicClient, usage_recorder
+
+    return AnthropicClient("worker", on_usage=usage_recorder(log))
+
+
+def test_anthropic_role_clients_record_usage_exactly_once(exercises, tmp_path, monkeypatch):
+    """The real client, with its HTTP call stubbed out: one usage.recorded per request, shared budget."""
+    from contraprova.harness.run import HARNESS_ROLES, anthropic_role_clients
+    from contraprova.llm import AnthropicClient, Budget
+    from contraprova.pricing import DEFAULT_TABLE, PRICE_TABLES, request_cost
+
+    posts = []
+
+    def fake_post(self, data):
+        body = json.loads(data)
+        posts.append((self.role, body["model"]))
+        return fake_api_response(body["model"]), f"req_{len(posts)}"
+
+    monkeypatch.setattr(AnthropicClient, "_post", fake_post)
+    budget = Budget(5.0)
+    client = anthropic_role_clients(budget)
+    assert all(c.budget is budget for c in client.clients.values()) and set(client.clients) == set(HARNESS_ROLES)
+    assert all(c.on_usage is None for c in client.clients.values())
+    ex = [by_id(exercises, "python/clamp")]
+    h = harness(tmp_path, client=client, cap=5.0)
+    run_arm(h, "C", ex, splits_for(ex))
+    usage = usage_records(h.log.events())
+    assert [p[0] for p in posts] == ["orchestrator", "worker", "reviewer"]  # dispatched by role
+    assert len(usage) == len(posts) == budget.calls
+    assert sorted(u["request_id"] for u in usage) == sorted(f"req_{i}" for i in range(1, len(posts) + 1))
+    assert budget.spent_usd == pytest.approx(sum(request_cost(u, PRICE_TABLES[DEFAULT_TABLE]) for u in usage))
+
+
+def test_cli_client_anthropic_wiring(tmp_path, monkeypatch, capsys):
+    from contraprova.llm import AnthropicClient
+
+    calls = []
+
+    def fake_post(self, data):
+        calls.append(self.role)
+        return fake_api_response(json.loads(data)["model"]), None
+
+    monkeypatch.setattr(AnthropicClient, "_post", fake_post)
+    log = tmp_path / "runs" / "real.jsonl"
+    rc = main(["--arm", "B", "--split", "train", "--polyglot", str(FIXTURES), "--log", str(log), "--budget-usd", "1",
+               "--limit", "1", "--client", "anthropic", "--scorer", "contraprova.harness.run:no_exec_scorer"])
+    assert rc == 0 and json.loads(capsys.readouterr().out)["attempted"] == 1
+    assert calls == ["worker"] and len(usage_records(EventLog(log).events())) == 1

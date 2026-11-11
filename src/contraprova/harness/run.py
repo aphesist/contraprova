@@ -8,10 +8,22 @@ a uniform router, a scope-plus-coin-flip gate and a scorer that executes
 nothing), so the whole loop runs at $0. The fakes report synthetic token
 counts, so the budget kill switch is exercised too.
 
-A real run takes its parts by import path (``module:factory``, each factory
-called with no arguments): ``--client``, ``--router`` and ``--gates`` (arm D),
-and ``--scorer``. ``local_python_scorer`` below is one scorer you may name; it
-executes model output and tests, so use it only inside a sandbox.
+A real run takes its parts by import path (``module:attr``; a class is
+instantiated with no arguments, anything else is used as is): ``--client``,
+``--router`` and ``--gates`` (arm D), and ``--scorer``.
+``local_python_scorer`` below is one scorer you may name; it executes model
+output and tests, so use it only inside a sandbox.
+
+The Messages API client: ``--client anthropic`` builds one
+``contraprova.llm.AnthropicClient`` per harness role (worker, orchestrator,
+reviewer; keys ``CONTRAPROVA_KEY_<ROLE>``, then ``ANTHROPIC_API_KEY``) that
+share one ``llm.Budget`` capped at ``--budget-usd`` and seeded with the spend
+already recorded in the log (:func:`anthropic_role_clients`). The harness
+writes ``usage.recorded`` itself, so these clients get no ``on_usage``
+callback and are not wrapped in ``RecordingClient``; the harness refuses a
+client that would record usage too. ``--client contraprova.llm:AnthropicClient``
+also works, but then every role uses the worker key and only the log-based
+kill switch applies. Nothing here calls the API until a run starts.
 """
 
 from __future__ import annotations
@@ -25,7 +37,8 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from ..contracts import check_scope
-from ..interfaces import HAIKU, SONNET, Completion, GateResult, Message, RouteDecision, Submission
+from ..interfaces import HAIKU, SONNET, Completion, GateResult, LLMClient, Message, RouteDecision, Submission
+from ..llm import AnthropicClient, Budget
 from ..log import EventLog
 from .arms import ARMS, ArmConfig, BudgetGuard, Harness, ScoreResult, TaskContext, format_files, parse_files, run_arm
 from .polyglot import (
@@ -132,6 +145,39 @@ def local_python_scorer(sub: Submission, ctx: TaskContext) -> ScoreResult:
                             "output_sha256": sha256_text(tail)})
 
 
+# ------------------------------------------------------------------ real client
+
+HARNESS_ROLES: tuple[str, ...] = ("worker", "orchestrator", "reviewer")
+
+
+class RoleClients:
+    """An LLMClient that sends each request to the client for ``tags["role"]`` (default ``worker``)."""
+
+    def __init__(self, clients: Mapping[str, LLMClient], default: str = "worker"):
+        if default not in clients:
+            raise ValueError(f"no client for the default role {default!r}")
+        self.clients = dict(clients)
+        self.default = default
+
+    def complete(self, *, model: str, system: str, messages: Sequence[Message], max_tokens: int,
+                 effort: str | None = None, tags: Mapping[str, Any] | None = None) -> Completion:
+        role = (tags or {}).get("role") or self.default
+        client = self.clients.get(role, self.clients[self.default])
+        return client.complete(model=model, system=system, messages=messages, max_tokens=max_tokens,
+                               effort=effort, tags=tags)
+
+
+def anthropic_role_clients(budget: Budget | None, **client_kwargs: Any) -> RoleClients:
+    """One AnthropicClient per harness role, all charging the same ``budget``.
+
+    No ``on_usage`` callback is set and nothing is wrapped in RecordingClient: the harness is the
+    only writer of ``usage.recorded``. Building the clients makes no request and reads no key.
+    """
+    if "on_usage" in client_kwargs:
+        raise ValueError("the harness records usage itself; do not pass on_usage")
+    return RoleClients({r: AnthropicClient(r, budget=budget, **client_kwargs) for r in HARNESS_ROLES})
+
+
 # ------------------------------------------------------------------ CLI
 
 
@@ -166,7 +212,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--partition", default=None, help="partition JSON (default: <log dir>/partition.json)")
     ap.add_argument("--seed", type=int, default=DEFAULT_SEED)
     ap.add_argument("--limit", type=int, default=None, help="only the first N exercises of the split")
-    ap.add_argument("--client", help="module:attr of an LLMClient (class or instance)")
+    ap.add_argument("--client", help="'anthropic' (Messages API, one client per role, shared budget) or "
+                    "module:attr of an LLMClient (class or instance)")
     ap.add_argument("--router", help="module:attr of a Router (arm D)")
     ap.add_argument("--gates", help="module:attr of a gate callable (arm D)")
     ap.add_argument("--scorer", help="module:attr of a scorer callable")
@@ -188,7 +235,13 @@ def main(argv: list[str] | None = None) -> int:
             missing += [n for n in ("router", "gates") if not getattr(args, n)]
         if missing:
             ap.error("a real run needs " + ", ".join(f"--{m}" for m in missing) + " (or use --dry-run)")
-        client, scorer = load_object(args.client), load_object(args.scorer)
+        guard = BudgetGuard(args.budget_usd)
+        if args.client == "anthropic":
+            spent = guard.spent(EventLog(log_path))
+            client = anthropic_role_clients(Budget(args.budget_usd, spent_usd=spent))
+        else:
+            client = load_object(args.client)
+        scorer = load_object(args.scorer)
         router = load_object(args.router) if args.router else None
         gates = load_object(args.gates) if args.gates else None
 

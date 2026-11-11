@@ -10,13 +10,25 @@ D  governed swarm: a lane contract, injected gates, the router picks the
 
 Every model call goes through the injected ``LLMClient`` and every step is an
 event in the ``EventLog``. The harness, not the client, writes
-``usage.recorded``: clients must not append to the log themselves.
+``usage.recorded``: clients must not append to the log themselves, so a
+``RecordingClient`` or a client with an ``on_usage`` callback is refused
+(it would record every request twice).
 
-Task ids in the log are ``"<arm>:<exercise id>"`` (fork children add
-``":control-1"``, ``":control-2"`` or ``":treatment"``). ``outcome.scored``
-uses the bare exercise id as ``task_id`` so outcomes pair across arms; fork
-branches are scored under the arms ``"D/control-1"``, ``"D/control-2"`` and
-``"D/treatment"``.
+Payloads follow docs/events.md. Kernel task ids are ``"<arm>:<exercise id>"``
+(fork children add ``":control-1"``, ``":control-2"`` or ``":treatment"``).
+``outcome.scored`` uses the bare exercise id as ``task_id`` (the pairing key)
+and names the kernel task in ``log_task_id``.
+
+Arm D's forks are created with :func:`contraprova.forks.fork`, so ``fork_id``,
+``seed`` and ``prefix_hash`` are exactly the library's. Each fork is scored
+with a **fork outcome** (``fork_id``, never counted toward an arm) and its
+usage carries the ``fork_id``. Arm D's own shipped result stays an arm outcome
+(``arm`` "D", ``log_task_id`` the parent task, ``branch_task_id`` the branch
+it shipped from). The re-execution prompt is the harness's own retry prompt
+(the first prompt plus the rejected files and the gate's reason), not
+``forks.conversation_prefix``: the harness sends single-turn requests and does
+not store its prompts in the log, so a multi-turn prefix rebuilt from the log
+would not be the request the worker actually saw.
 """
 
 from __future__ import annotations
@@ -26,13 +38,16 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Sequence
 
 from ..contracts import DEFAULT_PROTECTED, LaneContract
+from ..forks import fork as create_fork
 from ..interfaces import HAIKU, OPUS, SONNET, Completion, GateResult, LLMClient, Message, Router, Submission
+from ..llm import RecordingClient
 from ..log import EventLog
 from ..pricing import DEFAULT_TABLE, PER_MTOK, PRICE_TABLES, request_cost
 from ..projections import project_tasks, usage_records
 from .polyglot import Exercise, TestSplit, materialize_tests, sha256_json, sha256_text
 
 ARMS: tuple[str, ...] = ("A", "B", "C", "D")
+# (branch, role, model). The two controls differ only in seed; their disagreement is the noise floor.
 FORK_BRANCHES: tuple[tuple[str, str, str], ...] = (
     ("control-1", "control", HAIKU),
     ("control-2", "control", HAIKU),
@@ -264,6 +279,22 @@ class ArmConfig:
 # ------------------------------------------------------------------ harness
 
 
+def self_recording(client: Any) -> str | None:
+    """Describe why ``client`` would write usage itself, or None if it does not.
+
+    Looks through role dispatchers (anything with a ``clients`` mapping).
+    """
+    if isinstance(client, RecordingClient):
+        return "a RecordingClient"
+    if getattr(client, "on_usage", None) is not None:
+        return f"{type(client).__name__} with an on_usage callback"
+    for name, inner in sorted((getattr(client, "clients", None) or {}).items()):
+        why = self_recording(inner)
+        if why:
+            return f"{why} (role {name!r})"
+    return None
+
+
 def _gate_dict(r: GateResult) -> dict:
     return {"gate": r.gate, "verdict": r.verdict, "reason": r.reason, "evidence": dict(r.evidence)}
 
@@ -279,15 +310,22 @@ class Harness:
     config: ArmConfig = field(default_factory=ArmConfig)
     partition_sha256: str = ""
 
+    def __post_init__(self) -> None:
+        culprit = self_recording(self.client)
+        if culprit:
+            raise ValueError(f"the harness records usage itself; {culprit} would record every request twice")
+
     # ---- events
 
     def emit(self, type_: str, actor: str, payload: Mapping[str, Any]):
         return self.log.append(type_, actor, payload)
 
     def call(self, *, arm: str, role: str, task_id: str, model: str, system: str, user: str,
-             max_tokens: int, effort: str | None = None) -> Completion:
+             max_tokens: int, effort: str | None = None, fork_id: str | None = None) -> Completion:
         self.budget.check(self.log, model, len(system) + len(user), max_tokens)
         tags = {"arm": arm, "role": role, "task_id": task_id}
+        if fork_id is not None:
+            tags["fork_id"] = fork_id
         c = self.client.complete(model=model, system=system, messages=[Message("user", user)],
                                  max_tokens=max_tokens, effort=effort, tags=tags)
         usage = dict(c.usage)
@@ -326,6 +364,14 @@ class Harness:
         })
         return solved
 
+    def fork_outcome(self, fork_id: str, sub: Submission, ctx: TaskContext, r: ScoreResult, **extra) -> bool:
+        """Append a fork outcome: keyed by ``fork_id``, never counted toward an arm's solve rate."""
+        self.emit("outcome.scored", "scorer", {
+            "fork_id": fork_id, "task_id": ctx.exercise.id, "solved": bool(r.solved), "log_task_id": sub.task_id,
+            "split": ctx.split, "model": ctx.model, "evidence": dict(r.evidence), **extra,
+        })
+        return bool(r.solved)
+
     def score(self, arm: str, sub: Submission, ctx: TaskContext, **extra) -> bool:
         return self.outcome(arm, sub, ctx, self.evaluate(sub, ctx), **extra)
 
@@ -342,10 +388,10 @@ class Harness:
         return base + "\n" + WORKER_RETRY.format(previous=format_files(previous) or "(no files parsed)", feedback=fb)
 
     def _work(self, arm: str, task_id: str, ex: Exercise, model: str, prompt: str, attempt: int,
-              effort: str | None = None, role: str = "worker") -> Submission:
+              effort: str | None = None, role: str = "worker", fork_id: str | None = None) -> Submission:
         self.emit("task.claimed", f"worker:{model}", {"task_id": task_id, "worker": model, "attempt": attempt})
         c = self.call(arm=arm, role=role, task_id=task_id, model=model, system=WORKER_SYSTEM, user=prompt,
-                      max_tokens=self.config.worker_max_tokens, effort=effort)
+                      max_tokens=self.config.worker_max_tokens, effort=effort, fork_id=fork_id)
         return self.submit(task_id, attempt, model, parse_files(c.text), ex)
 
     def _brief(self, arm: str, task_id: str, ex: Exercise, ts: TestSplit) -> str:
@@ -400,19 +446,21 @@ class Harness:
         assert self.gates is not None
         results = list(self.gates(sub, ctx))
         passed = bool(results) and all(r.verdict == "pass" for r in results)
+        reason = "; ".join(f"[{r.gate}] {r.reason}" for r in results if r.verdict != "pass")
         self.emit("gate.decided", "gate", {
             "task_id": ctx.task_id, "attempt": ctx.attempt, "verdict": "pass" if passed else "block",
             "gate": "+".join(r.gate for r in results) or "none", "tier": ctx.model,
+            "reason": reason[: self.config.feedback_chars] if reason else ("all gates passed" if passed else "no gates ran"),
             "results": [_gate_dict(r) for r in results],
         })
         return passed, results
 
-    def _route(self, task_id: str, decision: str, features: Mapping[str, float]) -> str:
+    def _route(self, arm: str, task_id: str, decision: str, features: Mapping[str, float]) -> str:
         assert self.router is not None
         seed = int(sha256_text(f"{task_id}:{decision}")[:8], 16)
         d = self.router.decide(features, rng_seed=seed)
         self.emit("route.decided", "router", {
-            "task_id": task_id, "decision": decision, "action": d.action, "propensities": dict(d.propensities),
+            "task_id": task_id, "arm": arm, "decision": decision, "action": d.action, "propensities": dict(d.propensities),
             "router_hash": d.router_hash, "features": dict(features), "rng_seed": seed,
         })
         return d.action
@@ -443,39 +491,38 @@ class Harness:
         self.create(arm, tid, ex, split, max_attempts=1, contract=cdict)
         brief = self._brief(arm, tid, ex, ts)
         base = self.worker_prompt(ex, ts, brief)
-        tier = self._route(tid, "initial", self.features(ex, ts))
+        tier = self._route(arm, tid, "initial", self.features(ex, ts))
         sub = self._work(arm, tid, ex, tier, base, 1)
         ctx = TaskContext(arm, tid, ex, ts, tier, 1, contract, split)
         passed, results = self._gate(sub, ctx)
         if passed:
             return self.score(arm, sub, ctx, gate_passed=True, branch="initial")
 
-        # First gate failure: fork from this point and re-execute both ways.
+        # First gate failure: fork from the blocking gate.decided and re-execute both ways.
         fork_point = self.log.events()[-1].seq
         feedback = "\n".join(f"[{r.gate}] {r.reason}" for r in results if r.verdict != "pass")
         retry = self.retry_prompt(base, sub.files, feedback)
-        action = self._route(tid, "after_gate_failure", self.features(ex, ts, gate_failures=1))
+        action = self._route(arm, tid, "after_gate_failure", self.features(ex, ts, gate_failures=1))
         chosen = "control-1" if action == HAIKU else "treatment"
         chosen_result = None
-        for name, branch, model in FORK_BRANCHES:
-            child = f"{tid}:{name}"
-            self.emit("fork.created", "harness", {
-                "task_id": tid, "fork_id": f"{tid}@{fork_point}", "fork_task_id": child, "branch": branch,
-                "model": model, "fork_point_seq": fork_point, "arm": arm,
-            })
-            self.create(arm, child, ex, split, max_attempts=1, contract=cdict, fork_of=tid, branch=branch)
-            csub = self._work(arm, child, ex, model, retry, 1)
+        for branch, role, model in FORK_BRANCHES:
+            child = f"{tid}:{branch}"
+            seed = int(sha256_text(f"{tid}:{fork_point}:{branch}")[:8], 16)
+            fid = create_fork(self.log, tid, fork_point, model, role, seed, actor="harness",
+                              extra={"fork_task_id": child, "branch": branch, "arm": arm})
+            self.create(arm, child, ex, split, max_attempts=1, contract=cdict, fork_of=tid, fork_id=fid,
+                        branch=branch)
+            csub = self._work(arm, child, ex, model, retry, 1, fork_id=fid)
             cctx = TaskContext(arm, child, ex, ts, model, 1, contract, split)
             cpassed, _ = self._gate(csub, cctx)
             r = self.evaluate(csub, cctx)
-            self.outcome(f"D/{name}", csub, cctx, r, gate_passed=cpassed, branch=branch,
-                         fork_point_seq=fork_point)
-            if name == chosen:
+            self.fork_outcome(fid, csub, cctx, r, arm=arm, gate_passed=cpassed, branch=branch)
+            if branch == chosen:
                 chosen_result = (csub, cctx, cpassed, r)
         assert chosen_result is not None
         csub, cctx, cpassed, r = chosen_result
         return self.outcome(arm, csub, cctx, r, shipped=cpassed, gate_passed=cpassed, branch=chosen,
-                            router_action=action)
+                            router_action=action, log_task_id=tid, branch_task_id=csub.task_id)
 
     def run_task(self, arm: str, ex: Exercise, ts: TestSplit, split: str = "") -> bool:
         if arm in ("A", "B"):
