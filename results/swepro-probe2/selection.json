@@ -1,0 +1,375 @@
+{
+ "selected": [
+  "instance_NodeBB__NodeBB-8168c6c40707478f71b8af60300830fe554c778c-vf2cf3cbd463b7ad942381f1c6d077626485a1e9e",
+  "instance_ansible__ansible-d62496fe416623e88b90139dc7917080cb04ce70-v0f01c69f1e2528b935359cfe578530722bca2c59",
+  "instance_ansible__ansible-40ade1f84b8bb10a63576b0ac320c13f57c87d34-v6382ea168a93d80a64aab1fbd8c4f02dc5ada5bf",
+  "instance_ansible__ansible-b748edea457a4576847a10275678127895d2f02f-v1055803c3a812189a1133297f7f5468579283f86",
+  "instance_ansible__ansible-d72025be751c894673ba85caa063d835a0ad3a8c-v390e508d27db7a51eece36bb6d9698b63a5b638a",
+  "instance_ansible__ansible-d33bedc48fdd933b5abd65a77c081876298e2f07-v0f01c69f1e2528b935359cfe578530722bca2c59",
+  "instance_element-hq__element-web-66d0b318bc6fee0d17b54c1781d6ab5d5d323135-vnan",
+  "instance_internetarchive__openlibrary-53d376b148897466bb86d5accb51912bbbe9a8ed-v08d8e8889ec945ab821fb156c04c7d2e2810debb",
+  "instance_internetarchive__openlibrary-630221ab686c64e75a2ce253c893c033e4814b2e-v93c53c13d5f9b383ebb411ee7750b49dcd1a34c6",
+  "instance_internetarchive__openlibrary-322d7a46cdc965bfabbf9500e98fde098c9d95b2-v13642507b4fc1f8d234172bf8129942da2c2ca26",
+  "instance_qutebrowser__qutebrowser-3e21c8214a998cb1058defd15aabb24617a76402-v5fc38aaf22415ab0b70567368332beee7955b367",
+  "instance_qutebrowser__qutebrowser-e70f5b03187bdd40e8bf70f5f3ead840f52d1f42-v02ad04386d5238fe2d1a1be450df257370de4b6a"
+ ],
+ "queue": [
+  "instance_ansible__ansible-e9e6001263f51103e96e58ad382660df0f3d0e39-v30a923fb5c164d6cd18280c02422f75e611e8fb2",
+  "instance_element-hq__element-web-ecfd1736e5dd9808e87911fc264e6c816653e1a9-vnan",
+  "instance_internetarchive__openlibrary-0dc5b20fa186f9714f8a838178597e69f549d026-v2d9a6c849c60ed19fd0858ce9e40b7cc8e097e59",
+  "instance_qutebrowser__qutebrowser-deeb15d6f009b3ca0c3bd503a7cef07462bd16b4-v363c8a7e5ccdf6968fc7ab84a2053ac78036691d",
+  "instance_ansible__ansible-de5858f48dc9e1ce9117034e0d7e76806f420ca8-v1055803c3a812189a1133297f7f5468579283f86",
+  "instance_internetarchive__openlibrary-7cbfb812ef0e1f9716e2d6e85d538a96fcb79d13-vfa6ff903cb27f336e17654595dd900fa943dcd91",
+  "instance_qutebrowser__qutebrowser-c09e1439f145c66ee3af574386e277dd2388d094-v2ef375ac784985212b1805e1d0431dc8f1b3c171",
+  "instance_ansible__ansible-c1f2df47538b884a43320f53e787197793b105e8-v906c969b551b346ef54a2c0b41e04f632b7b73c2",
+  "instance_internetarchive__openlibrary-a48fd6ba9482c527602bc081491d9e8ae6e8226c-vfa6ff903cb27f336e17654595dd900fa943dcd91",
+  "instance_NodeBB__NodeBB-76c6e30282906ac664f2c9278fc90999b27b1f48-vd59a5728dfc977f44533186ace531248c2917516",
+  "instance_element-hq__element-web-f14374a51c153f64f313243f2df6ea4971db4e15",
+  "instance_NodeBB__NodeBB-f1a80d48cc45877fcbadf34c2345dd9709722c7f-v4fbcfae8b15e4ce5d132c408bca69ebb9cf146ed",
+  "instance_internetarchive__openlibrary-c506c1b0b678892af5cb22c1c1dbc35d96787a0a-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4",
+  "instance_internetarchive__openlibrary-7f6b722a10f822171501d027cad60afe53337732-ve8c8d62a2b60610a3c4631f5f23ed866bada9818",
+  "instance_NodeBB__NodeBB-a5afad27e52fd336163063ba40dcadc80233ae10-vd59a5728dfc977f44533186ace531248c2917516",
+  "instance_internetarchive__openlibrary-92db3454aeaa02f89b4cdbc3103f7e95c9759f92-v2c55207218fb8a0138425cbf7d9675272e240b90",
+  "instance_NodeBB__NodeBB-04998908ba6721d64eba79ae3b65a351dcfbc5b5-vnan",
+  "instance_element-hq__element-web-cf3c899dd1f221aa1a1f4c5a80dffc05b9c21c85-vnan",
+  "instance_ansible__ansible-379058e10f3dbc0fdcaf80394bd09b18927e7d33-v1055803c3a812189a1133297f7f5468579283f86",
+  "instance_NodeBB__NodeBB-b398321a5eb913666f903a794219833926881a8f-vd59a5728dfc977f44533186ace531248c2917516"
+ ],
+ "left_out": {
+  "instance_element-hq__element-web-5dfde12c1c1c0b6e48f17e3405468593e39d9492-vnan": "worker prompt ~114702 tokens > 90000",
+  "instance_element-hq__element-web-772df3021201d9c73835a626df8dcb6334ad9a3e-vnan": "worker prompt ~113801 tokens > 90000",
+  "instance_internetarchive__openlibrary-b67138b316b1e9c11df8a4a8391fe5cc8e75ff9f-ve8c8d62a2b60610a3c4631f5f23ed866bada9818": "the gold patch deletes openlibrary/catalog/marc/parse_xml.py"
+ },
+ "quota": {
+  "NodeBB/NodeBB": 1,
+  "ansible/ansible": 5,
+  "element-hq/element-web": 1,
+  "internetarchive/openlibrary": 3,
+  "qutebrowser/qutebrowser": 2
+ },
+ "hard_pool": {
+  "NodeBB/NodeBB": 1,
+  "ansible/ansible": 8,
+  "element-hq/element-web": 2,
+  "internetarchive/openlibrary": 6,
+  "qutebrowser/qutebrowser": 4
+ },
+ "overlap_with_probe": [
+  "instance_internetarchive__openlibrary-6e889f4a733c9f8ce9a9bd2ec6a934413adcedb9-ve8c8d62a2b60610a3c4631f5f23ed866bada9818"
+ ],
+ "worker_prompt_tokens_est": {
+  "instance_NodeBB__NodeBB-8168c6c40707478f71b8af60300830fe554c778c-vf2cf3cbd463b7ad942381f1c6d077626485a1e9e": 10524,
+  "instance_ansible__ansible-40ade1f84b8bb10a63576b0ac320c13f57c87d34-v6382ea168a93d80a64aab1fbd8c4f02dc5ada5bf": 9545,
+  "instance_ansible__ansible-b748edea457a4576847a10275678127895d2f02f-v1055803c3a812189a1133297f7f5468579283f86": 42969,
+  "instance_ansible__ansible-c1f2df47538b884a43320f53e787197793b105e8-v906c969b551b346ef54a2c0b41e04f632b7b73c2": 4280,
+  "instance_ansible__ansible-d33bedc48fdd933b5abd65a77c081876298e2f07-v0f01c69f1e2528b935359cfe578530722bca2c59": 89009,
+  "instance_ansible__ansible-d62496fe416623e88b90139dc7917080cb04ce70-v0f01c69f1e2528b935359cfe578530722bca2c59": 4006,
+  "instance_ansible__ansible-d72025be751c894673ba85caa063d835a0ad3a8c-v390e508d27db7a51eece36bb6d9698b63a5b638a": 28295,
+  "instance_ansible__ansible-de5858f48dc9e1ce9117034e0d7e76806f420ca8-v1055803c3a812189a1133297f7f5468579283f86": 63905,
+  "instance_ansible__ansible-e9e6001263f51103e96e58ad382660df0f3d0e39-v30a923fb5c164d6cd18280c02422f75e611e8fb2": 16936,
+  "instance_element-hq__element-web-5dfde12c1c1c0b6e48f17e3405468593e39d9492-vnan": 114702,
+  "instance_element-hq__element-web-66d0b318bc6fee0d17b54c1781d6ab5d5d323135-vnan": 15568,
+  "instance_element-hq__element-web-772df3021201d9c73835a626df8dcb6334ad9a3e-vnan": 113801,
+  "instance_element-hq__element-web-ecfd1736e5dd9808e87911fc264e6c816653e1a9-vnan": 8297,
+  "instance_internetarchive__openlibrary-0dc5b20fa186f9714f8a838178597e69f549d026-v2d9a6c849c60ed19fd0858ce9e40b7cc8e097e59": 10639,
+  "instance_internetarchive__openlibrary-322d7a46cdc965bfabbf9500e98fde098c9d95b2-v13642507b4fc1f8d234172bf8129942da2c2ca26": 25649,
+  "instance_internetarchive__openlibrary-53d376b148897466bb86d5accb51912bbbe9a8ed-v08d8e8889ec945ab821fb156c04c7d2e2810debb": 25253,
+  "instance_internetarchive__openlibrary-630221ab686c64e75a2ce253c893c033e4814b2e-v93c53c13d5f9b383ebb411ee7750b49dcd1a34c6": 51235,
+  "instance_internetarchive__openlibrary-7cbfb812ef0e1f9716e2d6e85d538a96fcb79d13-vfa6ff903cb27f336e17654595dd900fa943dcd91": 12124,
+  "instance_internetarchive__openlibrary-a48fd6ba9482c527602bc081491d9e8ae6e8226c-vfa6ff903cb27f336e17654595dd900fa943dcd91": 16076,
+  "instance_qutebrowser__qutebrowser-3e21c8214a998cb1058defd15aabb24617a76402-v5fc38aaf22415ab0b70567368332beee7955b367": 36885,
+  "instance_qutebrowser__qutebrowser-c09e1439f145c66ee3af574386e277dd2388d094-v2ef375ac784985212b1805e1d0431dc8f1b3c171": 37969,
+  "instance_qutebrowser__qutebrowser-deeb15d6f009b3ca0c3bd503a7cef07462bd16b4-v363c8a7e5ccdf6968fc7ab84a2053ac78036691d": 10702,
+  "instance_qutebrowser__qutebrowser-e70f5b03187bdd40e8bf70f5f3ead840f52d1f42-v02ad04386d5238fe2d1a1be450df257370de4b6a": 82967
+ },
+ "gold_size": {
+  "instance_NodeBB__NodeBB-8168c6c40707478f71b8af60300830fe554c778c-vf2cf3cbd463b7ad942381f1c6d077626485a1e9e": [
+   5,
+   84
+  ],
+  "instance_ansible__ansible-d62496fe416623e88b90139dc7917080cb04ce70-v0f01c69f1e2528b935359cfe578530722bca2c59": [
+   3,
+   35
+  ],
+  "instance_ansible__ansible-40ade1f84b8bb10a63576b0ac320c13f57c87d34-v6382ea168a93d80a64aab1fbd8c4f02dc5ada5bf": [
+   2,
+   653
+  ],
+  "instance_ansible__ansible-b748edea457a4576847a10275678127895d2f02f-v1055803c3a812189a1133297f7f5468579283f86": [
+   5,
+   269
+  ],
+  "instance_ansible__ansible-d72025be751c894673ba85caa063d835a0ad3a8c-v390e508d27db7a51eece36bb6d9698b63a5b638a": [
+   5,
+   294
+  ],
+  "instance_ansible__ansible-d33bedc48fdd933b5abd65a77c081876298e2f07-v0f01c69f1e2528b935359cfe578530722bca2c59": [
+   7,
+   285
+  ],
+  "instance_element-hq__element-web-66d0b318bc6fee0d17b54c1781d6ab5d5d323135-vnan": [
+   6,
+   259
+  ],
+  "instance_internetarchive__openlibrary-53d376b148897466bb86d5accb51912bbbe9a8ed-v08d8e8889ec945ab821fb156c04c7d2e2810debb": [
+   4,
+   59
+  ],
+  "instance_internetarchive__openlibrary-630221ab686c64e75a2ce253c893c033e4814b2e-v93c53c13d5f9b383ebb411ee7750b49dcd1a34c6": [
+   6,
+   328
+  ],
+  "instance_internetarchive__openlibrary-322d7a46cdc965bfabbf9500e98fde098c9d95b2-v13642507b4fc1f8d234172bf8129942da2c2ca26": [
+   2,
+   483
+  ],
+  "instance_qutebrowser__qutebrowser-3e21c8214a998cb1058defd15aabb24617a76402-v5fc38aaf22415ab0b70567368332beee7955b367": [
+   1,
+   59
+  ],
+  "instance_qutebrowser__qutebrowser-e70f5b03187bdd40e8bf70f5f3ead840f52d1f42-v02ad04386d5238fe2d1a1be450df257370de4b6a": [
+   2,
+   46
+  ],
+  "instance_ansible__ansible-e9e6001263f51103e96e58ad382660df0f3d0e39-v30a923fb5c164d6cd18280c02422f75e611e8fb2": [
+   2,
+   96
+  ],
+  "instance_element-hq__element-web-ecfd1736e5dd9808e87911fc264e6c816653e1a9-vnan": [
+   2,
+   61
+  ],
+  "instance_internetarchive__openlibrary-0dc5b20fa186f9714f8a838178597e69f549d026-v2d9a6c849c60ed19fd0858ce9e40b7cc8e097e59": [
+   1,
+   62
+  ],
+  "instance_qutebrowser__qutebrowser-deeb15d6f009b3ca0c3bd503a7cef07462bd16b4-v363c8a7e5ccdf6968fc7ab84a2053ac78036691d": [
+   1,
+   53
+  ],
+  "instance_ansible__ansible-de5858f48dc9e1ce9117034e0d7e76806f420ca8-v1055803c3a812189a1133297f7f5468579283f86": [
+   4,
+   254
+  ],
+  "instance_internetarchive__openlibrary-7cbfb812ef0e1f9716e2d6e85d538a96fcb79d13-vfa6ff903cb27f336e17654595dd900fa943dcd91": [
+   5,
+   553
+  ],
+  "instance_qutebrowser__qutebrowser-c09e1439f145c66ee3af574386e277dd2388d094-v2ef375ac784985212b1805e1d0431dc8f1b3c171": [
+   4,
+   45
+  ],
+  "instance_ansible__ansible-c1f2df47538b884a43320f53e787197793b105e8-v906c969b551b346ef54a2c0b41e04f632b7b73c2": [
+   1,
+   553
+  ],
+  "instance_internetarchive__openlibrary-a48fd6ba9482c527602bc081491d9e8ae6e8226c-vfa6ff903cb27f336e17654595dd900fa943dcd91": [
+   1,
+   228
+  ],
+  "instance_NodeBB__NodeBB-76c6e30282906ac664f2c9278fc90999b27b1f48-vd59a5728dfc977f44533186ace531248c2917516": [
+   106,
+   620
+  ],
+  "instance_element-hq__element-web-f14374a51c153f64f313243f2df6ea4971db4e15": [
+   17,
+   499
+  ],
+  "instance_NodeBB__NodeBB-f1a80d48cc45877fcbadf34c2345dd9709722c7f-v4fbcfae8b15e4ce5d132c408bca69ebb9cf146ed": [
+   14,
+   983
+  ],
+  "instance_internetarchive__openlibrary-c506c1b0b678892af5cb22c1c1dbc35d96787a0a-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4": [
+   14,
+   288
+  ],
+  "instance_internetarchive__openlibrary-7f6b722a10f822171501d027cad60afe53337732-ve8c8d62a2b60610a3c4631f5f23ed866bada9818": [
+   13,
+   1663
+  ],
+  "instance_NodeBB__NodeBB-a5afad27e52fd336163063ba40dcadc80233ae10-vd59a5728dfc977f44533186ace531248c2917516": [
+   12,
+   188
+  ],
+  "instance_internetarchive__openlibrary-92db3454aeaa02f89b4cdbc3103f7e95c9759f92-v2c55207218fb8a0138425cbf7d9675272e240b90": [
+   11,
+   703
+  ],
+  "instance_NodeBB__NodeBB-04998908ba6721d64eba79ae3b65a351dcfbc5b5-vnan": [
+   11,
+   151
+  ],
+  "instance_element-hq__element-web-cf3c899dd1f221aa1a1f4c5a80dffc05b9c21c85-vnan": [
+   11,
+   134
+  ],
+  "instance_ansible__ansible-379058e10f3dbc0fdcaf80394bd09b18927e7d33-v1055803c3a812189a1133297f7f5468579283f86": [
+   11,
+   81
+  ],
+  "instance_NodeBB__NodeBB-b398321a5eb913666f903a794219833926881a8f-vd59a5728dfc977f44533186ace531248c2917516": [
+   11,
+   76
+  ]
+ },
+ "hard51_source": "https://raw.githubusercontent.com/scaleapi/SWE-bench_Pro-os/main/v2/hard51_ids.txt",
+ "validation": [
+  {
+   "task": "instance_NodeBB__NodeBB-8168c6c40707478f71b8af60300830fe554c778c-vf2cf3cbd463b7ad942381f1c6d077626485a1e9e",
+   "ok": true,
+   "image_gb": 3.15,
+   "empty_reward": 0,
+   "gold_reward": 1,
+   "gold_edit_errors": [],
+   "f2p": 4,
+   "p2p": 307,
+   "visible": 2,
+   "gate_private": 2,
+   "head_is_base": true
+  },
+  {
+   "task": "instance_ansible__ansible-40ade1f84b8bb10a63576b0ac320c13f57c87d34-v6382ea168a93d80a64aab1fbd8c4f02dc5ada5bf",
+   "ok": true,
+   "image_gb": 2.1,
+   "empty_reward": 0,
+   "gold_reward": 1,
+   "gold_edit_errors": [],
+   "f2p": 48,
+   "p2p": 0,
+   "visible": 24,
+   "gate_private": 24,
+   "head_is_base": true
+  },
+  {
+   "task": "instance_ansible__ansible-b748edea457a4576847a10275678127895d2f02f-v1055803c3a812189a1133297f7f5468579283f86",
+   "ok": true,
+   "image_gb": 2.05,
+   "empty_reward": 0,
+   "gold_reward": 1,
+   "gold_edit_errors": [],
+   "f2p": 5,
+   "p2p": 41,
+   "visible": 3,
+   "gate_private": 2,
+   "head_is_base": true
+  },
+  {
+   "task": "instance_ansible__ansible-d33bedc48fdd933b5abd65a77c081876298e2f07-v0f01c69f1e2528b935359cfe578530722bca2c59",
+   "ok": true,
+   "image_gb": 2.18,
+   "empty_reward": 0,
+   "gold_reward": 1,
+   "gold_edit_errors": [],
+   "f2p": 26,
+   "p2p": 81,
+   "visible": 13,
+   "gate_private": 13,
+   "head_is_base": true
+  },
+  {
+   "task": "instance_ansible__ansible-d62496fe416623e88b90139dc7917080cb04ce70-v0f01c69f1e2528b935359cfe578530722bca2c59",
+   "ok": true,
+   "image_gb": 2.12,
+   "empty_reward": 0,
+   "gold_reward": 1,
+   "gold_edit_errors": [],
+   "f2p": 22,
+   "p2p": 92,
+   "visible": 11,
+   "gate_private": 11,
+   "head_is_base": true
+  },
+  {
+   "task": "instance_ansible__ansible-d72025be751c894673ba85caa063d835a0ad3a8c-v390e508d27db7a51eece36bb6d9698b63a5b638a",
+   "ok": true,
+   "image_gb": 2.55,
+   "empty_reward": 0,
+   "gold_reward": 1,
+   "gold_edit_errors": [],
+   "f2p": 5,
+   "p2p": 0,
+   "visible": 3,
+   "gate_private": 2,
+   "head_is_base": true
+  },
+  {
+   "task": "instance_element-hq__element-web-66d0b318bc6fee0d17b54c1781d6ab5d5d323135-vnan",
+   "ok": true,
+   "image_gb": 4.56,
+   "empty_reward": 0,
+   "gold_reward": 1,
+   "gold_edit_errors": [],
+   "f2p": 24,
+   "p2p": 39,
+   "visible": 12,
+   "gate_private": 12,
+   "head_is_base": true
+  },
+  {
+   "task": "instance_internetarchive__openlibrary-322d7a46cdc965bfabbf9500e98fde098c9d95b2-v13642507b4fc1f8d234172bf8129942da2c2ca26",
+   "ok": true,
+   "image_gb": 4.15,
+   "empty_reward": 0,
+   "gold_reward": 1,
+   "gold_edit_errors": [],
+   "f2p": 11,
+   "p2p": 0,
+   "visible": 6,
+   "gate_private": 5,
+   "head_is_base": true
+  },
+  {
+   "task": "instance_internetarchive__openlibrary-53d376b148897466bb86d5accb51912bbbe9a8ed-v08d8e8889ec945ab821fb156c04c7d2e2810debb",
+   "ok": true,
+   "image_gb": 4.79,
+   "empty_reward": 0,
+   "gold_reward": 1,
+   "gold_edit_errors": [],
+   "f2p": 4,
+   "p2p": 4,
+   "visible": 2,
+   "gate_private": 2,
+   "head_is_base": true
+  },
+  {
+   "task": "instance_internetarchive__openlibrary-630221ab686c64e75a2ce253c893c033e4814b2e-v93c53c13d5f9b383ebb411ee7750b49dcd1a34c6",
+   "ok": true,
+   "image_gb": 3.54,
+   "empty_reward": 0,
+   "gold_reward": 1,
+   "gold_edit_errors": [],
+   "f2p": 9,
+   "p2p": 0,
+   "visible": 5,
+   "gate_private": 4,
+   "head_is_base": true
+  },
+  {
+   "task": "instance_qutebrowser__qutebrowser-3e21c8214a998cb1058defd15aabb24617a76402-v5fc38aaf22415ab0b70567368332beee7955b367",
+   "ok": true,
+   "image_gb": 3.64,
+   "empty_reward": 0,
+   "gold_reward": 1,
+   "gold_edit_errors": [],
+   "f2p": 1869,
+   "p2p": 0,
+   "visible": 935,
+   "gate_private": 934,
+   "head_is_base": true
+  },
+  {
+   "task": "instance_qutebrowser__qutebrowser-e70f5b03187bdd40e8bf70f5f3ead840f52d1f42-v02ad04386d5238fe2d1a1be450df257370de4b6a",
+   "ok": true,
+   "image_gb": 3.26,
+   "empty_reward": 0,
+   "gold_reward": 1,
+   "gold_edit_errors": [],
+   "f2p": 7,
+   "p2p": 36,
+   "visible": 4,
+   "gate_private": 3,
+   "head_is_base": true
+  }
+ ],
+ "validation_failures": 0
+}
