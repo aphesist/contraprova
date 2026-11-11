@@ -1,6 +1,9 @@
 """Claude Messages API client (standard library only), a scripted fake, and a recorder.
 
-``AnthropicClient`` sends one non-streaming ``POST /v1/messages`` per call:
+``AnthropicClient`` sends one non-streaming ``POST /v1/messages`` per call (and, for
+:meth:`AnthropicClient.count_tokens`, one ``POST /v1/messages/count_tokens`` with the same
+``model``, ``system`` and ``messages`` and no ``max_tokens``; that endpoint is free and returns
+``{"input_tokens": n}``):
 
     headers: x-api-key, anthropic-version: 2026-10-21, content-type: application/json
     body:    {"model", "max_tokens",
@@ -47,6 +50,8 @@ from .pricing import (
 from .usage import usage_payload
 
 API_URL = "https://api.anthropic.com/v1/messages"
+# Token counting lives next to the Messages endpoint: POST /v1/messages/count_tokens (free).
+COUNT_TOKENS_SUFFIX = "/count_tokens"
 ANTHROPIC_VERSION = "2026-10-21"
 EFFORTS = frozenset({"low", "medium", "high", "xhigh", "max"})
 CACHE_TTLS = frozenset({"5m", "1h"})
@@ -318,12 +323,35 @@ class AnthropicClient(_Metered):
                           stop_reason=resp.get("stop_reason") or "end_turn",
                           request_id=request_id or resp.get("id"))
 
-    def _post(self, data: bytes) -> tuple[dict[str, Any], str | None]:
+    @property
+    def count_tokens_url(self) -> str:
+        return self.base_url.rstrip("/") + COUNT_TOKENS_SUFFIX
+
+    def build_count_body(self, *, model: str, system: str, messages: Sequence[Message]) -> dict[str, Any]:
+        """The ``count_tokens`` body for a request: the same system and messages as
+        :meth:`build_body` (cache markers included), without ``max_tokens`` or ``output_config``."""
+        body = self.build_body(model=model, system=system, messages=messages, max_tokens=1)
+        body.pop("max_tokens", None)
+        return body
+
+    def count_tokens(self, *, model: str, system: str, messages: Sequence[Message]) -> int:
+        """Exact prompt tokens for a request, from ``POST /v1/messages/count_tokens``.
+
+        The endpoint is free (it is rate-limited, not billed), so nothing is charged to the budget
+        and no usage is reported. Retries and errors work as in :meth:`complete`."""
+        _validate(model, 1, None, messages)
+        data = self.encode_body(self.build_count_body(model=model, system=system, messages=messages))
+        resp, _ = self._post(data, url=self.count_tokens_url)
+        if "input_tokens" not in resp:
+            raise LLMError("count_tokens response has no input_tokens")
+        return int(resp["input_tokens"])
+
+    def _post(self, data: bytes, url: str | None = None) -> tuple[dict[str, Any], str | None]:
         attempt = 0
         while True:
             # Built per attempt so the key lives only in this frame for the duration of one request.
             req = urllib.request.Request(
-                self.base_url,
+                url or self.base_url,
                 data=data,
                 method="POST",
                 headers={
@@ -425,6 +453,11 @@ class FakeLLM(_Metered):
     @staticmethod
     def _tok(text: str) -> int:
         return math.ceil(len(text) / 4)
+
+    def count_tokens(self, *, model: str, system: str, messages: Sequence[Message]) -> int:
+        """Synthetic token count (about four characters per token); free, like the real endpoint."""
+        _validate(model, 1, None, messages)
+        return self._tok(system) + sum(self._tok(m.content) for m in messages)
 
     def complete(
         self,

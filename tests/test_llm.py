@@ -417,3 +417,38 @@ def test_estimate_counts_a_marked_prefix_as_a_cache_write():
     marked = estimate_cost(model=OPUS, system="", messages=[Message("user", text, len(text))], max_tokens=1,
                            table=table)
     assert marked > plain
+
+
+# ------------------------------------------------------------------ count_tokens (free endpoint)
+
+
+def test_count_tokens_request_shape_and_no_charge(transport):
+    transport["outcomes"].append(FakeResponse({"input_tokens": 4321}))
+    budget = Budget(0.01)
+    c, _ = make(budget=budget)
+    n = c.count_tokens(model=HAIKU, system="you are a worker", messages=[Message("user", "abc" * 10, 3)])
+    assert n == 4321
+    req = transport["requests"][0]
+    assert req.full_url == "https://api.anthropic.com/v1/messages/count_tokens"
+    h = {k.lower(): v for k, v in req.header_items()}
+    assert h["x-api-key"] == KEY and h["anthropic-version"] == ANTHROPIC_VERSION
+    body = json.loads(req.data)
+    assert set(body) == {"model", "system", "messages"}  # no max_tokens, no output_config
+    assert body["messages"][0]["content"][0]["cache_control"] == {"type": "ephemeral"}
+    assert budget.spent_usd == 0 and budget.calls == 0
+
+
+def test_count_tokens_retries_and_rejects_bad_body(transport):
+    transport["outcomes"].extend([http_error(529, "overloaded_error"), FakeResponse({"input_tokens": 7}),
+                                  FakeResponse({"nope": 1})])
+    c, sleeps = make()
+    assert c.count_tokens(model=OPUS, system="", messages=MSGS) == 7
+    assert len(sleeps) == 1
+    with pytest.raises(LLMError):
+        c.count_tokens(model=OPUS, system="", messages=MSGS)
+
+
+def test_fake_count_tokens_is_free_and_deterministic():
+    f = FakeLLM(["x"])
+    assert f.count_tokens(model=HAIKU, system="abcd", messages=[Message("user", "abcdefgh")]) == 3
+    assert f.calls == []
