@@ -273,6 +273,7 @@ class ArmConfig:
     strong_model: str = OPUS
     strong_effort: str | None = "low"
     cheap_model: str = HAIKU
+    worker_effort: str | None = "medium"  # Haiku and Sonnet workers (arm A's single model uses strong_effort)
     worker_max_tokens: int = 8000
     orchestrator_max_tokens: int = 1000
     feedback_chars: int = 2000
@@ -478,6 +479,8 @@ class Harness:
     def _work(self, arm: str, task_id: str, ex: Exercise, model: str, prompt: str, attempt: int,
               effort: str | None = None, role: str = "worker", fork_id: str | None = None) -> Submission:
         self.emit("task.claimed", f"worker:{model}", {"task_id": task_id, "worker": model, "attempt": attempt})
+        if effort is None:
+            effort = self.config.worker_effort
         c = self.call(arm=arm, role=role, task_id=task_id, model=model, system=WORKER_SYSTEM, user=prompt,
                       max_tokens=self.config.worker_max_tokens, effort=effort, fork_id=fork_id)
         return self.submit(task_id, attempt, model, parse_files(c.text), ex)

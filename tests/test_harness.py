@@ -258,7 +258,7 @@ def test_each_arm_emits_a_valid_log(arm, exercises, tmp_path):
 
 def test_arm_models_and_effort(exercises, tmp_path):
     ex = [by_id(exercises, "python/clamp")]
-    for arm, expect in (("A", {(OPUS, "low", "worker")}), ("B", {(HAIKU, None, "worker")})):
+    for arm, expect in (("A", {(OPUS, "low", "worker")}), ("B", {(HAIKU, "medium", "worker")})):
         c = FakeClient()
         run_arm(harness(tmp_path / arm, client=c), arm, ex, splits_for(ex))
         assert {(x["model"], x["effort"], x["role"]) for x in c.calls} == expect
