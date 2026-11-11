@@ -189,3 +189,49 @@ def test_page_makes_no_network_requests():
     for needle in ("http://", "https://", "//cdn", "@import", "<link "):
         hits = [ln for ln in html.splitlines() if needle in ln and "w3.org/2000/svg" not in ln]
         assert not hits, hits
+
+
+def test_shipped_fork_branch_counts_toward_its_arm(tmp_path):
+    """An arm's cost includes the fork branch it shipped (outcome branch_task_id); other fork spend is
+    measurement overhead. The page's fold of the cost deltas still matches Python at every checkpoint."""
+    H, S = "claude-haiku-5-5", "claude-sonnet-5-5"
+    log = EventLog(tmp_path / "log.jsonl")
+    log.append("task.created", "h", {"task_id": "D:ex/a", "title": "ex/a", "scope": ["a"], "arm": "D", "exercise_id": "ex/a"}, TS)
+    own = {"model": H, "input_tokens": 5000, "output_tokens": 700, "arm": "D", "role": "worker", "task_id": "D:ex/a"}
+    log.append("usage.recorded", "w", own, TS)
+    log.append("task.claimed", "w", {"task_id": "D:ex/a"}, TS)
+    log.append("task.submitted", "w", {"task_id": "D:ex/a"}, TS)
+    gate = log.append("gate.decided", "gate", {"task_id": "D:ex/a", "gate": "g", "verdict": "block", "reason": "x"}, TS)
+    fork_usage = {}
+    for branch, role, model, n in (("control-1", "control", H, 4000), ("treatment", "treatment", S, 4200)):
+        fid = f"f-{branch}"
+        log.append("fork.created", "h", {"fork_id": fid, "task_id": "D:ex/a", "from_seq": gate.seq, "model": model,
+                                         "role": role, "seed": 1, "fork_task_id": f"D:ex/a:{branch}", "arm": "D"}, TS)
+        u = {"model": model, "input_tokens": n, "output_tokens": 600, "arm": "D", "role": "worker",
+             "task_id": f"D:ex/a:{branch}", "fork_id": fid}
+        log.append("usage.recorded", "w", u, TS)
+        fork_usage[branch] = u
+        log.append("outcome.scored", "s", {"fork_id": fid, "task_id": "ex/a", "solved": role == "treatment"}, TS)
+    log.append("outcome.scored", "s", {"arm": "D", "task_id": "ex/a", "log_task_id": "D:ex/a", "solved": True,
+                                       "branch_task_id": "D:ex/a:treatment"}, TS)
+    data = export_ui_data.export(log.path)
+    tables = export_ui_data.ui_price_tables()
+    for j, name in enumerate(data["table_names"]):
+        t = tables[name]
+        final = data["final"]["arms"]
+        assert close(final["D"]["cost"][j], request_cost(own, t) + request_cost(fork_usage["treatment"], t))
+        assert close(final["D:treatment"]["cost"][j], request_cost(fork_usage["treatment"], t))
+        assert close(final["D:control"]["cost"][j], request_cost(fork_usage["control-1"], t))
+        assert data["final"]["measurement_overhead"] == {"D": {"control": data["final"]["measurement_overhead"]["D"]["control"]}}
+        assert close(data["final"]["measurement_overhead"]["D"]["control"][j], request_cost(fork_usage["control-1"], t))
+    # Fold the deltas the way ui/index.html does and compare with the final Python totals.
+    folded = {}
+    for e in data["events"]:
+        for ix, f, v in e.get("fx", []):
+            if f == "cost":
+                arm = data["attempts"][ix]["arm"]
+                acc = folded.setdefault(arm, [0.0] * len(v))
+                for j, c in enumerate(v):
+                    acc[j] += c
+    for arm, s in data["final"]["arms"].items():
+        assert all(close(a, b) for a, b in zip(folded[arm], s["cost"]))

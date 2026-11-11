@@ -57,7 +57,7 @@ analytics. It works on GitHub Pages as-is (it loads `demo-data.json` next to it)
 | `route.decided` | `task_id`, `action` (model), `propensities`, `router_hash`, optional `decision`, `features.attempt` |
 | `fork.created` | `fork_id`, `task_id` (parent), `from_seq`, `model`, `role` (`control` or `treatment`), optional `arm`, `fork_task_id` |
 | `usage.recorded` | the `contraprova.usage.usage_payload` fields plus tags `arm`, `role`, `task_id`, `fork_id` |
-| `outcome.scored` | arm outcome `arm`, `task_id`, `solved`; fork outcome `fork_id`, `task_id`, `solved`; gate replays are listed but not counted |
+| `outcome.scored` | arm outcome `arm`, `task_id`, `solved`, optional `branch_task_id`; fork outcome `fork_id`, `task_id`, `solved`; gate replays are listed but not counted |
 | `gate.decided` | `task_id`, `gate`, `verdict`, `reason` |
 
 Payloads follow [events.md](events.md).
@@ -70,7 +70,7 @@ Payloads follow [events.md](events.md).
 - Fork re-runs are fork events: usage and outcomes keyed by `fork_id`. For display only, the exporter
   labels each fork `<parent arm>:<role>` (`D:control`, `D:treatment`; further controls at the same
   fork point are `D:control-2`, ...), and lists those labels in `arms` with `kind: "fork"`, `parent`,
-  `role` and `replicate`. Fork cost is shown under the fork's label, never under its parent arm.
+  `role` and `replicate`. Every fork's cost is shown under the fork's label. The branch an arm shipped (its outcome's `branch_task_id`) also counts toward that arm, as a cost delta on the arm's attempt at the arm's outcome event; the rest of the fork spend is measurement overhead (`final.measurement_overhead`, shown under the arm table) and in no arm's cost (see statistics.md).
 - An attempt's **model tier** is the strongest model that did worker work on it (roles `worker`,
   `control`, `treatment`, or the routed model). **Escalated** means a route to a non-Haiku model on a
   retry (`decision: after_gate_failure`, or `features.attempt > 0`, the `router.featurize` encoding of attempt 2 and later) or a treatment fork. **Blocked** means at least one `gate.decided`

@@ -510,6 +510,9 @@ function drawPareto() {
     const tOnly = pairs.filter((x) => trt[x] && !ctl[x]).length, cOnly = pairs.filter((x) => ctl[x] && !trt[x]).length;
     $("esc").innerHTML = `<b>Forks so far:</b> ${pairs.length} paired re-runs from a failed gate. Same-model retry (control) solved ${c}; escalation (treatment) solved ${t}. Discordant pairs: ${tOnly} treatment-only, ${cOnly} control-only.` + (D.synthetic ? " <em>Synthetic numbers: they illustrate the layout, not a finding.</em>" : "");
   } else $("esc").textContent = "No paired forks yet at this point in the log.";
+  const ov = (D.final || {}).measurement_overhead || {};
+  const ovRows = Object.entries(ov).flatMap(([a, roles]) => Object.entries(roles).map(([role, c]) => `${esc(a)} ${esc(role)} ${fmtUSD(c[tableIx])}`));
+  if (ovRows.length) $("esc").innerHTML += ` <b>Measurement overhead</b> (whole log: fork spend no arm shipped, in no arm's cost): ${ovRows.join(", ")}. An arm's cost includes the one fork branch it shipped.`;
 }
 
 const TYPE_COLOUR = (e) => e.t === "gate.decided" && e.x.includes(": block") ? "--warn" : e.t === "fork.created" ? "--accent" : e.t === "outcome.scored" && (e.fx || []).some((f) => f[1] === "solved" && f[2]) ? "--good" : null;

@@ -19,6 +19,14 @@ Output layout (``schema: contraprova-ui/1``):
 * ``price_tables``: every table in ``contraprova.pricing.PRICE_TABLES`` plus a
   "what if Haiku x0.5" variant built with ``pricing.scale_table``.
 * ``checkpoints`` and ``final``: Python-computed totals for replay checks.
+  ``final.measurement_overhead`` is fork spend no arm shipped, by parent arm
+  and fork role, under every table.
+
+Arm cost follows docs/statistics.md: an arm's cost includes the one fork
+branch it shipped (its outcome's ``branch_task_id``). The export adds that
+branch's cost to the arm, as a ``cost`` delta on the arm's attempt, at the
+arm's outcome event (when the branch becomes the shipped one); the fork's own
+label keeps showing every fork's cost.
 
 ``--html`` additionally writes a copy of ``ui/index.html`` with the data
 inlined, which works when opened straight from disk (``file://``).
@@ -39,7 +47,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from contraprova.events import Event  # noqa: E402
 from contraprova.log import EventLog  # noqa: E402
 from contraprova.pricing import DEFAULT_TABLE, PRICE_TABLES, ModelPrice, prompt_tokens, request_cost, scale_table  # noqa: E402
-from contraprova.projections import apply_task_event, pareto_frontier  # noqa: E402
+from contraprova.projections import apply_task_event, pareto_frontier, shipped_forks  # noqa: E402
 from contraprova.stats import wilson_interval  # noqa: E402
 
 SCHEMA = "contraprova-ui/1"
@@ -237,6 +245,18 @@ def build_export(events: list[Event], log_name: str = "log.jsonl") -> dict[str, 
     def key(kernel_tid: str) -> str:
         return pair_key.get(kernel_tid, kernel_tid)
 
+    shipped = shipped_forks(events)  # fork_id -> (arm, pairing key) of the branch an arm shipped
+    fork_cost: dict[str, list[float]] = {}  # fork_id -> cost so far under every table
+    released: dict[str, int] = {}  # shipped fork_id -> its arm's attempt, once the arm's outcome named it
+
+    def add_cost(i: int, arm: str, tid: str, costs: list[float]) -> None:
+        ac = arm_cost.setdefault(arm, [0.0] * len(tvals))
+        tc = att_cost.setdefault(i, [0.0] * len(tvals))
+        for j, c in enumerate(costs):
+            ac[j] += c
+            tc[j] += c
+        arm_tasks.setdefault(arm, set()).add(tid)
+
     tasks: dict = {}
     out_events: list[dict[str, Any]] = []
     # Running totals for checkpoints, computed straight from payloads with pricing.request_cost.
@@ -289,8 +309,9 @@ def build_export(events: list[Event], log_name: str = "log.jsonl") -> dict[str, 
             if p.get("role") == "treatment" and p.get("model") not in CHEAP_MODELS:
                 fx.append([i, "escalated", True])
         elif ev.type == "usage.recorded":
-            if p.get("fork_id") is not None and str(p["fork_id"]) in fork_label:
-                arm = fork_label[str(p["fork_id"])]  # fork cost never counts toward the parent arm
+            fid = str(p["fork_id"]) if p.get("fork_id") is not None else None
+            if fid is not None and fid in fork_label:
+                arm = fork_label[fid]  # every fork's cost shows under its label
             else:
                 arm = str(p.get("arm", "unknown"))
             if tid is None:
@@ -307,13 +328,15 @@ def build_export(events: list[Event], log_name: str = "log.jsonl") -> dict[str, 
             feats[i]["out"] += int(p.get("output_tokens", 0))
             feats[i]["cache"] += int(p.get("cache_read_tokens", 0))
             feats[i]["requests"] += 1
-            ac = arm_cost.setdefault(arm, [0.0] * len(tvals))
-            for j, c in enumerate(costs):
-                ac[j] += c
-            arm_tasks.setdefault(arm, set()).add(tid)
-            tc = att_cost.setdefault(i, [0.0] * len(tvals))
-            for j, c in enumerate(costs):
-                tc[j] += c
+            add_cost(i, arm, tid, costs)
+            if fid is not None and fid in fork_label:
+                fc = fork_cost.setdefault(fid, [0.0] * len(tvals))
+                for j, c in enumerate(costs):
+                    fc[j] += c
+                if fid in released:  # usage after the arm shipped this branch is the arm's too
+                    k = released[fid]
+                    fx.append([k, "cost", rec["c"]])
+                    add_cost(k, attempts[k]["arm"], attempts[k]["task_id"], costs)
         elif ev.type == "outcome.scored" and p.get("gate_seq") is None:
             if p.get("fork_id") is not None:
                 arm = fork_label.get(str(p["fork_id"]))
@@ -323,6 +346,13 @@ def build_export(events: list[Event], log_name: str = "log.jsonl") -> dict[str, 
                 i = attempt(arm, tid, ev.seq)
                 rec["p"] = i
                 fx.append([i, "solved", bool(p["solved"])])
+                sfid = child_fork.get(str(p.get("branch_task_id"))) if p.get("fork_id") is None else None
+                if sfid is not None and shipped.get(sfid, (None,))[0] == arm and sfid not in released:
+                    # The arm shipped this fork branch: its cost so far becomes the arm's cost.
+                    released[sfid] = i
+                    so_far = fork_cost.get(sfid, [0.0] * len(tvals))
+                    fx.append([i, "cost", [r(c) for c in so_far]])
+                    add_cost(i, arm, tid, so_far)
                 arm_outcome.setdefault(arm, {})[tid] = bool(p["solved"])
                 arm_tasks.setdefault(arm, set()).add(tid)
 
@@ -394,7 +424,8 @@ def build_export(events: list[Event], log_name: str = "log.jsonl") -> dict[str, 
         "layout": layout["meta"],
         "events": out_events,
         "checkpoints": checkpoints,
-        "final": {"arms": final_arms, "pareto": pareto, "escalation": _escalation(arm_outcome, arm_cost, arm_tasks, len(tvals))},
+        "final": {"arms": final_arms, "pareto": pareto, "escalation": _escalation(arm_outcome, arm_cost, arm_tasks, len(tvals)),
+                  "measurement_overhead": _overhead(fork_cost, fork_label, released, len(tvals))},
     }
 
 
@@ -416,6 +447,20 @@ def _arm_summary(arm_cost, arm_tasks, arm_outcome, n_tables) -> dict[str, Any]:
             "cost_per_task": [r(c / n_tasks) if n_tasks else 0.0 for c in cost],
         }
     return out
+
+
+def _overhead(fork_cost, fork_label, released, n_tables) -> dict[str, dict[str, list[float]]]:
+    """Fork spend no arm shipped, as {parent arm: {fork role: cost under every table}}."""
+    out: dict[str, dict[str, list[float]]] = {}
+    for fid, costs in sorted(fork_cost.items()):
+        if fid in released:
+            continue
+        parent, _, rest = fork_label[fid].partition(":")
+        role = rest.partition("-")[0]
+        acc = out.setdefault(parent, {}).setdefault(role, [0.0] * n_tables)
+        for j, c in enumerate(costs):
+            acc[j] += c
+    return {a: {role: [r(c) for c in v] for role, v in sorted(roles.items())} for a, roles in sorted(out.items())}
 
 
 def _escalation(arm_outcome, arm_cost, arm_tasks, n_tables) -> dict[str, Any]:
