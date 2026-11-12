@@ -1,4 +1,4 @@
-"""Command line: ``contraprova verify|tasks|cost <log>``."""
+"""Command line: ``contraprova verify|tasks|cost|report <log>`` and ``contraprova init-claude``."""
 
 from __future__ import annotations
 
@@ -29,7 +29,15 @@ def main(argv: list[str] | None = None) -> int:
         if name == "cost":
             p.add_argument("--by", default="role", help="usage field to group by (role, model, arm, task_id); "
                            "with arm, fork spend an arm did not ship is grouped as '<arm>:measurement'")
+    ic = sub.add_parser("init-claude", help="install the cascade agents into ./.claude (or ~/.claude with --user)")
+    ic.add_argument("--user", action="store_true",
+                    help="install into $CLAUDE_CONFIG_DIR or ~/.claude for all projects, not ./.claude")
+    ic.add_argument("--force", action="store_true", help="overwrite files that already exist")
+    ic.add_argument("--no-gate", action="store_true", help="skip the gate hook script and the orchestrator's hooks")
+    ic.add_argument("--source", help="plugin directory to copy from (default: config/claude-code in this checkout)")
     args = ap.parse_args(argv)
+    if args.cmd == "init-claude":
+        return _init_claude(args)
     log = EventLog(args.log)
 
     try:
@@ -52,6 +60,32 @@ def main(argv: list[str] | None = None) -> int:
     except (ChainError, InvalidTransition) as e:
         print(f"FAILED: {e}", file=sys.stderr)
         return 1
+    return 0
+
+
+def _init_claude(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from .claude_init import default_source, init_claude, user_dir
+
+    source = Path(args.source) if args.source else default_source()
+    if source is None or not (source / "agents").is_dir():
+        print("FAILED: cannot find the agent files. Run this from a contraprova checkout (pip install -e .), "
+              "pass --source config/claude-code, or install the plugin instead:\n"
+              "  claude plugin install contraprova-cascade --marketplace aphesist/contraprova", file=sys.stderr)
+        return 1
+    target = user_dir() if args.user else Path.cwd() / ".claude"
+    results = init_claude(target, source, project=not args.user, force=args.force, gate=not args.no_gate)
+    for path, action in results:
+        print(f"{action}\t{path}")
+    if any(action == "kept" for _, action in results):
+        print("some files already existed and were kept; pass --force to overwrite them")
+    print("\nStart the cascade (pick the orchestrator's model and effort; Opus at medium or high is recommended):\n"
+          "  export CONTRAPROVA_TEST_CMD='pytest -q'   # optional: the gate runs it after each agent\n"
+          "  claude --agent orchestrator --model opus --effort high")
+    if not args.user and not args.no_gate:
+        print("Claude Code runs the orchestrator's gate hooks only after you accept the workspace trust dialog "
+              "for this folder.")
     return 0
 
 
