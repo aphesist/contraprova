@@ -710,3 +710,93 @@ def test_repair_message_never_carries_test_information():
     errs = [f"block {i} (lib/x.py): SEARCH text not found in the file" for i in range(30)]
     m = repair_message("apply", errs)
     assert "block 0" in m and "and 10 more" in m and "test" not in m.lower()
+
+
+# ------------------------------------------------------------------ main study: the fixed cascade
+
+
+def _cascade_config():
+    return pro_arm_config(fork_branches=(("control-1", "control", HAIKU), ("treatment", "treatment", OPUS)),
+                          worker_effort_by_model=((OPUS, "low"),), derive_b=True)
+
+
+class OpusSolvesClient(ProFakeClient):
+    """Haiku workers reply with nothing; Opus workers reply with the gold patch."""
+
+    def complete(self, *, model, system, messages, max_tokens, effort=None, tags=None):
+        self.solve = (lambda i: True) if model == OPUS else (lambda i: False)
+        return super().complete(model=model, system=system, messages=messages, max_tokens=max_tokens,
+                                effort=effort, tags=tags)
+
+
+def test_cascade_router_is_a_fixed_policy():
+    from contraprova.harness.run import CascadeRouter
+    r = CascadeRouter(HAIKU, OPUS)
+    first = r.decide({"attempt": 0.0}, rng_seed=1)
+    after = r.decide({"attempt": 0.5}, rng_seed=1)
+    assert (first.action, first.propensities) == (HAIKU, {HAIKU: 1.0})
+    assert (after.action, after.propensities) == (OPUS, {OPUS: 1.0})
+
+
+def test_cascade_blocked_forks_haiku_control_and_ships_opus_treatment(tmp_path, exercises):
+    from contraprova.harness.run import CascadeRouter
+    from contraprova.pricing import PRICE_TABLES, DEFAULT_TABLE, cost_by
+    from contraprova.projections import arm_usage_records
+    h, _ = harness(tmp_path, exercises, router=CascadeRouter(HAIKU, OPUS), config=_cascade_config())
+    h.client = OpusSolvesClient(exercises)
+    ex = exercises[PROBE_IDS[0]]
+    run_tasks(h, [ex.id], ["A", "D"], lambda i: ex)
+    ev = h.log.events()
+    forks = [e.payload for e in ev if e.type == "fork.created"]
+    assert sorted((f["branch"], f["model"]) for f in forks) == [("control-1", HAIKU), ("treatment", OPUS)]
+    arms = {p["arm"]: p for p in (e.payload for e in ev if e.type == "outcome.scored") if "arm" in p}
+    assert arms["A"]["solved"] and arms["D"]["solved"] and arms["D"]["branch"] == "treatment"
+    assert arms["B"]["derived_from"] == "D" and not arms["B"]["solved"] and arms["B"]["gate_passed"] is False
+    # Efforts: Opus low (arm A and the treatment), Haiku medium; the brief is the orchestrator's.
+    workers = [(c["model"], c["effort"]) for c in h.client.calls if c["role"] == "worker"]
+    assert set(workers) == {(OPUS, "low"), (HAIKU, "medium")}
+    # D's cost = brief + Haiku attempt + the shipped Opus branch; the Haiku control is measurement.
+    recs = arm_usage_records(ev)
+    roles = {(r["arm"], r["model"], r.get("role")) for r in recs}
+    assert ("D:measurement", HAIKU, "worker") in roles and ("D", OPUS, "worker") in roles
+    assert ("D", OPUS, "orchestrator") in roles and ("D", HAIKU, "worker") in roles
+    by_arm = cost_by(recs, PRICE_TABLES[DEFAULT_TABLE], "arm")
+    assert by_arm["D"] > 0 and by_arm["D:measurement"] > 0 and "B" not in by_arm
+
+
+def test_cascade_gate_pass_ships_haiku_and_derives_the_same_b(tmp_path, exercises):
+    from contraprova.harness.run import CascadeRouter
+    h, _ = harness(tmp_path, exercises, router=CascadeRouter(HAIKU, OPUS), config=_cascade_config())
+    ex = exercises[PROBE_IDS[0]]
+    run_tasks(h, [ex.id], ["D"], lambda i: ex)
+    ev = h.log.events()
+    assert not [e for e in ev if e.type == "fork.created"]
+    arms = {p["arm"]: p for p in (e.payload for e in ev if e.type == "outcome.scored") if "arm" in p}
+    assert arms["D"]["solved"] and arms["B"]["solved"] and arms["D"]["branch"] == "initial"
+
+
+def test_main_preflight_prices_both_arms(tmp_path, exercises):
+    from contraprova.harness.swepro_arms import main_preflight
+    h, _ = harness(tmp_path, exercises, config=_cascade_config())
+    rows = main_preflight(h, [exercises[PROBE_IDS[0]]], lambda **k: 10_000, p_fork=0.5, repair_rate=0.0)
+    r = rows[0]
+    assert r.a_input == r.d_lead_input == r.d_worker_input == 10_000
+    assert r.expected_a > r.expected_d_measurement > 0 and r.worst > r.expected_a + r.expected_d_shipped
+
+
+def test_cli_cascade_dry_run_end_to_end(tmp_path, data_dir, capsys):
+    from contraprova.harness.run import main
+    log = tmp_path / "runs" / "main.jsonl"
+    ids = tmp_path / "ids.txt"
+    tasks = load_tasks(data_dir / "tasks.jsonl")
+    main_ids = partition_tasks(tasks)["main"][:3]
+    ids.write_text("\n".join(main_ids) + "\n")
+    args = ["--benchmark", "swepro", "--split", "main", "--arms", "A,D", "--cascade", "--task-file", str(ids),
+            "--data", str(data_dir), "--log", str(log), "--dry-run", "--dry-solve", "none", "--context-source", "raw",
+            "--budget-usd", "5", "--no-log-contents"]
+    assert main(args) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["attempted"] == {"A": 3, "D": 3}
+    ev = EventLog(log).events()
+    assert len([e for e in ev if e.type == "fork.created"]) == 6  # every D task blocked: 2 branches each
+    assert {e.payload.get("arm") for e in ev if e.type == "outcome.scored" and "arm" in e.payload} == {"A", "B", "D"}

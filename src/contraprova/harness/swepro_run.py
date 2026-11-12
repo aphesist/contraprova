@@ -70,6 +70,7 @@ from .swepro_arms import (
     Verifier,
     gold_files,
     gold_oracle,
+    main_preflight,
     preflight,
     pro_arm_config,
     run_tasks,
@@ -93,6 +94,16 @@ def _parser() -> argparse.ArgumentParser:
                     help="worker max_tokens for Haiku (default: pro_arm_config's 32K)")
     ap.add_argument("--opus-max-tokens", type=int, default=None,
                     help="worker max_tokens for Opus (default: pro_arm_config's 32K)")
+    ap.add_argument("--cascade", action="store_true",
+                    help="main-study design: arm D is the fixed cascade (Haiku first; after a gate block a Haiku "
+                         "control and an Opus treatment fork, D ships the Opus branch), Opus workers at low effort, "
+                         "and D's first Haiku attempt is also scored as a derived arm B")
+    ap.add_argument("--task-file", default=None, help="run exactly these task ids (one per line, in order)")
+    ap.add_argument("--eligible-out", default=None, help="preflight --cascade: write the eligible task ids here")
+    ap.add_argument("--validate-before-run", action="store_true",
+                    help="run the $0 empty/gold check on each task right before its arms; exclude failures")
+    ap.add_argument("--p-fork", type=float, default=0.5, help="preflight --cascade: assumed D gate-block rate")
+    ap.add_argument("--repair-rate", type=float, default=0.3, help="preflight --cascade: assumed repair rate")
     ap.add_argument("--no-repair", action="store_true",
                     help="no repair turn after a truncated, unparsable or unappliable reply")
     ap.add_argument("--no-log-contents", action="store_true",
@@ -186,6 +197,31 @@ def action_prepare(args) -> int:
     finally:
         stop_dockerd(started)
     return 0
+
+
+def validate_exercise(ex: ProExercise, h: ProHarness, args) -> dict[str, Any]:
+    """The $0 check for one loaded task (its image already present): the empty patch must score 0
+    and fail the visible subset, the gold patch through the edit path must score 1 and pass both gate
+    subsets by per-test status. Returns a row with ``ok``."""
+    t = ex.task
+    row: dict[str, Any] = {"task": t.instance_id, "repo": t.repo}
+    try:
+        row["head_is_base"] = image_head(t.image) == t.base_commit
+        empty = run_verifier(t.image, ex.verifier, {}, timeout=args.test_timeout)
+        files, errors = gold_files(ex, scope=h.scope(ex))
+        gold = run_verifier(t.image, ex.verifier, files, timeout=args.test_timeout)
+        ts = ex.test_split
+        row.update(empty_reward=empty.reward, gold_reward=gold.reward, gold_edit_errors=list(errors),
+                   gold_visible_ok=not gold.failed(ts.visible), gold_private_ok=not gold.failed(ts.gate_private),
+                   empty_visible_ok=not empty.failed(ts.visible), empty_s=round(empty.seconds, 1),
+                   gold_s=round(gold.seconds, 1))
+        row["ok"] = (row["head_is_base"] and empty.reward == 0 and gold.reward == 1 and not errors
+                     and bool(gold.statuses) and row["gold_visible_ok"] and row["gold_private_ok"]
+                     and not row["empty_visible_ok"])
+    except Exception as e:
+        row["ok"] = False
+        row["error"] = f"{type(e).__name__}: {e}"
+    return row
 
 
 def action_validate(args) -> int:
@@ -283,11 +319,17 @@ def action_run(args, preflight_only: bool = False) -> int:
         raise SystemExit("--budget-usd is required")
     if not args.dry_run and not args.client:
         raise SystemExit("a real run needs --client (or use --dry-run)")
-    if "D" in arms and not args.dry_run and not args.router:
+    if "D" in arms and not args.dry_run and not args.router and not args.cascade:
         raise SystemExit("arm D needs --router (or use --dry-run)")
     tasks, part = _tasks(args)
     by_id = {t.instance_id: t for t in tasks}
     ids = _selected(args, part)
+    if args.task_file:
+        wanted = [ln.strip() for ln in Path(args.task_file).read_text(encoding="utf-8").splitlines() if ln.strip()]
+        outside = [i for i in wanted if i not in set(part.splits[args.split])]
+        if outside:
+            raise SystemExit(f"--task-file has {len(outside)} ids outside split {args.split!r}: {outside[:3]}")
+        ids = wanted[: args.limit] if args.limit else wanted
     log_path = Path(args.log)
     log_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -304,13 +346,16 @@ def action_run(args, preflight_only: bool = False) -> int:
             if args.opus_max_tokens:
                 by_model[OPUS] = args.opus_max_tokens
             overrides["worker_max_tokens_by_model"] = tuple(sorted(by_model.items()))
+        if args.cascade:
+            overrides.update(fork_branches=(("control-1", "control", HAIKU), ("treatment", "treatment", OPUS)),
+                             worker_effort_by_model=((OPUS, "low"),), derive_b=True)
         config = pro_arm_config(**overrides)
         exercises: dict[str, ProExercise] = {}
         if args.dry_run:
-            from .run import UniformRouter
+            from .run import CascadeRouter, UniformRouter
 
             client = ProFakeClient(exercises, solve=(lambda i: True) if args.dry_solve == "all" else (lambda i: False))
-            router = UniformRouter()
+            router = CascadeRouter(HAIKU, OPUS) if args.cascade else UniformRouter()
             verifier = Verifier(gold_oracle(exercises))
         else:
             client = _client(args, log_path)
@@ -319,6 +364,10 @@ def action_run(args, preflight_only: bool = False) -> int:
                 from .run import load_object
 
                 router = load_object(args.router)
+            elif args.cascade:
+                from .run import CascadeRouter
+
+                router = CascadeRouter(HAIKU, OPUS)
             if args.client == "anthropic" and not args.no_t2_review:
                 config = pro_arm_config(t2_review_model=SONNET, **overrides)
             verifier = Verifier(lambda image, tests, files: run_verifier(image, tests, files, timeout=args.test_timeout),
@@ -329,15 +378,63 @@ def action_run(args, preflight_only: bool = False) -> int:
 
         excluded: dict[str, str] = {}
 
+        validation_path = log_path.with_name(log_path.stem + ".validation.jsonl")
+
         def provider(tid: str):
             if tid in exercises:
                 return exercises[tid]
             got = _exercise(by_id[tid], part, args, h, cache, with_verifier=not args.dry_run)
+            if not isinstance(got, str) and args.validate_before_run and not args.dry_run and not preflight_only:
+                row = validate_exercise(got, h, args)
+                with validation_path.open("a", encoding="utf-8") as f:
+                    f.write(json.dumps(row, sort_keys=True) + "\n")
+                if not row["ok"]:
+                    if cache is not None and args.delete_images:
+                        cache.remove(got.task.image)
+                    return "failed the $0 empty/gold validation: " + json.dumps(
+                        {k: row.get(k) for k in ("empty_reward", "gold_reward", "gold_edit_errors", "head_is_base",
+                                                 "error") if k in row})
             if not isinstance(got, str):
                 exercises[tid] = got
             return got
 
         pre = None
+        if preflight_only and args.cascade:
+            # Main study: walk the split in its seeded order, keep tasks whose counted worker prompt
+            # (Haiku with a brief, Opus without) is within the bound, until --limit are eligible.
+            target = args.limit or len(ids)
+            eligible, rows = [], []
+            for tid in (list(part.splits[args.split]) if not args.task_file else ids):
+                if len(eligible) >= target:
+                    break
+                got = provider(tid)
+                if isinstance(got, str):
+                    excluded[tid] = got
+                    continue
+                r = main_preflight(h, [got], _count_fn(client), p_fork=args.p_fork, repair_rate=args.repair_rate)[0]
+                biggest = max(r.a_input, r.d_worker_input)
+                if biggest > args.max_prompt_tokens:
+                    excluded[tid] = f"counted worker prompt {biggest} tokens > {args.max_prompt_tokens}"
+                    continue
+                eligible.append(tid)
+                rows.append(r)
+                exercises.pop(tid, None)
+            exp_a = sum(r.expected_a for r in rows)
+            exp_d = sum(r.expected_d_shipped for r in rows)
+            exp_m = sum(r.expected_d_measurement for r in rows)
+            expected = exp_a + exp_d + exp_m
+            pre = {"n": len(eligible), "expected_usd": round(expected, 4), "expected_by_part":
+                   {"A": round(exp_a, 4), "D_shipped": round(exp_d, 4), "D_measurement": round(exp_m, 4)},
+                   "worst_case_usd": round(sum(r.worst for r in rows), 4), "margin": args.preflight_margin,
+                   "cap_usd": args.budget_usd, "fits": expected * args.preflight_margin <= args.budget_usd,
+                   "assumptions": {"p_fork": args.p_fork, "repair_rate": args.repair_rate},
+                   "per_task_expected_usd": round(expected / max(len(rows), 1), 4),
+                   "n_that_fits": int(args.budget_usd / args.preflight_margin / max(expected / max(len(rows), 1), 1e-9)),
+                   "rows": [r.__dict__ for r in rows]}
+            if args.eligible_out:
+                Path(args.eligible_out).write_text("".join(i + "\n" for i in eligible), encoding="utf-8")
+            print(json.dumps({"preflight": pre, "excluded": excluded}, indent=2))
+            return 0
         if args.probe or preflight_only:
             # Order by worker prompt size and count every prompt (free) before any paid request.
             loaded = []
@@ -391,7 +488,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.action == "validate":
         return action_validate(args)
     if args.action == "preflight":
-        args.probe = True
+        args.probe = not args.cascade
         return action_run(args, preflight_only=True)
     return action_run(args)
 

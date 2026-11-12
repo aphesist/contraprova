@@ -45,7 +45,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from ..contracts import check_scope
-from ..interfaces import HAIKU, SONNET, Completion, GateResult, LLMClient, Message, RouteDecision, Submission
+from ..interfaces import HAIKU, OPUS, SONNET, Completion, GateResult, LLMClient, Message, RouteDecision, Submission
 from ..llm import AnthropicClient, Budget
 from ..log import EventLog
 from .arms import ARMS, ArmConfig, BudgetGuard, Harness, ScoreResult, TaskContext, format_files, parse_files, run_arm
@@ -109,6 +109,19 @@ class UniformRouter:
         p = 1 / len(self.actions)
         return RouteDecision(self.actions[rng_seed % len(self.actions)], {a: p for a in self.actions}, self.hash,
                              dict(features))
+
+
+class CascadeRouter:
+    """A fixed policy, not a learned router: ``initial`` before any attempt and ``escalate`` after a
+    gate failure (the ``attempt`` feature is 0 on the first attempt), each with propensity 1."""
+
+    def __init__(self, initial: str = HAIKU, escalate: str = OPUS):
+        self.initial, self.escalate = initial, escalate
+        self.hash = sha256_text(f"cascade:{initial}->{escalate}")
+
+    def decide(self, features: Mapping[str, float], *, rng_seed: int) -> RouteDecision:
+        action = self.escalate if float(features.get("attempt", 0.0)) > 0 else self.initial
+        return RouteDecision(action, {action: 1.0}, self.hash, dict(features))
 
 
 class FixedRouter:

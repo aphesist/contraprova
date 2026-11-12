@@ -416,7 +416,7 @@ class ProHarness(Harness):
               cache_upto: int = 0) -> Submission:
         self.emit("task.claimed", f"worker:{model}", {"task_id": task_id, "worker": model, "attempt": attempt})
         if effort is None:
-            effort = self.config.worker_effort
+            effort = self.worker_effort(model)
         mt = self.worker_max_tokens(model)
         kw = dict(arm=arm, role=role, task_id=task_id, model=model, system=self.worker_system, max_tokens=mt,
                   effort=effort, fork_id=fork_id)
@@ -739,4 +739,64 @@ def preflight(h: ProHarness, exercises: Sequence[ProExercise], plan: Sequence[tu
             exp = samples * (n_in * inp + out * outp) / PER_MTOK
             worst = samples * (n_in * inp + mt * outp) / PER_MTOK
             rows.append(PreflightRow(ex.id, model, samples, n_in, out, mt, exp, worst))
+    return rows
+
+
+# ------------------------------------------------------------------ main-study pre-flight
+
+
+@dataclass(frozen=True)
+class MainPreflightRow:
+    task_id: str
+    a_input: int  # counted: Opus worker prompt (no brief)
+    d_lead_input: int  # counted: Opus orchestrator brief request (outline only)
+    d_worker_input: int  # counted: Haiku worker prompt with a brief-sized placeholder
+    answer_tokens: int
+    expected_a: float
+    expected_d_shipped: float  # brief + Haiku attempt + p_fork x Opus treatment
+    expected_d_measurement: float  # p_fork x Haiku control (fork overhead, not D's cost)
+    worst: float
+
+
+def main_preflight(h: ProHarness, exercises: Sequence[ProExercise], count_tokens: Callable[..., int], *,
+                   p_fork: float = 0.5, repair_rate: float = 0.3, brief_tokens: int = 1500,
+                   table: str = DEFAULT_TABLE) -> list[MainPreflightRow]:
+    """Expected and worst-case cost per task of arm A and of arm D's fixed cascade, from exact
+    prompt counts (``count_tokens``, free). Assumptions (stated so they can be checked afterwards):
+    D's gate blocks with probability ``p_fork`` (then a Haiku control and an Opus treatment run on
+    the retry prompt, about the worker prompt plus the answer); each worker request triggers a
+    repair turn with probability ``repair_rate`` (the whole conversation again as input plus 1,000
+    output tokens); the brief costs ``brief_tokens`` of output; T2 review is not priced (rare)."""
+    prices = PRICE_TABLES[table]
+
+    def usd(model: str, n_in: int, n_out: int) -> float:
+        inp, outp = prices[model].rates(n_in)
+        return (n_in * inp + n_out * outp) / PER_MTOK
+
+    def worker(model: str, n_in: int, answer: int) -> tuple[float, float]:
+        mt = h.worker_max_tokens(model)
+        out = min(answer + THINKING_ALLOWANCE.get(model, 1500), mt)
+        exp = usd(model, n_in, out) + repair_rate * usd(model, n_in + out, 1000)
+        worst = usd(model, n_in, mt) + usd(model, n_in + mt, mt)
+        return exp, worst
+
+    rows = []
+    for ex in exercises:
+        ts = ex.test_split
+        answer = expected_answer_tokens(ex)
+        a_in = int(count_tokens(model=OPUS, system=h.worker_system, messages=[Message("user", h.worker_prompt(ex, ts))]))
+        lead = h.lead_context(ex, ts) + h.brief_request
+        l_in = int(count_tokens(model=OPUS, system=h.lead_system, messages=[Message("user", lead)]))
+        d_prompt = h.worker_prompt(ex, ts, "word " * 250)
+        d_in = int(count_tokens(model=HAIKU, system=h.worker_system, messages=[Message("user", d_prompt)]))
+        retry_in = d_in + answer + 500
+        a_exp, a_worst = worker(OPUS, a_in, answer)
+        h_exp, h_worst = worker(HAIKU, d_in, answer)
+        t_exp, t_worst = worker(OPUS, retry_in, answer)
+        c_exp, c_worst = worker(HAIKU, retry_in, answer)
+        brief = usd(OPUS, l_in, brief_tokens)
+        brief_worst = usd(OPUS, l_in, h.config.orchestrator_max_tokens)
+        rows.append(MainPreflightRow(
+            ex.id, a_in, l_in, d_in, answer, a_exp, brief + h_exp + p_fork * t_exp, p_fork * c_exp,
+            a_worst + brief_worst + h_worst + t_worst + c_worst))
     return rows

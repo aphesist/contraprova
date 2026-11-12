@@ -340,6 +340,15 @@ class ArmConfig:
     t2_review_effort: str | None = "low"
     t2_review_max_tokens: int = 1000
     t2_diff_chars: int = 40000
+    # Per-model worker effort overrides, as (model, effort) pairs (e.g. an Opus fork treatment at
+    # "low" while Haiku workers run at worker_effort). Empty: every worker uses worker_effort.
+    worker_effort_by_model: tuple[tuple[str, str | None], ...] = ()
+    # Arm D's fork branches at its first gate failure: (branch, role, model). The router's
+    # "after_gate_failure" action picks which branch D ships (the first branch with that model).
+    fork_branches: tuple[tuple[str, str, str], ...] = FORK_BRANCHES
+    # Arm D also scores its first worker attempt on the full score tests and records it as a derived
+    # arm-B outcome (``derived_from: "D"``); its usage stays D's.
+    derive_b: bool = False
 
 
 # ------------------------------------------------------------------ harness
@@ -554,7 +563,7 @@ class Harness:
               cache_upto: int = 0) -> Submission:
         self.emit("task.claimed", f"worker:{model}", {"task_id": task_id, "worker": model, "attempt": attempt})
         if effort is None:
-            effort = self.config.worker_effort
+            effort = self.worker_effort(model)
         c = self.call(arm=arm, role=role, task_id=task_id, model=model, system=self.worker_system, user=prompt,
                       max_tokens=self.worker_max_tokens(model), effort=effort, fork_id=fork_id,
                       cache_upto=cache_upto)
@@ -565,6 +574,9 @@ class Harness:
     worker_system = WORKER_SYSTEM  # class attributes, not dataclass fields
     lead_system = LEAD_SYSTEM
     brief_request = BRIEF_REQUEST
+
+    def worker_effort(self, model: str) -> str | None:
+        return dict(self.config.worker_effort_by_model).get(model, self.config.worker_effort)
 
     def worker_max_tokens(self, model: str) -> int:
         return dict(self.config.worker_max_tokens_by_model).get(model, self.config.worker_max_tokens)
@@ -722,19 +734,32 @@ class Harness:
         sub = self._work(arm, tid, ex, tier, base, 1)
         ctx = TaskContext(arm, tid, ex, ts, tier, 1, contract, split, self.t2_reviewer(arm, tid, ex))
         passed, results = self._gate(sub, ctx)
+        gate_seq = self.log.events()[-1].seq  # the blocking gate.decided: the fork point
+        if self.config.derive_b:
+            r0 = self.evaluate(sub, ctx)
+            self.emit("outcome.scored", "scorer", {
+                "arm": "B", "derived_from": "D", "task_id": ex.id, "solved": bool(r0.solved), "shipped": True,
+                "log_task_id": tid, "split": split, "model": tier, "evidence": dict(r0.evidence),
+                "gate_passed": passed,
+            })
+            if passed:
+                return self.outcome(arm, sub, ctx, r0, gate_passed=True, branch="initial")
         if passed:
             return self.score(arm, sub, ctx, gate_passed=True, branch="initial")
 
         # First gate failure: fork from the blocking gate.decided and re-execute both ways.
-        fork_point = self.log.events()[-1].seq
+        fork_point = gate_seq
         feedback = "\n".join(f"[{r.gate}] {r.reason}" for r in results if r.verdict != "pass")
         retry = self.retry_prompt(base, sub.files, feedback, ex)
         # After the gate failure: the gate's evidence about the blocked attempt.
         action = self._route(arm, tid, "after_gate_failure",
                              self.features(ex, ts, attempt=2, submission=sub, results=results, contract=contract))
-        chosen = "control-1" if action == HAIKU else "treatment"
+        branches = self.config.fork_branches
+        chosen = next((b for b, _, m in branches if m == action), None)
+        if chosen is None:
+            raise ValueError(f"router chose {action!r}, which no fork branch runs")
         chosen_result = None
-        for branch, role, model in FORK_BRANCHES:
+        for branch, role, model in branches:
             child = f"{tid}:{branch}"
             seed = int(sha256_text(f"{tid}:{fork_point}:{branch}")[:8], 16)
             fid = create_fork(self.log, tid, fork_point, model, role, seed, actor="harness",
@@ -743,7 +768,7 @@ class Harness:
                         branch=branch)
             # Branches that share a model send byte-identical requests (the two Haiku controls):
             # the first writes the whole prompt to the cache and the next reads it.
-            shared = sum(1 for _, _, m in FORK_BRANCHES if m == model) > 1
+            shared = sum(1 for _, _, m in branches if m == model) > 1
             csub = self._work(arm, child, ex, model, retry, 1, fork_id=fid, cache_upto=len(retry) if shared else 0)
             cctx = TaskContext(arm, child, ex, ts, model, 1, contract, split, self.t2_reviewer(arm, child, ex, fid))
             cpassed, _ = self._gate(csub, cctx)
