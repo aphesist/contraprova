@@ -1,0 +1,1377 @@
+{
+  "preflight": {
+    "n": 37,
+    "order": [
+      "instance_element-hq__element-web-aec454dd6feeb93000380523cbb0b3681c0275fd-vnan",
+      "instance_NodeBB__NodeBB-04998908ba6721d64eba79ae3b65a351dcfbc5b5-vnan",
+      "instance_internetarchive__openlibrary-6fdbbeee4c0a7e976ff3e46fb1d36f4eb110c428-v08d8e8889ec945ab821fb156c04c7d2e2810debb",
+      "instance_ansible__ansible-949c503f2ef4b2c5d668af0492a5c0db1ab86140-v0f01c69f1e2528b935359cfe578530722bca2c59",
+      "instance_element-hq__element-web-fe14847bb9bb07cab1b9c6c54335ff22ca5e516a-vnan",
+      "instance_ansible__ansible-d2f80991180337e2be23d6883064a67dcbaeb662-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+      "instance_qutebrowser__qutebrowser-bedc9f7fadf93f83d8dee95feeecb9922b6f063f-v2ef375ac784985212b1805e1d0431dc8f1b3c171",
+      "instance_internetarchive__openlibrary-7cbfb812ef0e1f9716e2d6e85d538a96fcb79d13-vfa6ff903cb27f336e17654595dd900fa943dcd91",
+      "instance_qutebrowser__qutebrowser-e5340c449f23608803c286da0563b62f58ba25b0-v059c6fdc75567943479b23ebca7c07b5e9a7f34c",
+      "instance_qutebrowser__qutebrowser-de4a1c1a2839b5b49c3d4ce21d39de48d24e2091-v2ef375ac784985212b1805e1d0431dc8f1b3c171",
+      "instance_internetarchive__openlibrary-0a90f9f0256e4f933523e9842799e39f95ae29ce-v76304ecdb3a5954fcf13feb710e8c40fcf24b73c",
+      "instance_ansible__ansible-bec27fb4c0a40c5f8bbcf26a475704227d65ee73-v30a923fb5c164d6cd18280c02422f75e611e8fb2",
+      "instance_element-hq__element-web-582a1b093fc0b77538052f45cbb9c7295f991b51-vnan",
+      "instance_internetarchive__openlibrary-7f6b722a10f822171501d027cad60afe53337732-ve8c8d62a2b60610a3c4631f5f23ed866bada9818",
+      "instance_internetarchive__openlibrary-308a35d6999427c02b1dbf5211c033ad3b352556-ve8c8d62a2b60610a3c4631f5f23ed866bada9818",
+      "instance_NodeBB__NodeBB-f1a80d48cc45877fcbadf34c2345dd9709722c7f-v4fbcfae8b15e4ce5d132c408bca69ebb9cf146ed",
+      "instance_internetarchive__openlibrary-30bc73a1395fba2300087c7f307e54bb5372b60a-v76304ecdb3a5954fcf13feb710e8c40fcf24b73c",
+      "instance_qutebrowser__qutebrowser-3fd8e12949b8feda401930574facf09dd4180bba",
+      "instance_NodeBB__NodeBB-a5afad27e52fd336163063ba40dcadc80233ae10-vd59a5728dfc977f44533186ace531248c2917516",
+      "instance_element-hq__element-web-33e8edb3d508d6eefb354819ca693b7accc695e7",
+      "instance_internetarchive__openlibrary-92db3454aeaa02f89b4cdbc3103f7e95c9759f92-v2c55207218fb8a0138425cbf7d9675272e240b90",
+      "instance_internetarchive__openlibrary-8a5a63af6e0be406aa6c8c9b6d5f28b2f1b6af5a-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4",
+      "instance_qutebrowser__qutebrowser-394bfaed6544c952c6b3463751abab3176ad4997-vafb3e8e01b31319c66c4e666b8a3b1d8ba55db24",
+      "instance_ansible__ansible-de5858f48dc9e1ce9117034e0d7e76806f420ca8-v1055803c3a812189a1133297f7f5468579283f86",
+      "instance_internetarchive__openlibrary-798a582540019363d14b2090755cc7b89a350788-v430f20c722405e462d9ef44dee7d34c41e76fe7a",
+      "instance_internetarchive__openlibrary-7c8dc180281491ccaa1b4b43518506323750d1e4-v298a7a812ceed28c4c18355a091f1b268fe56d86",
+      "instance_element-hq__element-web-d06cf09bf0b3d4a0fbe6bd32e4115caea2083168-vnan",
+      "instance_internetarchive__openlibrary-4b7ea2977be2747496ba792a678940baa985f7ea-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4",
+      "instance_ansible__ansible-395e5e20fab9cad517243372fa3c3c5d9e09ab2a-v7eee2454f617569fd6889f2211f75bc02a35f9f8",
+      "instance_internetarchive__openlibrary-c506c1b0b678892af5cb22c1c1dbc35d96787a0a-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4",
+      "instance_ansible__ansible-bf98f031f3f5af31a2d78dc2f0a58fe92ebae0bb-v1055803c3a812189a1133297f7f5468579283f86",
+      "instance_internetarchive__openlibrary-1be7de788a444f6255e89c10ef6aa608550604a8-v29f82c9cf21d57b242f8d8b0e541525d259e2d63",
+      "instance_ansible__ansible-d58e69c82d7edd0583dd8e78d76b075c33c3151e-v173091e2e36d38c978002990795f66cfc0af30ad",
+      "instance_NodeBB__NodeBB-8ca65b0c78c67c1653487c02d1135e1b702185e1-vf2cf3cbd463b7ad942381f1c6d077626485a1e9e",
+      "instance_qutebrowser__qutebrowser-85b867fe8d4378c8e371f055c70452f546055854-v2ef375ac784985212b1805e1d0431dc8f1b3c171",
+      "instance_ansible__ansible-5260527c4a71bfed99d803e687dd19619423b134-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+      "instance_NodeBB__NodeBB-9c576a0758690f45a6ca03b5884c601e473bf2c1-vd59a5728dfc977f44533186ace531248c2917516"
+    ],
+    "expected_usd": 19.9748,
+    "expected_by_arm": {
+      "La": 7.5474,
+      "D_shipped": 12.0491,
+      "D_measurement": 0.3783
+    },
+    "la_by_part": {
+      "planner": 3.9252,
+      "lanes": 0.4461,
+      "edit_repairs": 0.0299,
+      "haiku_repair_round": 0.0935,
+      "sonnet": 1.6825,
+      "opus": 1.3703
+    },
+    "worst_case_usd": 430.2846,
+    "margin": 1.2,
+    "cap_usd": 25.0,
+    "fits": true,
+    "assumptions": {
+      "plan_out": 4000,
+      "haiku_intercept": 2697.0,
+      "haiku_slope": 12.41,
+      "opus_intercept": 1137.0,
+      "opus_slope": 5.05,
+      "sonnet_factor": 1.5,
+      "edit_repair_rate": 0.08,
+      "edit_repair_out": 2041,
+      "p_block": 0.45,
+      "blamed": 1.3,
+      "q_opus": 0.45,
+      "retry_extra": 3000,
+      "escalation_repair": 1.1,
+      "p_fork": 0.5,
+      "repair_rate": 0.3,
+      "lanes_k": 3
+    },
+    "lane_config": {
+      "planner_model": "claude-opus-5-5",
+      "planner_effort": "low",
+      "planner_max_tokens": 8000,
+      "max_lanes": 4,
+      "ladder": [
+        [
+          "haiku",
+          "claude-haiku-5-5",
+          "medium"
+        ],
+        [
+          "haiku-repair",
+          "claude-haiku-5-5",
+          "medium"
+        ],
+        [
+          "sonnet",
+          "claude-sonnet-5-5",
+          "medium"
+        ],
+        [
+          "opus",
+          "claude-opus-5-5",
+          "low"
+        ]
+      ],
+      "lane_max_tokens": 32000,
+      "max_rounds": 3,
+      "plan_repair": true,
+      "lane_prompt_max_tokens": 90000
+    },
+    "rows": [
+      {
+        "la": {
+          "task_id": "instance_element-hq__element-web-aec454dd6feeb93000380523cbb0b3681c0275fd-vnan",
+          "k": 3,
+          "planner_input": 6952,
+          "lane_inputs": [
+            40238,
+            8396,
+            6871
+          ],
+          "gold_lines": 488,
+          "expected": 0.20785424914000003,
+          "worst": 7.754677999999999,
+          "by_part": {
+            "planner": 0.107808,
+            "lanes": 0.012624,
+            "edit_repairs": 0.000802,
+            "haiku_repair_round": 0.002637,
+            "sonnet": 0.046577,
+            "opus": 0.037406
+          }
+        },
+        "d": {
+          "task_id": "instance_element-hq__element-web-aec454dd6feeb93000380523cbb0b3681c0275fd-vnan",
+          "a_input": 41368,
+          "d_lead_input": 6389,
+          "d_worker_input": 41628,
+          "answer_tokens": 8013,
+          "expected_a": 0.4079492,
+          "expected_d_shipped": 0.29320893,
+          "expected_d_measurement": 0.005987610000000001,
+          "worst": 3.7423818
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_NodeBB__NodeBB-04998908ba6721d64eba79ae3b65a351dcfbc5b5-vnan",
+          "k": 3,
+          "planner_input": 4198,
+          "lane_inputs": [
+            23886,
+            10038,
+            13879
+          ],
+          "gold_lines": 151,
+          "expected": 0.17828491620500003,
+          "worst": 7.6371412,
+          "by_part": {
+            "planner": 0.096792,
+            "lanes": 0.009763,
+            "edit_repairs": 0.000707,
+            "haiku_repair_round": 0.002079,
+            "sonnet": 0.037797,
+            "opus": 0.031147
+          }
+        },
+        "d": {
+          "task_id": "instance_NodeBB__NodeBB-04998908ba6721d64eba79ae3b65a351dcfbc5b5-vnan",
+          "a_input": 39272,
+          "d_lead_input": 3523,
+          "d_worker_input": 39532,
+          "answer_tokens": 5582,
+          "expected_a": 0.34551279999999995,
+          "expected_d_shipped": 0.24264522,
+          "expected_d_measurement": 0.005049140000000001,
+          "worst": 3.6766092
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_internetarchive__openlibrary-6fdbbeee4c0a7e976ff3e46fb1d36f4eb110c428-v08d8e8889ec945ab821fb156c04c7d2e2810debb",
+          "k": 3,
+          "planner_input": 5575,
+          "lane_inputs": [
+            24369,
+            29506,
+            31458
+          ],
+          "gold_lines": 269,
+          "expected": 0.22312306949500002,
+          "worst": 8.1135292,
+          "by_part": {
+            "planner": 0.1023,
+            "lanes": 0.014248,
+            "edit_repairs": 0.001019,
+            "haiku_repair_round": 0.002954,
+            "sonnet": 0.055815,
+            "opus": 0.046788
+          }
+        },
+        "d": {
+          "task_id": "instance_internetarchive__openlibrary-6fdbbeee4c0a7e976ff3e46fb1d36f4eb110c428-v08d8e8889ec945ab821fb156c04c7d2e2810debb",
+          "a_input": 58204,
+          "d_lead_input": 4987,
+          "d_worker_input": 58464,
+          "answer_tokens": 11636,
+          "expected_a": 0.572304,
+          "expected_d_shipped": 0.38330700000000006,
+          "expected_d_measurement": 0.00827754,
+          "worst": 4.147632799999999
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_ansible__ansible-949c503f2ef4b2c5d668af0492a5c0db1ab86140-v0f01c69f1e2528b935359cfe578530722bca2c59",
+          "k": 3,
+          "planner_input": 7200,
+          "lane_inputs": [
+            44578,
+            14836,
+            10781
+          ],
+          "gold_lines": 230,
+          "expected": 0.21404703614999998,
+          "worst": 7.938818,
+          "by_part": {
+            "planner": 0.1088,
+            "lanes": 0.012492,
+            "edit_repairs": 0.000894,
+            "haiku_repair_round": 0.002611,
+            "sonnet": 0.048687,
+            "opus": 0.040563
+          }
+        },
+        "d": {
+          "task_id": "instance_ansible__ansible-949c503f2ef4b2c5d668af0492a5c0db1ab86140-v0f01c69f1e2528b935359cfe578530722bca2c59",
+          "a_input": 55564,
+          "d_lead_input": 6660,
+          "d_worker_input": 55824,
+          "answer_tokens": 10660,
+          "expected_a": 0.5378848,
+          "expected_d_shipped": 0.36939132,
+          "expected_d_measurement": 0.007783860000000001,
+          "worst": 3.9979856
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_element-hq__element-web-fe14847bb9bb07cab1b9c6c54335ff22ca5e516a-vnan",
+          "k": 3,
+          "planner_input": 5563,
+          "lane_inputs": [
+            14556,
+            5440,
+            5670
+          ],
+          "gold_lines": 340,
+          "expected": 0.1692122828,
+          "worst": 7.3735624,
+          "by_part": {
+            "planner": 0.102252,
+            "lanes": 0.008722,
+            "edit_repairs": 0.000549,
+            "haiku_repair_round": 0.001876,
+            "sonnet": 0.031371,
+            "opus": 0.024442
+          }
+        },
+        "d": {
+          "task_id": "instance_element-hq__element-web-fe14847bb9bb07cab1b9c6c54335ff22ca5e516a-vnan",
+          "a_input": 14349,
+          "d_lead_input": 4850,
+          "d_worker_input": 14609,
+          "answer_tokens": 6418,
+          "expected_a": 0.2336364,
+          "expected_d_shipped": 0.19139171,
+          "expected_d_measurement": 0.0037050250000000002,
+          "worst": 3.2800352
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_ansible__ansible-d2f80991180337e2be23d6883064a67dcbaeb662-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+          "k": 3,
+          "planner_input": 6036,
+          "lane_inputs": [
+            11551,
+            28989,
+            7183
+          ],
+          "gold_lines": 310,
+          "expected": 0.19088986135,
+          "worst": 7.650853199999999,
+          "by_part": {
+            "planner": 0.104144,
+            "lanes": 0.010741,
+            "edit_repairs": 0.000722,
+            "haiku_repair_round": 0.00227,
+            "sonnet": 0.040346,
+            "opus": 0.032666
+          }
+        },
+        "d": {
+          "task_id": "instance_ansible__ansible-d2f80991180337e2be23d6883064a67dcbaeb662-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+          "a_input": 35416,
+          "d_lead_input": 5460,
+          "d_worker_input": 35676,
+          "answer_tokens": 7964,
+          "expected_a": 0.37596,
+          "expected_d_shipped": 0.2725712,
+          "expected_d_measurement": 0.00558456,
+          "worst": 3.6406511999999998
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_qutebrowser__qutebrowser-bedc9f7fadf93f83d8dee95feeecb9922b6f063f-v2ef375ac784985212b1805e1d0431dc8f1b3c171",
+          "k": 3,
+          "planner_input": 12125,
+          "lane_inputs": [
+            36591,
+            15913,
+            20087
+          ],
+          "gold_lines": 164,
+          "expected": 0.23379373652000002,
+          "worst": 8.0079284,
+          "by_part": {
+            "planner": 0.1285,
+            "lanes": 0.012322,
+            "edit_repairs": 0.000907,
+            "haiku_repair_round": 0.002578,
+            "sonnet": 0.048642,
+            "opus": 0.040844
+          }
+        },
+        "d": {
+          "task_id": "instance_qutebrowser__qutebrowser-bedc9f7fadf93f83d8dee95feeecb9922b6f063f-v2ef375ac784985212b1805e1d0431dc8f1b3c171",
+          "a_input": 48112,
+          "d_lead_input": 11573,
+          "d_worker_input": 48372,
+          "answer_tokens": 3876,
+          "expected_a": 0.3553136,
+          "expected_d_shipped": 0.27555504,
+          "expected_d_measurement": 0.005060759999999999,
+          "worst": 3.839796
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_internetarchive__openlibrary-7cbfb812ef0e1f9716e2d6e85d538a96fcb79d13-vfa6ff903cb27f336e17654595dd900fa943dcd91",
+          "k": 3,
+          "planner_input": 3872,
+          "lane_inputs": [
+            5867,
+            9522,
+            5247
+          ],
+          "gold_lines": 553,
+          "expected": 0.16484498731500002,
+          "worst": 7.297662400000002,
+          "by_part": {
+            "planner": 0.095488,
+            "lanes": 0.00954,
+            "edit_repairs": 0.00053,
+            "haiku_repair_round": 0.002036,
+            "sonnet": 0.032674,
+            "opus": 0.024577
+          }
+        },
+        "d": {
+          "task_id": "instance_internetarchive__openlibrary-7cbfb812ef0e1f9716e2d6e85d538a96fcb79d13-vfa6ff903cb27f336e17654595dd900fa943dcd91",
+          "a_input": 12673,
+          "d_lead_input": 3299,
+          "d_worker_input": 12933,
+          "answer_tokens": 10642,
+          "expected_a": 0.31447,
+          "expected_d_shipped": 0.23860775,
+          "expected_d_measurement": 0.0049900050000000005,
+          "worst": 3.2809816
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_qutebrowser__qutebrowser-e5340c449f23608803c286da0563b62f58ba25b0-v059c6fdc75567943479b23ebca7c07b5e9a7f34c",
+          "k": 3,
+          "planner_input": 11710,
+          "lane_inputs": [
+            36501,
+            15703,
+            21640
+          ],
+          "gold_lines": 213,
+          "expected": 0.23495688541500004,
+          "worst": 8.0201456,
+          "by_part": {
+            "planner": 0.12684,
+            "lanes": 0.012752,
+            "edit_repairs": 0.000922,
+            "haiku_repair_round": 0.002662,
+            "sonnet": 0.049976,
+            "opus": 0.041806
+          }
+        },
+        "d": {
+          "task_id": "instance_qutebrowser__qutebrowser-e5340c449f23608803c286da0563b62f58ba25b0-v059c6fdc75567943479b23ebca7c07b5e9a7f34c",
+          "a_input": 50235,
+          "d_lead_input": 11069,
+          "d_worker_input": 50495,
+          "answer_tokens": 7539,
+          "expected_a": 0.4440088,
+          "expected_d_shipped": 0.32962782,
+          "expected_d_measurement": 0.006407545000000001,
+          "worst": 3.9026338
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_qutebrowser__qutebrowser-de4a1c1a2839b5b49c3d4ce21d39de48d24e2091-v2ef375ac784985212b1805e1d0431dc8f1b3c171",
+          "k": 3,
+          "planner_input": 6886,
+          "lane_inputs": [
+            17985,
+            6841,
+            11666
+          ],
+          "gold_lines": 542,
+          "expected": 0.19147822471,
+          "worst": 7.518388799999999,
+          "by_part": {
+            "planner": 0.107544,
+            "lanes": 0.011058,
+            "edit_repairs": 0.000655,
+            "haiku_repair_round": 0.002332,
+            "sonnet": 0.039298,
+            "opus": 0.030592
+          }
+        },
+        "d": {
+          "task_id": "instance_qutebrowser__qutebrowser-de4a1c1a2839b5b49c3d4ce21d39de48d24e2091-v2ef375ac784985212b1805e1d0431dc8f1b3c171",
+          "a_input": 22471,
+          "d_lead_input": 6353,
+          "d_worker_input": 22731,
+          "answer_tokens": 9179,
+          "expected_a": 0.334404,
+          "expected_d_shipped": 0.25748530000000003,
+          "expected_d_measurement": 0.005144085,
+          "worst": 3.4418882
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_internetarchive__openlibrary-0a90f9f0256e4f933523e9842799e39f95ae29ce-v76304ecdb3a5954fcf13feb710e8c40fcf24b73c",
+          "k": 3,
+          "planner_input": 8383,
+          "lane_inputs": [
+            16490,
+            19568,
+            9083
+          ],
+          "gold_lines": 170,
+          "expected": 0.19315243645,
+          "worst": 7.637612399999999,
+          "by_part": {
+            "planner": 0.113532,
+            "lanes": 0.009614,
+            "edit_repairs": 0.000688,
+            "haiku_repair_round": 0.00205,
+            "sonnet": 0.036964,
+            "opus": 0.030304
+          }
+        },
+        "d": {
+          "task_id": "instance_internetarchive__openlibrary-0a90f9f0256e4f933523e9842799e39f95ae29ce-v76304ecdb3a5954fcf13feb710e8c40fcf24b73c",
+          "a_input": 28130,
+          "d_lead_input": 7859,
+          "d_worker_input": 28390,
+          "answer_tokens": 3555,
+          "expected_a": 0.24460199999999999,
+          "expected_d_shipped": 0.20174085,
+          "expected_d_measurement": 0.0036559999999999995,
+          "worst": 3.4946029999999997
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_ansible__ansible-bec27fb4c0a40c5f8bbcf26a475704227d65ee73-v30a923fb5c164d6cd18280c02422f75e611e8fb2",
+          "k": 3,
+          "planner_input": 7785,
+          "lane_inputs": [
+            36420,
+            20489,
+            36429
+          ],
+          "gold_lines": 467,
+          "expected": 0.24614389018500002,
+          "worst": 8.2304712,
+          "by_part": {
+            "planner": 0.11114,
+            "lanes": 0.016277,
+            "edit_repairs": 0.001103,
+            "haiku_repair_round": 0.00335,
+            "sonnet": 0.062466,
+            "opus": 0.051809
+          }
+        },
+        "d": {
+          "task_id": "instance_ansible__ansible-bec27fb4c0a40c5f8bbcf26a475704227d65ee73-v30a923fb5c164d6cd18280c02422f75e611e8fb2",
+          "a_input": 77577,
+          "d_lead_input": 7168,
+          "d_worker_input": 77837,
+          "answer_tokens": 21876,
+          "expected_a": 0.8901315999999999,
+          "expected_d_shipped": 0.59832005,
+          "expected_d_measurement": 0.06457992500000001,
+          "worst": 4.781907200000001
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_element-hq__element-web-582a1b093fc0b77538052f45cbb9c7295f991b51-vnan",
+          "k": 3,
+          "planner_input": 4989,
+          "lane_inputs": [
+            7443,
+            36810,
+            29089
+          ],
+          "gold_lines": 163,
+          "expected": 0.20592411746500003,
+          "worst": 7.960152800000001,
+          "by_part": {
+            "planner": 0.099956,
+            "lanes": 0.012391,
+            "edit_repairs": 0.000913,
+            "haiku_repair_round": 0.002592,
+            "sonnet": 0.048948,
+            "opus": 0.041125
+          }
+        },
+        "d": {
+          "task_id": "instance_element-hq__element-web-582a1b093fc0b77538052f45cbb9c7295f991b51-vnan",
+          "a_input": 63121,
+          "d_lead_input": 4462,
+          "d_worker_input": 63381,
+          "answer_tokens": 5832,
+          "expected_a": 0.4748276,
+          "expected_d_shipped": 0.31494149000000005,
+          "expected_d_measurement": 0.006681825,
+          "worst": 4.178224
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_internetarchive__openlibrary-7f6b722a10f822171501d027cad60afe53337732-ve8c8d62a2b60610a3c4631f5f23ed866bada9818",
+          "k": 3,
+          "planner_input": 10120,
+          "lane_inputs": [
+            32267,
+            17684,
+            18854
+          ],
+          "gold_lines": 1663,
+          "expected": 0.272439023765,
+          "worst": 7.944941999999999,
+          "by_part": {
+            "planner": 0.12048,
+            "lanes": 0.021245,
+            "edit_repairs": 0.001025,
+            "haiku_repair_round": 0.004318,
+            "sonnet": 0.071374,
+            "opus": 0.053996
+          }
+        },
+        "d": {
+          "task_id": "instance_internetarchive__openlibrary-7f6b722a10f822171501d027cad60afe53337732-ve8c8d62a2b60610a3c4631f5f23ed866bada9818",
+          "a_input": 48448,
+          "d_lead_input": 9338,
+          "d_worker_input": 48708,
+          "answer_tokens": 32127,
+          "expected_a": 0.9363296,
+          "expected_d_shipped": 0.64446504,
+          "expected_d_measurement": 0.020941875,
+          "worst": 4.1773586
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_internetarchive__openlibrary-308a35d6999427c02b1dbf5211c033ad3b352556-ve8c8d62a2b60610a3c4631f5f23ed866bada9818",
+          "k": 3,
+          "planner_input": 8051,
+          "lane_inputs": [
+            31077,
+            28056,
+            40992
+          ],
+          "gold_lines": 244,
+          "expected": 0.24613221732,
+          "worst": 8.316758000000002,
+          "by_part": {
+            "planner": 0.112204,
+            "lanes": 0.015572,
+            "edit_repairs": 0.001135,
+            "haiku_repair_round": 0.003212,
+            "sonnet": 0.061754,
+            "opus": 0.052255
+          }
+        },
+        "d": {
+          "task_id": "instance_internetarchive__openlibrary-308a35d6999427c02b1dbf5211c033ad3b352556-ve8c8d62a2b60610a3c4631f5f23ed866bada9818",
+          "a_input": 75387,
+          "d_lead_input": 7450,
+          "d_worker_input": 75647,
+          "answer_tokens": 5264,
+          "expected_a": 0.5265692,
+          "expected_d_shipped": 0.35258103,
+          "expected_d_measurement": 0.007291675,
+          "worst": 4.4984188000000005
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_NodeBB__NodeBB-f1a80d48cc45877fcbadf34c2345dd9709722c7f-v4fbcfae8b15e4ce5d132c408bca69ebb9cf146ed",
+          "k": 3,
+          "planner_input": 7040,
+          "lane_inputs": [
+            20365,
+            24964,
+            17485
+          ],
+          "gold_lines": 983,
+          "expected": 0.23168398176500005,
+          "worst": 7.846013600000001,
+          "by_part": {
+            "planner": 0.10816,
+            "lanes": 0.016426,
+            "edit_repairs": 0.00091,
+            "haiku_repair_round": 0.003379,
+            "sonnet": 0.057755,
+            "opus": 0.045054
+          }
+        },
+        "d": {
+          "task_id": "instance_NodeBB__NodeBB-f1a80d48cc45877fcbadf34c2345dd9709722c7f-v4fbcfae8b15e4ce5d132c408bca69ebb9cf146ed",
+          "a_input": 48641,
+          "d_lead_input": 6258,
+          "d_worker_input": 48901,
+          "answer_tokens": 28934,
+          "expected_a": 0.8892939999999999,
+          "expected_d_shipped": 0.5997855500000001,
+          "expected_d_measurement": 0.020220425,
+          "worst": 4.1408211999999995
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_internetarchive__openlibrary-30bc73a1395fba2300087c7f307e54bb5372b60a-v76304ecdb3a5954fcf13feb710e8c40fcf24b73c",
+          "k": 3,
+          "planner_input": 3871,
+          "lane_inputs": [
+            8633,
+            10131,
+            4190
+          ],
+          "gold_lines": 623,
+          "expected": 0.169371749965,
+          "worst": 7.3263976,
+          "by_part": {
+            "planner": 0.095484,
+            "lanes": 0.010207,
+            "edit_repairs": 0.000555,
+            "haiku_repair_round": 0.002166,
+            "sonnet": 0.034806,
+            "opus": 0.026154
+          }
+        },
+        "d": {
+          "task_id": "instance_internetarchive__openlibrary-30bc73a1395fba2300087c7f307e54bb5372b60a-v76304ecdb3a5954fcf13feb710e8c40fcf24b73c",
+          "a_input": 14979,
+          "d_lead_input": 3330,
+          "d_worker_input": 15239,
+          "answer_tokens": 12265,
+          "expected_a": 0.3608688,
+          "expected_d_shipped": 0.26731092,
+          "expected_d_measurement": 0.005675485,
+          "worst": 3.3322326
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_qutebrowser__qutebrowser-3fd8e12949b8feda401930574facf09dd4180bba",
+          "k": 3,
+          "planner_input": 7982,
+          "lane_inputs": [
+            48271,
+            11803,
+            17595
+          ],
+          "gold_lines": 244,
+          "expected": 0.22468919172000004,
+          "worst": 8.0377516,
+          "by_part": {
+            "planner": 0.111928,
+            "lanes": 0.013326,
+            "edit_repairs": 0.000955,
+            "haiku_repair_round": 0.002774,
+            "sonnet": 0.05212,
+            "opus": 0.043585
+          }
+        },
+        "d": {
+          "task_id": "instance_qutebrowser__qutebrowser-3fd8e12949b8feda401930574facf09dd4180bba",
+          "a_input": 61504,
+          "d_lead_input": 7388,
+          "d_worker_input": 61764,
+          "answer_tokens": 8952,
+          "expected_a": 0.5325632,
+          "expected_d_shipped": 0.36506868,
+          "expected_d_measurement": 0.00760632,
+          "worst": 4.189594399999999
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_NodeBB__NodeBB-a5afad27e52fd336163063ba40dcadc80233ae10-vd59a5728dfc977f44533186ace531248c2917516",
+          "k": 3,
+          "planner_input": 3422,
+          "lane_inputs": [
+            22857,
+            11790,
+            20290
+          ],
+          "gold_lines": 188,
+          "expected": 0.18314535584,
+          "worst": 7.7193948,
+          "by_part": {
+            "planner": 0.093688,
+            "lanes": 0.010706,
+            "edit_repairs": 0.000768,
+            "haiku_repair_round": 0.002263,
+            "sonnet": 0.041459,
+            "opus": 0.034262
+          }
+        },
+        "d": {
+          "task_id": "instance_NodeBB__NodeBB-a5afad27e52fd336163063ba40dcadc80233ae10-vd59a5728dfc977f44533186ace531248c2917516",
+          "a_input": 47968,
+          "d_lead_input": 2718,
+          "d_worker_input": 48228,
+          "answer_tokens": 7183,
+          "expected_a": 0.4246732,
+          "expected_d_shipped": 0.28514702999999997,
+          "expected_d_measurement": 0.00614271,
+          "worst": 3.8291318
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_element-hq__element-web-33e8edb3d508d6eefb354819ca693b7accc695e7",
+          "k": 3,
+          "planner_input": 5793,
+          "lane_inputs": [
+            15070,
+            46206,
+            30729
+          ],
+          "gold_lines": 1236,
+          "expected": 0.26268986708000003,
+          "worst": 8.198006,
+          "by_part": {
+            "planner": 0.103172,
+            "lanes": 0.020915,
+            "edit_repairs": 0.001168,
+            "haiku_repair_round": 0.004254,
+            "sonnet": 0.074389,
+            "opus": 0.058791
+          }
+        },
+        "d": {
+          "task_id": "instance_element-hq__element-web-33e8edb3d508d6eefb354819ca693b7accc695e7",
+          "a_input": 80250,
+          "d_lead_input": 5112,
+          "d_worker_input": 80510,
+          "answer_tokens": 23920,
+          "expected_a": 0.947364,
+          "expected_d_shipped": 0.6260235000000001,
+          "expected_d_measurement": 0.06882125,
+          "worst": 4.839124
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_internetarchive__openlibrary-92db3454aeaa02f89b4cdbc3103f7e95c9759f92-v2c55207218fb8a0138425cbf7d9675272e240b90",
+          "k": 3,
+          "planner_input": 9846,
+          "lane_inputs": [
+            28305,
+            33024,
+            14551
+          ],
+          "gold_lines": 703,
+          "expected": 0.24584072996500003,
+          "worst": 8.030479999999999,
+          "by_part": {
+            "planner": 0.119384,
+            "lanes": 0.015996,
+            "edit_repairs": 0.000986,
+            "haiku_repair_round": 0.003295,
+            "sonnet": 0.058811,
+            "opus": 0.047369
+          }
+        },
+        "d": {
+          "task_id": "instance_internetarchive__openlibrary-92db3454aeaa02f89b4cdbc3103f7e95c9759f92-v2c55207218fb8a0138425cbf7d9675272e240b90",
+          "a_input": 56057,
+          "d_lead_input": 9142,
+          "d_worker_input": 56317,
+          "answer_tokens": 22405,
+          "expected_a": 0.7894424000000001,
+          "expected_d_shipped": 0.5419240599999999,
+          "expected_d_measurement": 0.018209375,
+          "worst": 4.2207966
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_internetarchive__openlibrary-8a5a63af6e0be406aa6c8c9b6d5f28b2f1b6af5a-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4",
+          "k": 3,
+          "planner_input": 2409,
+          "lane_inputs": [
+            7358,
+            3285,
+            3245
+          ],
+          "gold_lines": 251,
+          "expected": 0.142511802705,
+          "worst": 7.2022832,
+          "by_part": {
+            "planner": 0.089636,
+            "lanes": 0.006992,
+            "edit_repairs": 0.000446,
+            "haiku_repair_round": 0.001539,
+            "sonnet": 0.024872,
+            "opus": 0.019027
+          }
+        },
+        "d": {
+          "task_id": "instance_internetarchive__openlibrary-8a5a63af6e0be406aa6c8c9b6d5f28b2f1b6af5a-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4",
+          "a_input": 8847,
+          "d_lead_input": 1852,
+          "d_worker_input": 9107,
+          "answer_tokens": 4230,
+          "expected_a": 0.1586404,
+          "expected_d_shipped": 0.13433800999999998,
+          "expected_d_measurement": 0.002625355,
+          "worst": 3.1598687999999995
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_qutebrowser__qutebrowser-394bfaed6544c952c6b3463751abab3176ad4997-vafb3e8e01b31319c66c4e666b8a3b1d8ba55db24",
+          "k": 3,
+          "planner_input": 9043,
+          "lane_inputs": [
+            16441,
+            17437,
+            20657
+          ],
+          "gold_lines": 560,
+          "expected": 0.2177167663,
+          "worst": 7.759378,
+          "by_part": {
+            "planner": 0.116172,
+            "lanes": 0.012974,
+            "edit_repairs": 0.000802,
+            "haiku_repair_round": 0.002705,
+            "sonnet": 0.04733,
+            "opus": 0.037734
+          }
+        },
+        "d": {
+          "task_id": "instance_qutebrowser__qutebrowser-394bfaed6544c952c6b3463751abab3176ad4997-vafb3e8e01b31319c66c4e666b8a3b1d8ba55db24",
+          "a_input": 36240,
+          "d_lead_input": 8458,
+          "d_worker_input": 36500,
+          "answer_tokens": 9973,
+          "expected_a": 0.42283560000000003,
+          "expected_d_shipped": 0.31439629,
+          "expected_d_measurement": 0.006301089999999999,
+          "worst": 3.6826305999999995
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_ansible__ansible-de5858f48dc9e1ce9117034e0d7e76806f420ca8-v1055803c3a812189a1133297f7f5468579283f86",
+          "k": 3,
+          "planner_input": 5532,
+          "lane_inputs": [
+            28376,
+            41240,
+            12877
+          ],
+          "gold_lines": 254,
+          "expected": 0.21977141067000003,
+          "worst": 8.0779692,
+          "by_part": {
+            "planner": 0.102128,
+            "lanes": 0.013871,
+            "edit_repairs": 0.000995,
+            "haiku_repair_round": 0.00288,
+            "sonnet": 0.054352,
+            "opus": 0.045545
+          }
+        },
+        "d": {
+          "task_id": "instance_ansible__ansible-de5858f48dc9e1ce9117034e0d7e76806f420ca8-v1055803c3a812189a1133297f7f5468579283f86",
+          "a_input": 71196,
+          "d_lead_input": 4987,
+          "d_worker_input": 71456,
+          "answer_tokens": 10010,
+          "expected_a": 0.6053912,
+          "expected_d_shipped": 0.39645018,
+          "expected_d_measurement": 0.00858544,
+          "worst": 4.4572972
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_internetarchive__openlibrary-798a582540019363d14b2090755cc7b89a350788-v430f20c722405e462d9ef44dee7d34c41e76fe7a",
+          "k": 3,
+          "planner_input": 8810,
+          "lane_inputs": [
+            31836,
+            28682,
+            41751
+          ],
+          "gold_lines": 239,
+          "expected": 0.251021593445,
+          "worst": 8.349415599999999,
+          "by_part": {
+            "planner": 0.11524,
+            "lanes": 0.015755,
+            "edit_repairs": 0.001152,
+            "haiku_repair_round": 0.003248,
+            "sonnet": 0.062593,
+            "opus": 0.053034
+          }
+        },
+        "d": {
+          "task_id": "instance_internetarchive__openlibrary-798a582540019363d14b2090755cc7b89a350788-v430f20c722405e462d9ef44dee7d34c41e76fe7a",
+          "a_input": 76013,
+          "d_lead_input": 8209,
+          "d_worker_input": 76273,
+          "answer_tokens": 5156,
+          "expected_a": 0.5275348,
+          "expected_d_shipped": 0.35584317,
+          "expected_d_measurement": 0.0072967249999999996,
+          "worst": 4.5112932
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_internetarchive__openlibrary-7c8dc180281491ccaa1b4b43518506323750d1e4-v298a7a812ceed28c4c18355a091f1b268fe56d86",
+          "k": 3,
+          "planner_input": 3912,
+          "lane_inputs": [
+            7800,
+            8266,
+            7024
+          ],
+          "gold_lines": 162,
+          "expected": 0.15421507061,
+          "worst": 7.328412,
+          "by_part": {
+            "planner": 0.095648,
+            "lanes": 0.00736,
+            "edit_repairs": 0.00051,
+            "haiku_repair_round": 0.001611,
+            "sonnet": 0.027374,
+            "opus": 0.021713
+          }
+        },
+        "d": {
+          "task_id": "instance_internetarchive__openlibrary-7c8dc180281491ccaa1b4b43518506323750d1e4-v298a7a812ceed28c4c18355a091f1b268fe56d86",
+          "a_input": 15033,
+          "d_lead_input": 3365,
+          "d_worker_input": 15293,
+          "answer_tokens": 3936,
+          "expected_a": 0.18457479999999998,
+          "expected_d_shipped": 0.15324117,
+          "expected_d_measurement": 0.002930425,
+          "worst": 3.2649604
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_element-hq__element-web-d06cf09bf0b3d4a0fbe6bd32e4115caea2083168-vnan",
+          "k": 3,
+          "planner_input": 4689,
+          "lane_inputs": [
+            16693,
+            13999,
+            5695
+          ],
+          "gold_lines": 209,
+          "expected": 0.171431870595,
+          "worst": 7.499510800000001,
+          "by_part": {
+            "planner": 0.098756,
+            "lanes": 0.008981,
+            "edit_repairs": 0.000621,
+            "haiku_repair_round": 0.001927,
+            "sonnet": 0.033842,
+            "opus": 0.027305
+          }
+        },
+        "d": {
+          "task_id": "instance_element-hq__element-web-d06cf09bf0b3d4a0fbe6bd32e4115caea2083168-vnan",
+          "a_input": 26814,
+          "d_lead_input": 4069,
+          "d_worker_input": 27074,
+          "answer_tokens": 11678,
+          "expected_a": 0.4099664,
+          "expected_d_shipped": 0.29451696,
+          "expected_d_measurement": 0.006251050000000001,
+          "worst": 3.5244692
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_internetarchive__openlibrary-4b7ea2977be2747496ba792a678940baa985f7ea-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4",
+          "k": 3,
+          "planner_input": 10191,
+          "lane_inputs": [
+            35593,
+            13379,
+            19639
+          ],
+          "gold_lines": 276,
+          "expected": 0.22605949388,
+          "worst": 7.943104399999999,
+          "by_part": {
+            "planner": 0.120764,
+            "lanes": 0.012619,
+            "edit_repairs": 0.000886,
+            "haiku_repair_round": 0.002636,
+            "sonnet": 0.048755,
+            "opus": 0.0404
+          }
+        },
+        "d": {
+          "task_id": "instance_internetarchive__openlibrary-4b7ea2977be2747496ba792a678940baa985f7ea-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4",
+          "a_input": 48052,
+          "d_lead_input": 9554,
+          "d_worker_input": 48312,
+          "answer_tokens": 9141,
+          "expected_a": 0.46661959999999997,
+          "expected_d_shipped": 0.33960369,
+          "expected_d_measurement": 0.00679431,
+          "worst": 3.873909
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_ansible__ansible-395e5e20fab9cad517243372fa3c3c5d9e09ab2a-v7eee2454f617569fd6889f2211f75bc02a35f9f8",
+          "k": 3,
+          "planner_input": 5544,
+          "lane_inputs": [
+            13567,
+            23550,
+            12079
+          ],
+          "gold_lines": 295,
+          "expected": 0.18980763632500003,
+          "worst": 7.665182399999999,
+          "by_part": {
+            "planner": 0.102176,
+            "lanes": 0.010796,
+            "edit_repairs": 0.000733,
+            "haiku_repair_round": 0.002281,
+            "sonnet": 0.040734,
+            "opus": 0.033089
+          }
+        },
+        "d": {
+          "task_id": "instance_ansible__ansible-395e5e20fab9cad517243372fa3c3c5d9e09ab2a-v7eee2454f617569fd6889f2211f75bc02a35f9f8",
+          "a_input": 37873,
+          "d_lead_input": 4981,
+          "d_worker_input": 38133,
+          "answer_tokens": 19807,
+          "expected_a": 0.639808,
+          "expected_d_shipped": 0.4399672,
+          "expected_d_measurement": 0.009652454999999999,
+          "worst": 3.7761425999999996
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_internetarchive__openlibrary-c506c1b0b678892af5cb22c1c1dbc35d96787a0a-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4",
+          "k": 3,
+          "planner_input": 6181,
+          "lane_inputs": [
+            34705,
+            21330,
+            18737
+          ],
+          "gold_lines": 288,
+          "expected": 0.21622899234,
+          "worst": 7.987420800000001,
+          "by_part": {
+            "planner": 0.104724,
+            "lanes": 0.01331,
+            "edit_repairs": 0.000936,
+            "haiku_repair_round": 0.002771,
+            "sonnet": 0.051593,
+            "opus": 0.042895
+          }
+        },
+        "d": {
+          "task_id": "instance_internetarchive__openlibrary-c506c1b0b678892af5cb22c1c1dbc35d96787a0a-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4",
+          "a_input": 62311,
+          "d_lead_input": 5407,
+          "d_worker_input": 62571,
+          "answer_tokens": 9545,
+          "expected_a": 0.5493312,
+          "expected_d_shipped": 0.36748967999999993,
+          "expected_d_measurement": 0.007854465,
+          "worst": 4.2003278
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_ansible__ansible-bf98f031f3f5af31a2d78dc2f0a58fe92ebae0bb-v1055803c3a812189a1133297f7f5468579283f86",
+          "k": 3,
+          "planner_input": 5919,
+          "lane_inputs": [
+            10086,
+            40340,
+            15196
+          ],
+          "gold_lines": 108,
+          "expected": 0.20052410444000002,
+          "worst": 7.871864799999999,
+          "by_part": {
+            "planner": 0.103676,
+            "lanes": 0.011278,
+            "edit_repairs": 0.000845,
+            "haiku_repair_round": 0.002375,
+            "sonnet": 0.044743,
+            "opus": 0.037608
+          }
+        },
+        "d": {
+          "task_id": "instance_ansible__ansible-bf98f031f3f5af31a2d78dc2f0a58fe92ebae0bb-v1055803c3a812189a1133297f7f5468579283f86",
+          "a_input": 53549,
+          "d_lead_input": 5354,
+          "d_worker_input": 53809,
+          "answer_tokens": 3622,
+          "expected_a": 0.3782012,
+          "expected_d_shipped": 0.26203463,
+          "expected_d_measurement": 0.005330345,
+          "worst": 3.9020040000000003
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_internetarchive__openlibrary-1be7de788a444f6255e89c10ef6aa608550604a8-v29f82c9cf21d57b242f8d8b0e541525d259e2d63",
+          "k": 3,
+          "planner_input": 5718,
+          "lane_inputs": [
+            16545,
+            9312,
+            10314
+          ],
+          "gold_lines": 148,
+          "expected": 0.17330005804,
+          "worst": 7.5050644,
+          "by_part": {
+            "planner": 0.102872,
+            "lanes": 0.008581,
+            "edit_repairs": 0.000614,
+            "haiku_repair_round": 0.001849,
+            "sonnet": 0.032758,
+            "opus": 0.026627
+          }
+        },
+        "d": {
+          "task_id": "instance_internetarchive__openlibrary-1be7de788a444f6255e89c10ef6aa608550604a8-v29f82c9cf21d57b242f8d8b0e541525d259e2d63",
+          "a_input": 24504,
+          "d_lead_input": 5161,
+          "d_worker_input": 24764,
+          "answer_tokens": 4273,
+          "expected_a": 0.24096839999999997,
+          "expected_d_shipped": 0.19090801,
+          "expected_d_measurement": 0.0036572500000000003,
+          "worst": 3.4302322000000003
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_ansible__ansible-d58e69c82d7edd0583dd8e78d76b075c33c3151e-v173091e2e36d38c978002990795f66cfc0af30ad",
+          "k": 3,
+          "planner_input": 7934,
+          "lane_inputs": [
+            34200,
+            16760,
+            18057
+          ],
+          "gold_lines": 136,
+          "expected": 0.21272255778000004,
+          "worst": 7.930082799999999,
+          "by_part": {
+            "planner": 0.111736,
+            "lanes": 0.011791,
+            "edit_repairs": 0.000875,
+            "haiku_repair_round": 0.002475,
+            "sonnet": 0.046654,
+            "opus": 0.039191
+          }
+        },
+        "d": {
+          "task_id": "instance_ansible__ansible-d58e69c82d7edd0583dd8e78d76b075c33c3151e-v173091e2e36d38c978002990795f66cfc0af30ad",
+          "a_input": 52904,
+          "d_lead_input": 7414,
+          "d_worker_input": 53164,
+          "answer_tokens": 9519,
+          "expected_a": 0.49986359999999996,
+          "expected_d_shipped": 0.34947959,
+          "expected_d_measurement": 0.00723443,
+          "worst": 3.9480214
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_NodeBB__NodeBB-8ca65b0c78c67c1653487c02d1135e1b702185e1-vf2cf3cbd463b7ad942381f1c6d077626485a1e9e",
+          "k": 3,
+          "planner_input": 2322,
+          "lane_inputs": [
+            3711,
+            5664,
+            3069
+          ],
+          "gold_lines": 109,
+          "expected": 0.13604403329500003,
+          "worst": 7.1836816,
+          "by_part": {
+            "planner": 0.089288,
+            "lanes": 0.005966,
+            "edit_repairs": 0.00042,
+            "haiku_repair_round": 0.001339,
+            "sonnet": 0.021945,
+            "opus": 0.017085
+          }
+        },
+        "d": {
+          "task_id": "instance_NodeBB__NodeBB-8ca65b0c78c67c1653487c02d1135e1b702185e1-vf2cf3cbd463b7ad942381f1c6d077626485a1e9e",
+          "a_input": 7553,
+          "d_lead_input": 1807,
+          "d_worker_input": 7813,
+          "answer_tokens": 3489,
+          "expected_a": 0.1362024,
+          "expected_d_shipped": 0.12045146,
+          "expected_d_measurement": 0.002296715,
+          "worst": 3.1323910000000006
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_qutebrowser__qutebrowser-85b867fe8d4378c8e371f055c70452f546055854-v2ef375ac784985212b1805e1d0431dc8f1b3c171",
+          "k": 3,
+          "planner_input": 5794,
+          "lane_inputs": [
+            33102,
+            8814,
+            13556
+          ],
+          "gold_lines": 106,
+          "expected": 0.19038969113,
+          "worst": 7.7450048,
+          "by_part": {
+            "planner": 0.103176,
+            "lanes": 0.01025,
+            "edit_repairs": 0.000764,
+            "haiku_repair_round": 0.002174,
+            "sonnet": 0.040356,
+            "opus": 0.033669
+          }
+        },
+        "d": {
+          "task_id": "instance_qutebrowser__qutebrowser-85b867fe8d4378c8e371f055c70452f546055854-v2ef375ac784985212b1805e1d0431dc8f1b3c171",
+          "a_input": 43639,
+          "d_lead_input": 5277,
+          "d_worker_input": 43899,
+          "answer_tokens": 2976,
+          "expected_a": 0.31297400000000003,
+          "expected_d_shipped": 0.22580274999999997,
+          "expected_d_measurement": 0.004473015,
+          "worst": 3.7338747999999997
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_ansible__ansible-5260527c4a71bfed99d803e687dd19619423b134-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+          "k": 3,
+          "planner_input": 5866,
+          "lane_inputs": [
+            6388,
+            41397,
+            7736
+          ],
+          "gold_lines": 106,
+          "expected": 0.19072387853,
+          "worst": 7.7461884,
+          "by_part": {
+            "planner": 0.103464,
+            "lanes": 0.010255,
+            "edit_repairs": 0.000764,
+            "haiku_repair_round": 0.002175,
+            "sonnet": 0.040377,
+            "opus": 0.033688
+          }
+        },
+        "d": {
+          "task_id": "instance_ansible__ansible-5260527c4a71bfed99d803e687dd19619423b134-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+          "a_input": 43554,
+          "d_lead_input": 5299,
+          "d_worker_input": 43814,
+          "answer_tokens": 4599,
+          "expected_a": 0.3469396,
+          "expected_d_shipped": 0.24794249,
+          "expected_d_measurement": 0.00500308,
+          "worst": 3.7458774000000004
+        }
+      },
+      {
+        "la": {
+          "task_id": "instance_NodeBB__NodeBB-9c576a0758690f45a6ca03b5884c601e473bf2c1-vd59a5728dfc977f44533186ace531248c2917516",
+          "k": 3,
+          "planner_input": 4036,
+          "lane_inputs": [
+            9959,
+            10282,
+            15009
+          ],
+          "gold_lines": 135,
+          "expected": 0.16526827192500002,
+          "worst": 7.480187999999999,
+          "by_part": {
+            "planner": 0.096144,
+            "lanes": 0.008408,
+            "edit_repairs": 0.000605,
+            "haiku_repair_round": 0.001815,
+            "sonnet": 0.032152,
+            "opus": 0.026144
+          }
+        },
+        "d": {
+          "task_id": "instance_NodeBB__NodeBB-9c576a0758690f45a6ca03b5884c601e473bf2c1-vd59a5728dfc977f44533186ace531248c2917516",
+          "a_input": 27001,
+          "d_lead_input": 3427,
+          "d_worker_input": 27261,
+          "answer_tokens": 5349,
+          "expected_a": 0.276764,
+          "expected_d_shipped": 0.2055623,
+          "expected_d_measurement": 0.004174635,
+          "worst": 3.4730701999999996
+        }
+      }
+    ]
+  },
+  "excluded": {
+    "instance_internetarchive__openlibrary-e010b2a13697de70170033902ba2e27a1e1acbe9-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4": "counted prompt 102278 tokens > 90000",
+    "instance_internetarchive__openlibrary-5fb312632097be7e9ac6ab657964af115224d15d-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4": "counted prompt 92094 tokens > 90000",
+    "instance_internetarchive__openlibrary-09865f5fb549694d969f0a8e49b9d204ef1853ca-ve8c8d62a2b60610a3c4631f5f23ed866bada9818": "counted prompt 91040 tokens > 90000"
+  }
+}
