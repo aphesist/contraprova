@@ -10,7 +10,7 @@ an event-sourced orchestrator for cheap claude workers, built to answer one ques
 
 > when a cheap model fails, does escalating to a stronger model beat simply trying the cheap model again?
 
-> **status:** the engine, both benchmark harnesses, the replay page and the claude code plugin are built and tested. real api runs so far: a pilot on aider polyglot, where the benchmark was too easy: haiku 5.5 is already too good at it ([summary](results/pilot/README.md)); three pre-registered swe-bench pro probes; and the [main study](results/swepro-main/README.md) below. contract lanes, haiku workers in parallel under contracts, is built and its probe is under way.
+> **status:** the engine, both benchmark harnesses, the replay page and the claude code plugin are built and tested. real api runs so far: a pilot on aider polyglot, where the benchmark was too easy: haiku 5.5 is already too good at it ([summary](results/pilot/README.md)); three pre-registered swe-bench pro probes; the [main study](results/swepro-main/README.md) below; and the pre-registered [contract lanes study](results/swepro-lanes/main/README.md), haiku workers in parallel under contracts (a 12-task probe, then 37 fresh multi-file tasks).
 
 ## what it found
 
@@ -25,6 +25,12 @@ a pre-registered study on 88 fresh swe-bench pro tasks (python and javascript re
 - **about 61% cheaper per solved task.** $0.055 against $0.139, a ratio of 0.39 [0.30, 0.51].
 - **escalation earned its place, imprecisely.** 8 tasks were blocked at the gate and forked: opus then solved 6 of 8 and a haiku retry 2 of 8 from the same logged point, +50 points [+12.5, +87.5].
 - **opus was near its ceiling** at 96.6%, so this shows the cascade keeps quality on tasks opus can do, not that it beats opus. full report, log and the pre-registration: [results/swepro-main](results/swepro-main/README.md).
+
+**contract lanes** (pre-registered, 37 fresh multi-file swe-bench pro tasks): an opus planner splits a task into haiku lanes with disjoint files and frozen interfaces; their edits are merged, gated, and only the blamed lanes are repaired or escalated (haiku → sonnet → opus).
+
+- **the contracts and the gate matter.** the governed merge solved 36/37; the same first-pass lane outputs merged without them solved 28/37: 8 tasks to 0, exact mcnemar p = 0.008, +21.6 points [+8.1, +35.1].
+- **lanes match the cascade, at about the same cost.** lanes 36/37 against the cascade's 34/37 on the same tasks (+5.4 points [0.0, +13.5], p = 0.50); cost per solved task $0.104 against $0.097, a ratio of 1.07 [0.62, 1.76]. both are near the ceiling, so there is little room to separate them.
+- **the planner is half the bill** (50% of the lanes' dollars), and it never split a task into more than 2 lanes. full report and log: [results/swepro-lanes/main](results/swepro-lanes/main/README.md).
 
 ## how it works
 
@@ -50,12 +56,13 @@ every claim this project will make, and what kind of evidence stands behind it t
 | on aider polyglot, single haiku 5.5 matches the orchestrated arms at ~1/25 of opus's cost | **measured** (pilot, n=18; benchmark at ceiling) | [results/pilot](results/pilot/README.md): haiku 17/18 (94% [74%, 99%]) vs 18/18 for A, C, D; $0.0013 [$0.0011, $0.0016] vs opus $0.0323 [$0.0275, $0.0372] per task |
 | the governed cascade (opus plans from outlines, haiku works, escalate to opus on a gate block) solves as many tasks as a single opus at low effort | **measured** (pre-registered, n=88 fresh swe-bench pro tasks): non-inferior within 10 points | [results/swepro-main](results/swepro-main/README.md): 83/88 vs 85/88, difference −2.3 points [−8.0, +3.4]; single opus is near its ceiling (96.6%) |
 | the governed cascade costs less per solved task than a single opus at low effort | **measured** (pre-registered, n=88) | $0.055 vs $0.139 per solved task, ratio 0.39 [0.30, 0.51], about 61% cheaper |
-| escalating to a stronger model beats a same-model haiku retry | **measured** (imprecise, 8 forks) | opus 6/8 vs haiku retry 2/8 at the same fork points: +50 points [+12.5, +87.5], exact mcnemar p = 0.125 |
+| escalating to a stronger model beats a same-model haiku retry | **measured** (imprecise, 12 forks in two samples) | main study: opus 6/8 vs haiku retry 2/8 at the same fork points, +50 points [+12.5, +87.5], exact mcnemar p = 0.125; contract lanes study (the cascade rerun on other tasks): 2/4 vs 2/4, no gap |
 | the shipped claude code plugin (session-inherited orchestrator, haiku → sonnet → opus on a gate block) keeps the measured cascade's quality and cost advantage | **hypothesis** (not measured; the measured cascade was a fixed haiku → opus under an opus-`low` orchestrator, run by the harness) | the same paired study with the plugin's configuration, run headless with logged usage |
 | a router learned from the log beats a fixed cascade | **hypothesis** | regret against the full fork matrix |
 | log-only (off-policy) estimates recover the true policy value | **hypothesis** | estimate minus full-matrix truth |
-| lane contracts and a test gate beat an ungated merge of the same lane outputs | **hypothesis** | shadow merge, exact mcnemar |
-| a sonnet reviewer is an independent check on haiku | **hypothesis**, and probably weak | same vendor; correlated errors expected |
+| lane contracts and a test gate beat an ungated merge of the same lane outputs | **measured** (pre-registered primary, n=37 fresh tasks) | [results/swepro-lanes/main](results/swepro-lanes/main/README.md): 36/37 vs the shadow merge's 28/37, discordant 8:0, exact mcnemar p = 0.008, +21.6 points [+8.1, +35.1] |
+| haiku lanes under contracts match the governed cascade's solve rate and cost | **measured, inconclusive** (secondary, n=37; both near the ceiling) | 36/37 vs 34/37, +5.4 points [0.0, +13.5], p = 0.50; cost per solved task ratio 1.07 [0.62, 1.76] |
+| a sonnet reviewer is an independent check on haiku | **hypothesis**, and probably weak | same vendor; correlated errors expected. in the lanes study it blocked two lane merges, both falsely (both pass the score tests) |
 | results generalise beyond one benchmark | **hypothesis** | out of scope for this study |
 
 rows move from hypothesis to measured only when a result with its confidence interval is committed under `results/`.
@@ -134,7 +141,7 @@ claude --agent orchestrator --model opus --effort high
 | aider polyglot pilot (5 smoke + 13 pilot exercises, arms A–D) | **run**: [results](results/pilot/README.md) |
 | swe-bench pro main study (88 fresh tasks, arm A and the cascade D, B derived from D's first try) | **run, pre-registered**: [results](results/swepro-main/README.md) |
 | swe-bench pro harness (python/js subset, 327 tasks): outlines for the orchestrator, `SEARCH/REPLACE` edits, docker verifier, probe pre-flight | built, tested; three probes and the main study run. [docs](docs/swepro.md) |
-| contract lanes on swe-bench pro (arm La: opus-low planner from outlines, frozen interface board, haiku lanes, governed and shadow merges, per-lane haiku → sonnet → opus ladder, clash detectors, lane pre-flight, `report --lanes`) | built, tested; validated at $0 (dry runs on the 12-task lanes probe; gold-lane check with the real verifier). paid probe pending. [plan](docs/lanes-plan.md), [docs](docs/swepro.md#contract-lanes-arm-la) |
+| contract lanes on swe-bench pro (arm La: opus-low planner from outlines, frozen interface board, haiku lanes, governed and shadow merges, per-lane haiku → sonnet → opus ladder, clash detectors, lane pre-flight, `report --lanes`) | built, tested; probe (12 tasks, go on all four rules) and pre-registered main run (37 tasks) done. [results](results/swepro-lanes/main/README.md), [plan](docs/lanes-plan.md), [docs](docs/swepro.md#contract-lanes-arm-la) |
 | mcp edge (`submit_intent`, `query_projection`) | built, tested |
 | analysis and `contraprova report`: per-arm, paired, escalation value, gate quality, frontier | built; run on every study log |
 | replay ui | built; shows the real swe-bench pro main study (replay check 30/30), with the synthetic demo one link away. [docs](docs/ui.md) |
@@ -149,11 +156,11 @@ claude --agent orchestrator --model opus --effort high
 - [statistics](docs/statistics.md), [replay ui](docs/ui.md), [mcp edge](docs/mcp.md)
 - [the cascade in claude code](docs/claude-code.md): the plugin, the gate hook, what differs from the study
 - [related work](docs/related-work.md): esaa, replay research, routing, verification, parallel lanes
-- next step: the [contract lanes study](docs/lanes-plan.md) (built, validated at $0, probe not yet run), with haiku lanes vs cascade D on large multi-file swe-bench pro tasks, a shadow-merge headline and a cost estimate from measured tokens
+- [contract lanes study plan](docs/lanes-plan.md), with how the build differs from it; results in [results/swepro-lanes](results/swepro-lanes/main/README.md)
 
 ## budget
 
-about us$26 of claude api credit spent so far, all of it itemised from logged token counts under [`results/`](results), plus the approved contract lanes study (a $5 probe, then at most $25). every run can use per-role keys, so token counts can be checked against anthropic's own usage records.
+about us$34 of claude api credit spent so far, all of it itemised from logged token counts under [`results/`](results) (the contract lanes study took $1.46 for its probe and $7.07 for its main run, against caps of $5 and $25). every run can use per-role keys, so token counts can be checked against anthropic's own usage records.
 
 ## related work
 
