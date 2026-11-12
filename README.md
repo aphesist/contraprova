@@ -94,6 +94,7 @@ plan, route and review (it has no edit tools), Haiku 5.5 workers bound to file-s
 - [SWE-bench Pro harness](docs/swepro.md): the harder benchmark, the outline rule, edit format, scoring
 - [Statistics](docs/statistics.md), [replay UI](docs/ui.md), [MCP edge](docs/mcp.md)
 - [Related work](docs/related-work.md): ESAA, replay research, routing, verification, parallel lanes
+- Next step: [Contract Lanes study plan](docs/lanes-plan.md), with Haiku lanes vs cascade D on large multi-file SWE-bench Pro tasks, a shadow-merge headline and a cost estimate from measured tokens
 
 ## Budget
 
