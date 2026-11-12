@@ -67,7 +67,7 @@ The synthetic demo log (`scripts/make_demo_log.py`) uses the same featurizer wit
 | Event | Required | Optional |
 |---|---|---|
 | `usage.recorded` | `model`, token counts (`input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_write_5m_tokens`, `cache_write_1h_tokens`) | `role` (`orchestrator`/`worker`/`reviewer`), `arm`, `task_id`, `fork_id`, `request_id`, `batch` |
-| `outcome.scored`, arm outcome | `arm`, `task_id` (pairing key), `solved` | `log_task_id`, `branch_task_id` (kernel id of the fork branch shipped, if any), `branch`, `shipped`, `split`, `model`, `evidence`, `gate_passed`, `router_action` |
+| `outcome.scored`, arm outcome | `arm`, `task_id` (pairing key), `solved` | `log_task_id`, `branch_task_id` (kernel id of the fork branch shipped, if any), `branch`, `shipped`, `split`, `model`, `evidence`, `gate_passed`, `router_action`, `derived_from` (the arm whose attempt this derived arm scores, e.g. `B` from `D`; it has no usage of its own) |
 | `outcome.scored`, fork outcome | `fork_id`, `task_id` (pairing key), `solved` | `log_task_id`, `arm` (the parent arm, informational), `gate_passed` |
 | `outcome.scored`, gate replay | `gate_seq` (seq of the blocked `gate.decided`), `solved` (would the blocked patch have passed the score tests) | `task_id` |
 

@@ -133,8 +133,9 @@ def test_demo_uses_canonical_fork_events(demo):
     assert all(":" not in str(u.get("arm", "")) for u in usage_records(events))
     assert all(":" not in str(e.payload.get("arm", "")) for e in events if e.type == "outcome.scored")
     meta = {a["id"]: a for a in data["arms"] if a["kind"] == "fork"}
-    assert meta == {"D:control": {"id": "D:control", "kind": "fork", "parent": "D", "role": "control", "replicate": 1},
-                    "D:treatment": {"id": "D:treatment", "kind": "fork", "parent": "D", "role": "treatment", "replicate": 1}}
+    models = {f"D:{f['role']}": f["model"] for f in forks}
+    assert meta == {"D:control": {"id": "D:control", "kind": "fork", "parent": "D", "role": "control", "replicate": 1, "model": models["D:control"]},
+                    "D:treatment": {"id": "D:treatment", "kind": "fork", "parent": "D", "role": "treatment", "replicate": 1, "model": models["D:treatment"]}}
 
 
 def test_outcomes_and_frontier_match_the_projections(demo):

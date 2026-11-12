@@ -117,7 +117,8 @@ def summarise(ev: Event) -> str:
     if t == "fork.created":
         return f"fork {p.get('role')} from #{p.get('from_seq')} on {p.get('model')}"
     if t == "usage.recorded":
-        return f"{p.get('model')} {p.get('role', '')}: in {prompt_tokens(p)} / out {p.get('output_tokens', 0)} tok"
+        return (f"{p.get('model')} {p.get('role', '')}: in {prompt_tokens(p)} / out {p.get('output_tokens', 0)} tok"
+                + (" (repair turn)" if p.get("repair") is True else ""))
     if t == "outcome.scored":
         verdict = "SOLVED" if p["solved"] else "not solved"
         if p.get("fork_id") is not None:
@@ -211,6 +212,7 @@ def build_export(events: list[Event], log_name: str = "log.jsonl") -> dict[str, 
     attempts: list[dict[str, Any]] = []
     feats: list[dict[str, float]] = []
     task_lang: dict[str, str] = {}
+    task_repo: dict[str, str] = {}  # pairing key -> repository (SWE-bench Pro task.created.repo)
 
     def attempt(arm: str, tid: str, seq: int) -> int:
         key = (arm, tid)
@@ -219,6 +221,8 @@ def build_export(events: list[Event], log_name: str = "log.jsonl") -> dict[str, 
             attempts.append(
                 {"id": f"{arm}|{tid}", "arm": arm, "task_id": tid, "language": task_lang.get(tid, tid.split("/")[0] if "/" in tid else "?"), "first_seq": seq}
             )
+            if tid in task_repo:
+                attempts[-1]["repo"] = task_repo[tid]
             feats.append({"in": 0.0, "out": 0.0, "requests": 0.0, "gates": 0.0, "cache": 0.0})
         return attempt_index[key]
 
@@ -229,6 +233,8 @@ def build_export(events: list[Event], log_name: str = "log.jsonl") -> dict[str, 
     fork_parent: dict[str, str] = {}  # fork_id -> parent kernel task id
     child_fork: dict[str, str] = {}  # fork child kernel task id -> fork_id
     fork_point_roles: dict[tuple[str, Any, str], int] = {}
+    fork_model: dict[str, str] = {}  # display label -> the fork's model
+    derived_arms: dict[str, str] = {}  # derived arm -> the arm it was derived from (outcome derived_from)
     for ev in events:
         p = ev.payload
         if ev.type == "task.created":
@@ -243,8 +249,12 @@ def build_export(events: list[Event], log_name: str = "log.jsonl") -> dict[str, 
             k = fork_point_roles[point] = fork_point_roles.get(point, 0) + 1
             fork_label[fid] = f"{arm}:{role}" + (f"-{k}" if k > 1 else "")
             fork_parent[fid] = p["task_id"]
+            if p.get("model"):
+                fork_model.setdefault(fork_label[fid], str(p["model"]))
             if p.get("fork_task_id"):
                 child_fork[str(p["fork_task_id"])] = fid
+        elif ev.type == "outcome.scored" and p.get("derived_from") is not None and p.get("arm") is not None:
+            derived_arms.setdefault(str(p["arm"]), str(p["derived_from"]))
 
     def key(kernel_tid: str) -> str:
         return pair_key.get(kernel_tid, kernel_tid)
@@ -252,6 +262,11 @@ def build_export(events: list[Event], log_name: str = "log.jsonl") -> dict[str, 
     shipped = shipped_forks(events)  # fork_id -> (arm, pairing key) of the branch an arm shipped
     fork_cost: dict[str, list[float]] = {}  # fork_id -> cost so far under every table
     released: dict[str, int] = {}  # shipped fork_id -> its arm's attempt, once the arm's outcome named it
+    # A derived arm (outcome derived_from, e.g. B from D's first attempt) costs the parent arm's own
+    # worker requests on the outcome's model for that kernel task (first attempt plus repair). It is a
+    # view of spend the parent arm already counts, so it is never added to the parent or to overhead.
+    derived_pool: dict[tuple[str, str, str], list[float]] = {}  # (arm, kernel task, model) -> cost so far
+    derived_released: dict[tuple[str, str, str], int] = {}  # pool -> the derived arm's attempt
 
     def add_cost(i: int, arm: str, tid: str, costs: list[float]) -> None:
         ac = arm_cost.setdefault(arm, [0.0] * len(tvals))
@@ -288,6 +303,8 @@ def build_export(events: list[Event], log_name: str = "log.jsonl") -> dict[str, 
 
         if ev.type == "task.created":
             task_lang.setdefault(tid, str(p.get("language") or (tid.split("/")[0] if "/" in tid else "?")))
+            if p.get("repo"):
+                task_repo.setdefault(tid, str(p["repo"]))
         elif ev.type in ("task.claimed", "task.submitted", "gate.decided", "route.decided"):
             # Lifecycle events belong to their task's arm; a fork child's belong to its fork.
             fid = child_fork.get(kernel_tid)
@@ -328,6 +345,8 @@ def build_export(events: list[Event], log_name: str = "log.jsonl") -> dict[str, 
             fx.append([i, "cost", rec["c"]])
             if p.get("role") in WORKER_ROLES:
                 fx.append([i, "model", p.get("model")])
+            if p.get("repair") is True:
+                fx.append([i, "repair", True])
             feats[i]["in"] += prompt_tokens(p)
             feats[i]["out"] += int(p.get("output_tokens", 0))
             feats[i]["cache"] += int(p.get("cache_read_tokens", 0))
@@ -339,6 +358,15 @@ def build_export(events: list[Event], log_name: str = "log.jsonl") -> dict[str, 
                     fc[j] += c
                 if fid in released:  # usage after the arm shipped this branch is the arm's too
                     k = released[fid]
+                    fx.append([k, "cost", rec["c"]])
+                    add_cost(k, attempts[k]["arm"], attempts[k]["task_id"], costs)
+            elif fid is None and p.get("role") == "worker" and kernel_tid is not None:
+                pool = (arm, str(kernel_tid), str(p.get("model")))
+                acc = derived_pool.setdefault(pool, [0.0] * len(tvals))
+                for j, c in enumerate(costs):
+                    acc[j] += c
+                if pool in derived_released:  # a request after the derived outcome is the derived arm's too
+                    k = derived_released[pool]
                     fx.append([k, "cost", rec["c"]])
                     add_cost(k, attempts[k]["arm"], attempts[k]["task_id"], costs)
         elif ev.type == "outcome.scored" and p.get("gate_seq") is None:
@@ -357,6 +385,13 @@ def build_export(events: list[Event], log_name: str = "log.jsonl") -> dict[str, 
                     so_far = fork_cost.get(sfid, [0.0] * len(tvals))
                     fx.append([i, "cost", [r(c) for c in so_far]])
                     add_cost(i, arm, tid, so_far)
+                if p.get("fork_id") is None and p.get("derived_from") is not None:
+                    pool = (str(p["derived_from"]), str(p.get("log_task_id")), str(p.get("model")))
+                    if pool not in derived_released:
+                        derived_released[pool] = i
+                        so_far = derived_pool.get(pool, [0.0] * len(tvals))
+                        fx.append([i, "cost", [r(c) for c in so_far]])
+                        add_cost(i, arm, tid, so_far)
                 arm_outcome.setdefault(arm, {})[tid] = bool(p["solved"])
                 arm_tasks.setdefault(arm, set()).add(tid)
 
@@ -409,6 +444,8 @@ def build_export(events: list[Event], log_name: str = "log.jsonl") -> dict[str, 
         parent, _, rest = label.partition(":")
         role, _, k = rest.partition("-")
         fork_meta[label] = {"parent": parent, "role": role, "replicate": int(k) if k.isdigit() else 1}
+        if label in fork_model:
+            fork_meta[label]["model"] = fork_model[label]
 
     return {
         "schema": SCHEMA,
@@ -422,7 +459,7 @@ def build_export(events: list[Event], log_name: str = "log.jsonl") -> dict[str, 
         "default_table": DEFAULT_TABLE,
         "table_names": table_names,
         "price_tables": {name: describe_table(t) for name, t in tables.items()},
-        "arms": [{"id": a, "kind": "arm"} for a in main_arms] + [{"id": a, "kind": "fork", **fork_meta[a]} for a in fork_arms],
+        "arms": [{"id": a, "kind": "arm", **({"derived_from": derived_arms[a]} if a in derived_arms else {})} for a in main_arms] + [{"id": a, "kind": "fork", **fork_meta[a]} for a in fork_arms],
         "tier_order": TIER_ORDER,
         "attempts": attempts,
         "layout": layout["meta"],
@@ -484,10 +521,120 @@ def _escalation(arm_outcome, arm_cost, arm_tasks, n_tables) -> dict[str, Any]:
     return out
 
 
-def export(log_path: str | Path) -> dict[str, Any]:
+# ------------------------------------------------------------------ study (a pre-registered analysis)
+
+
+def _pts(x: float, sign: bool = True, keep_zero: bool = True) -> str:
+    """Percentage points, one decimal, with a real minus sign (and + when asked)."""
+    txt = f"{abs(x):.1f}"
+    if not keep_zero and txt.endswith(".0"):
+        txt = txt[:-2]
+    if round(x, 1) < 0:
+        return "\u2212" + txt
+    return ("+" if sign and round(x, 1) > 0 else "") + txt
+
+
+def _pct(x: float) -> str:
+    return f"{100 * x:.1f}%"
+
+
+def _usd(x: float) -> str:
+    return f"${x:.3f}"
+
+
+def _close(a: float, b: float) -> bool:
+    return math.isclose(a, b, rel_tol=0, abs_tol=1e-9)
+
+
+def study_block(analysis: Mapping[str, Any], data: Mapping[str, Any], events: list[Event], name: str, digest: str) -> dict[str, Any]:
+    """The study's headline numbers for the page, all taken from the analysis file.
+
+    The analysis must describe this very log: its event count, solve counts and cost totals are
+    checked against the export, and a mismatch is an error rather than a page that disagrees with
+    itself. The honesty rows and stat tiles are formatted here, so the page renders them as given.
+    """
+    final, j = data["final"]["arms"], data["table_names"].index(data["default_table"])
+    problems = []
+    if analysis.get("log_events") != data["source"]["n_events"]:
+        problems.append(f"log_events {analysis.get('log_events')} != {data['source']['n_events']}")
+    solve, cost = analysis["solve"], analysis["cost"]
+    for arm, key in (("A", "A"), ("D", "D"), ("B", "B_derived")):
+        if key not in solve:
+            continue
+        s = final.get(arm, {})
+        if (s.get("n_solved"), s.get("n_scored")) != (solve[key]["solved"], solve[key]["n"]):
+            problems.append(f"{arm} solved {s.get('n_solved')}/{s.get('n_scored')} != {solve[key]['solved']}/{solve[key]['n']}")
+        if not _close(s.get("cost", [math.nan] * (j + 1))[j], cost["total"][key]):
+            problems.append(f"{arm} cost {s.get('cost')} != {cost['total'][key]}")
+    overhead = sum(sum(v[j] for v in roles.values()) for roles in data["final"]["measurement_overhead"].values())
+    if "D_measurement" in cost["total"] and not _close(overhead, cost["total"]["D_measurement"]):
+        problems.append(f"measurement overhead {overhead} != {cost['total']['D_measurement']}")
+    esc = analysis.get("escalation_value", {})
+    pairs = data["final"]["escalation"].get("D", {})
+    if esc and (esc["n_forks"], esc["treatment_opus"]["solved"], esc["control_haiku_noise_floor"]["solved"]) != (
+            pairs.get("n_pairs"), pairs.get("treatment_solved"), pairs.get("control_solved")):
+        problems.append(f"forks {esc['n_forks']} != {pairs}")
+    if problems:
+        raise ValueError("the analysis file does not describe this log: " + "; ".join(problems))
+
+    created = [e.payload for e in events if e.type == "task.created"]
+    n = analysis["n_pairs"]
+    pr, co = analysis["primary"], analysis["co_primary"]
+    lo, hi = pr["ci95_points"]
+    rlo, rhi = co["ci95"]
+    honesty = [
+        {"claim": f"the cascade (D) is non-inferior to a single opus (A) within {_pts(pr['margin_points'], keep_zero=False)} pts: "
+                  f"solve D \u2212 A = {_pts(pr['diff_D_minus_A_points'], keep_zero=False)} pts [{_pts(lo)}, {_pts(hi)}]",
+         "kind": "measured", "word": f"measured (pre-registered, n={n})"},
+        {"claim": f"cost per solved task, D/A: {co['cost_per_solved_ratio_D_over_A']:.2f} [{rlo:.2f}, {rhi:.2f}]",
+         "kind": "measured", "word": "measured"},
+    ]
+    if esc:
+        elo, ehi = esc["ci95_points"]
+        honesty.append({"claim": f"escalation value at fork points (opus treatment \u2212 haiku retry): "
+                                 f"{_pts(esc['EV_points'], keep_zero=False)} pts [{_pts(elo)}, {_pts(ehi)}], {esc['n_forks']} forks",
+                        "kind": "measured", "word": "measured, imprecise"})
+
+    def solve_tile(arm: str, key: str, label: str) -> dict[str, Any]:
+        s = solve[key]
+        w0, w1 = s["wilson95"]
+        return {"arm": arm, "label": label, "value": _pct(s["rate"]), "small": f"{s['solved']}/{s['n']}",
+                "note": f"95% wilson {_pct(w0)}\u2013{_pct(w1)}"}
+
+    tiles = [solve_tile("A", "A", "arm A · single opus solves"), solve_tile("D", "D", "arm D · the cascade solves")]
+    if "B_derived" in solve:
+        tiles.append(solve_tile("B", "B_derived", "arm B · the cascade's first haiku try"))
+    ps = cost["per_solved"]
+    tiles.append({"label": "cost per solved task, the cascade", "value": _usd(ps["D"]),
+                  "note": f"single opus (A) {_usd(ps['A'])}; D/A {co['cost_per_solved_ratio_D_over_A']:.2f} [{rlo:.2f}, {rhi:.2f}]"})
+    if esc:
+        tiles.append({"label": "forks after a gate block", "value": str(esc["n_forks"]), "small": f"/ {n}",
+                      "note": f"{_pct(esc['fork_rate'])} of D's tasks; the other {n - esc['n_forks']} passed the gates on haiku"})
+    share = analysis.get("orchestrator_share_D")
+    if share:
+        tiles.append({"label": "orchestrator share of cost", "value": _pct(share["dollars"]),
+                      "note": f"of the cascade's dollars (the opus brief); {_pct(share['tokens'])} of its tokens"})
+    return {
+        "benchmark": next((str(c["benchmark"]) for c in created if c.get("benchmark")), None),
+        "split": next((str(c["split"]) for c in created if c.get("split")), None),
+        "repos": sorted({str(c["repo"]) for c in created if c.get("repo")}),
+        "n_pairs": n,
+        "analysis_source": {"file": name, "sha256": digest},
+        "analysis": {k: v for k, v in analysis.items() if k != "per_task"},
+        "honesty": honesty,
+        "tiles": tiles,
+    }
+
+
+def export(log_path: str | Path, analysis_path: str | Path | None = None) -> dict[str, Any]:
     log = EventLog(log_path)
     log.verify()
-    return build_export(log.events(), str(log_path))
+    events = log.events()
+    data = build_export(events, str(log_path))
+    if analysis_path is not None:
+        raw = Path(analysis_path).read_bytes()
+        data["study"] = study_block(json.loads(raw), data, events, Path(analysis_path).name, hashlib.sha256(raw).hexdigest())
+    return data
 
 
 def dumps(data: Mapping[str, Any]) -> str:
@@ -531,12 +678,14 @@ def main(argv: Iterable[str] | None = None) -> int:
     ap.add_argument("log")
     ap.add_argument("-o", "--out", default="ui/data.json")
     ap.add_argument("--html", help="also write a self-contained copy of ui/index.html with the data inlined")
+    ap.add_argument("--analysis", help="a pre-registered analysis of this log (e.g. results/swepro-main/analysis.json): "
+                                       "adds its headline numbers, checked against the log, for the page's findings and honesty table")
     args = ap.parse_args(None if argv is None else list(argv))
-    data = export(args.log)
+    data = export(args.log, args.analysis)
     text = dumps(data)
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(text + "\n", encoding="utf-8")
-    msg = f"wrote {args.out}: {data['source']['n_events']} events, {len(data['attempts'])} attempts"
+    msg = f"wrote {args.out}: {data['source']['n_events']} events, {len(data['attempts'])} attempts, {len(text) + 1} bytes"
     if args.html:
         template = (Path(__file__).resolve().parents[1] / "ui" / "index.html").read_text(encoding="utf-8")
         Path(args.html).write_text(inline_html(inline_kit(template), text), encoding="utf-8")
