@@ -7,11 +7,13 @@
      - the tokens as hex for canvas, WebGL and chart libraries: Lab.palette(), Lab.seq(), Lab.div(), Lab.color(name)
      - presets: Lab.plot() (Observable Plot), Lab.vega() (Vega and Vega-Lite config), Lab.points() (3D point clouds)
      - Lab.stipple(ctx, ...) to fill an area of a 2D canvas with cells, Lab.onTheme(fn) to redraw when the theme turns
+     - the height of a sticky header or footer (.lab-header--sticky, .lab-footer--sticky) as --lab-header-h and
+       --lab-footer-h on the root, for the receding bands and for links that land below the header
    The stipple ground is off by default and static when on; it drifts only with data-lab-fog="drift" on <body>, and
    never for someone whose system asks for reduced motion. */
 (function () {
   'use strict';
-  var VERSION = '1.0.0';
+  var VERSION = '1.1.0';
   var doc = document, root = doc.documentElement;
   var KEY_THEME = 'aphesis.lab.theme', KEY_FOG = 'aphesis.lab.fog';
   var mm = function (q) { return typeof matchMedia === 'function' ? matchMedia(q) : { matches: false, addEventListener: function () {} }; };
@@ -254,9 +256,19 @@
     };
   }
 
+  /* ---------- sticky header and footer: their heights as --lab-header-h and --lab-footer-h, for the bands and for
+     links that land below the header ---------- */
+  function heights() {
+    if (typeof ResizeObserver !== 'function') return;
+    [['.lab-header--sticky', '--lab-header-h'], ['.lab-footer--sticky', '--lab-footer-h']].forEach(function (k) {
+      var el = doc.querySelector(k[0]); if (!el) return;
+      new ResizeObserver(function () { root.style.setProperty(k[1], Math.round(el.getBoundingClientRect().height) + 'px'); }).observe(el);
+    });
+  }
+
   /* ---------- start ---------- */
   function start() {
-    defs(); tips(); sync();
+    defs(); tips(); sync(); heights();
     /* off unless the reader turned it on before, or the page asks to start with it (data-lab-fog-start) */
     var want = store(KEY_FOG);
     if (want === 'on' || (want === null && doc.body.hasAttribute('data-lab-fog-start'))) fog(true);

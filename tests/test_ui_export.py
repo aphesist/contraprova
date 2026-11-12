@@ -274,26 +274,26 @@ def test_vendored_lab_kit_loads_nothing_from_elsewhere():
 
 
 def test_vendored_lab_kit_is_the_recorded_version():
-    """ui/vendor/lab-kit/v1 is an unchanged copy of lab kit 1.0.0; SOURCE.md records where it came from and its checksums."""
+    """ui/vendor/lab-kit/v1 is an unchanged copy of lab kit 1.1.0; SOURCE.md records where it came from and its checksums."""
     import hashlib
     import re
     source = (KIT / "SOURCE.md").read_text(encoding="utf-8")
-    for needle in ("aphesist/aphesis", "design-system", "d4087db", "1.0.0", "Apache License 2.0", "Aphesis Script"):
+    for needle in ("aphesist/aphesis", "design-system", "b2adf01", "1.1.0", "Apache License 2.0", "Aphesis Script"):
         assert needle in source, needle
     sums = dict((name, digest) for digest, name in re.findall(r"^([0-9a-f]{64})  (\S+)$", source, re.M))
     files = sorted(str(f.relative_to(KIT)) for f in KIT.rglob("*") if f.is_file() and f.name != "SOURCE.md")
     assert sorted(sums) == files
     for name, digest in sums.items():
         assert hashlib.sha256((KIT / name).read_bytes()).hexdigest() == digest, name
-    assert (KIT / "lab.css").read_text(encoding="utf-8").startswith("/* aphes.ist lab kit 1.0.0:")
-    assert "var VERSION = '1.0.0'" in (KIT / "lab.js").read_text(encoding="utf-8")
+    assert (KIT / "lab.css").read_text(encoding="utf-8").startswith("/* aphes.ist lab kit 1.1.0:")
+    assert "var VERSION = '1.1.0'" in (KIT / "lab.js").read_text(encoding="utf-8")
 
 
 def test_page_uses_the_lab_kit_shell():
     html = (UI / "index.html").read_text(encoding="utf-8")
-    for needle in ('<body class="lab">', '<div class="lab-page">', '<header class="lab-header">',
+    for needle in ('<body class="lab">', '<div class="lab-page">', '<header class="lab-header lab-header--sticky">',
                    '<a class="lab-mark" href="https://aphes.ist/" aria-label="aphes.ist"></a>',
-                   '<span class="lab-project">contraprova</span>', 'data-lab-toggle="theme"', 'data-lab-toggle="fog"',
+                   '<span class="lab-project">contraprova <span class="lab-gloss" lang="la">probatio contraria</span></span>', 'data-lab-toggle="theme"', 'data-lab-toggle="fog"',
                    'class="lab-title"', 'class="lab-gloss-title"', "lab-honesty", "lab-step", "lab-ring", "lab-band"):
         assert needle in html, needle
     # the page's own styles rename nothing the kit owns and add no fonts or colours of their own

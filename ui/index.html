@@ -16,8 +16,8 @@
   #check.lab-fail { color: var(--lab-fail); }
   #banner { margin-top: var(--space-5); }
   #app { margin-top: var(--space-6); }
-  #app > * + * { margin-top: var(--space-5); }
-  #app > .lab-section { margin-top: var(--space-7); }
+  #app > * + *, #replay > * + * { margin-top: var(--space-5); }
+  #app > .lab-section, #replay > .lab-section { margin-top: var(--space-7); }
   .lab .cp-id, .lab button.lab-button.cp-id { text-transform: none; }
   .lab-ev-key .lab-ev { white-space: normal; }
   .lab-chart .lab-dot.cp-hollow { fill: var(--bg); stroke: var(--lab-k); stroke-width: 2; }
@@ -94,7 +94,7 @@
   #app > .cp-found { margin-top: 0; }
   .cp-found > .lab-stats { margin-top: var(--space-5); }
   .cp-found-grid { margin-top: var(--space-6); grid-template-columns: minmax(0, 1fr); max-width: 760px; }
-  #app > .cp-replay-head { margin-top: var(--space-7); }
+  #replay > .cp-replay-head { margin-top: 0; }
 
   @media (max-width: 860px) {
     .cp-grid { grid-template-columns: minmax(0, 1fr); }
@@ -109,9 +109,12 @@
 <body class="lab">
 <div class="lab-page">
 
-<header class="lab-header">
+<header class="lab-header lab-header--sticky">
   <a class="lab-mark" href="https://aphes.ist/" aria-label="aphes.ist"></a>
-  <span class="lab-project">contraprova</span>
+  <span class="lab-project">contraprova <span class="lab-gloss" lang="la">probatio contraria</span></span>
+  <nav class="lab-nav" id="pagenav" aria-label="on this page">
+    <a href="#question">question</a><a href="#method">method</a><a href="#prereg">pre-registration</a><a href="#results">results</a><a href="#honesty">honesty</a><a href="#replay">replay</a>
+  </nav>
   <div class="lab-controls">
     <button class="lab-button" type="button" data-lab-toggle="theme">close the eye</button>
     <button class="lab-button" type="button" data-lab-toggle="fog" aria-pressed="false">fog · off</button>
@@ -126,7 +129,7 @@
   <div class="cp-meta lab-meta">
     <nav class="cp-sets" id="sets" aria-label="data set">data set <a href="./" id="set-main">main study</a> <a href="./?demo" id="set-demo">synthetic demo</a></nav>
     <span class="cp-src" id="src"></span>
-    <span class="lab-ev" id="check" data-ev="tested" title="the page folds the per-event deltas itself and compares its totals with the ones python computed at each checkpoint.">replay check: pending</span>
+    <span class="lab-ev" id="check" data-ev="tested" data-tip="the page folds the per-event deltas itself and compares its totals with the ones python computed at each checkpoint.">replay check: pending</span>
   </div>
 </div>
 
@@ -142,8 +145,28 @@
   <p><input type="file" id="file" accept=".json,application/json" class="lab-meta"></p>
 </section>
 
+<section class="lab-section cp-study" id="question" aria-labelledby="h-question" hidden>
+  <h2 id="h-question">the question</h2>
+  <div class="lab-callout">
+    <span class="lab-callout-label">the question</span>
+    <p>when a cheap model fails, does escalating to a stronger model beat simply trying the cheap model again?</p>
+  </div>
+  <p class="lab-prose">when a worker fails, the log forks and the task re-runs twice from the same point: once with the same cheap model (the <em>contraprova</em>, the control) and once with a stronger one. the gap between them is what escalation actually buys.</p>
+</section>
+
+<section class="lab-section cp-study" id="method" aria-labelledby="h-method" hidden>
+  <h2 id="h-method">method</h2>
+  <p class="lab-prose">a strong model plans and reviews; claude haiku 5.5 does the narrow jobs. the orchestrator reads outlines only and writes one brief with a file scope and a test command. a haiku worker does the job inside that scope, and a gate checks the changed files, refuses edits to tests, and runs the visible and private tests. a pass ships; a block forks the log into the control and the escalation. every step is an event in an append-only, hash-chained log, and cost is never stored, only tokens, re-priced on demand.</p>
+  <p class="lab-prose">the main study ran <span class="num" id="m-n"></span> fresh swe-bench pro tasks, paired by task: arm A is a single opus 5.5 at low effort; arm D is the governed cascade; arm B is derived from the first try of D's haiku worker. this page replays that log.</p>
+</section>
+
+<section class="lab-section cp-study" id="prereg" aria-labelledby="h-prereg" hidden>
+  <h2 id="h-prereg">pre-registration</h2>
+  <p class="lab-prose">the main study was pre-registered: <a href="https://github.com/aphesist/contraprova/blob/main/results/swepro-main/PREREG.md">PREREG.md</a> was written and committed (<code>f43ad38</code>) before any paid request of the run, on 2026-11-12. deviations and incidents are disclosed in the study's <a href="https://github.com/aphesist/contraprova/blob/main/results/swepro-main/README.md">report</a>.</p>
+</section>
+
 <div id="app" hidden>
-  <section class="lab-section cp-found" id="found" aria-labelledby="h-found" hidden>
+  <section class="lab-section cp-found" id="results" aria-labelledby="h-found" hidden>
     <h2 id="h-found">what this study found</h2>
     <p class="lab-prose" id="found-lede"></p>
     <dl class="lab-stats" id="tiles"></dl>
@@ -158,7 +181,26 @@
     </div>
   </section>
 
-  <h2 class="cp-replay-head" id="h-replay" hidden>the log, event by event</h2>
+  <section class="lab-section" id="honesty" aria-labelledby="h-hon">
+    <h2 id="h-hon">what this rests on</h2>
+    <div class="lab-table-wrap">
+      <table class="lab-table lab-honesty" id="honesty-table">
+        <caption>the honesty table: what each claim on this page rests on.</caption>
+        <thead><tr><th scope="col">claim</th><th scope="col">rests on</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="lab-ev-key lab-legend" aria-label="key">
+      <span class="lab-ev" data-ev="measured">measured · observed directly</span>
+      <span class="lab-ev" data-ev="modelled">modelled · computed from what was measured</span>
+      <span class="lab-ev" data-ev="tested">tested · checked, and it held</span>
+      <span class="lab-ev" data-ev="hypothesis" id="ev-hyp">hypothesis · not checked yet</span>
+      <span class="lab-ev" data-ev="synthetic" id="ev-synth" hidden>synthetic demo, not results · invented data, nothing measured</span>
+    </div>
+  </section>
+
+  <section class="lab-section cp-replay" id="replay" aria-labelledby="h-replay">
+  <h2 class="cp-replay-head" id="h-replay">the log, event by event</h2>
   <dl class="lab-stats" aria-live="polite">
     <div class="lab-stat"><dt class="lab-stat-label">event</dt><dd class="lab-stat-value num" id="st-ev">0</dd><dd class="lab-stat-note" id="st-ev-note"></dd></div>
     <div class="lab-stat"><dt class="lab-stat-label">attempts shown</dt><dd class="lab-stat-value num" id="st-att">0</dd><dd class="lab-stat-note" id="st-att-note"></dd></div>
@@ -241,30 +283,14 @@
     <p class="lab-meta" id="trailsub">click a point to see every event for its task. events after the scrubber are faded; click a row to jump there.</p>
     <div class="lab-table-wrap cp-trail"><table class="lab-table lab-table--dense" id="trail"></table></div>
   </section>
-
-  <section class="lab-section" aria-labelledby="h-hon">
-    <h2 id="h-hon">what this rests on</h2>
-    <div class="lab-table-wrap">
-      <table class="lab-table lab-honesty" id="honesty">
-        <caption>the honesty table: what each claim on this page rests on.</caption>
-        <thead><tr><th scope="col">claim</th><th scope="col">rests on</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-    <div class="lab-ev-key lab-legend" aria-label="key">
-      <span class="lab-ev" data-ev="measured">measured · observed directly</span>
-      <span class="lab-ev" data-ev="modelled">modelled · computed from what was measured</span>
-      <span class="lab-ev" data-ev="tested">tested · checked, and it held</span>
-      <span class="lab-ev" data-ev="hypothesis" id="ev-hyp">hypothesis · not checked yet</span>
-      <span class="lab-ev" data-ev="synthetic" id="ev-synth" hidden>synthetic demo, not results · invented data, nothing measured</span>
-    </div>
   </section>
 </div>
 </main>
 
 <footer class="lab-footer lab-meta">
   <span>contraprova replay</span>
-  <span>aphes.ist lab kit <span id="kit-version">1.0.0</span>, vendored in ui/vendor/lab-kit/v1</span>
+  <span>aphes.ist lab kit <span id="kit-version">1.1.0</span>, vendored in ui/vendor/lab-kit/v1</span>
+  <span><a href="https://github.com/aphesist/contraprova">github</a> · apache-2.0</span>
 </footer>
 </div>
 <div class="lab-tip" id="tip" role="tooltip"></div>
@@ -301,8 +327,12 @@ function start(data) {
   $("loader").hidden = true;
   $("app").hidden = false;
   $("banner").hidden = D.synthetic !== true;
+  // the question, method and pre-registration describe the main study: shown for it only, never for the synthetic demo or another file
+  const mainStudy = D.synthetic !== true && !!D.study;
+  document.querySelectorAll(".cp-study").forEach((e) => { e.hidden = !mainStudy; });
+  if (mainStudy) $("m-n").textContent = D.study.n_pairs;
   const s = D.source;
-  $("src").textContent = `${s.log} · ${s.n_events} events · head ${String(s.head_hash).slice(0, 12)} · chain ${s.verified ? "verified" : "NOT verified"} at export`;
+  $("src").textContent = `${s.log} · ${s.n_events} events · head ${String(s.head_hash).slice(0, 12)} · chain ${s.verified ? "verified" : "not verified"} at export`;
   const sel = $("table");
   sel.innerHTML = "";
   D.table_names.forEach((t, i) => { const o = document.createElement("option"); o.value = i; o.textContent = t; sel.appendChild(o); });
@@ -334,9 +364,17 @@ function start(data) {
   runCheck();
   honesty();
   findings();
+  syncNav();
   render();
 }
-function showLoader(msg) { $("loader").hidden = false; if (msg) $("loadmsg").textContent = msg; }
+// the nav lists only the parts that are on the page for this data set
+function syncNav() {
+  document.querySelectorAll("#pagenav a").forEach((a) => {
+    const t = document.getElementById(a.getAttribute("href").slice(1));
+    a.hidden = !t || !!t.closest("[hidden]");
+  });
+}
+function showLoader(msg) { $("loader").hidden = false; if (msg) $("loadmsg").textContent = msg; syncNav(); }
 // the real main study by default; ?demo for the synthetic demo; ?data=FILE for any other export in this folder
 const MAIN_DATA = "data/swepro-main.json", DEMO_DATA = "demo-data.json";
 async function load() {
@@ -439,7 +477,7 @@ function honesty() {
        ["escalating after a failed gate solves more than a same-model retry", q("hypothesis")]];
   $("ev-synth").hidden = !syn;
   $("ev-hyp").hidden = !!study;   // the key lists only the kinds the table uses
-  document.querySelector("#honesty tbody").innerHTML = rows.map(([c, e]) => `<tr><td>${esc(c)}</td><td>${e}</td></tr>`).join("");
+  document.querySelector("#honesty-table tbody").innerHTML = rows.map(([c, e]) => `<tr><td>${esc(c)}</td><td>${e}</td></tr>`).join("");
 }
 
 // ------------------------------------------------------------ colour encodings (logged facts only)
@@ -735,8 +773,7 @@ function drawPareto() {
 // checks against the log), and the chart and its table use the final arm totals python computed, under the study's table.
 function findings() {
   const st = D.synthetic ? null : D.study;
-  $("found").hidden = !st;
-  $("h-replay").hidden = !st;
+  $("results").hidden = !st;
   if (!st) return;
   const repos = st.repos || [];
   $("found-lede").textContent = `${st.benchmark === "swepro" ? "swe-bench pro" : st.benchmark || "the benchmark"}` +
@@ -748,7 +785,7 @@ function findings() {
     `${t.note ? `<dd class="lab-stat-note">${esc(t.note)}</dd>` : ""}</div>`).join("");
 }
 function drawFindings() {
-  if ($("found").hidden) return;
+  if ($("results").hidden) return;
   const ti = Math.max(0, D.table_names.indexOf(D.default_table)), table = D.table_names[ti];
   const svg = $("front");
   const W = Math.max(260, Math.round($("fig-front").getBoundingClientRect().width)), H = Math.max(240, Math.min(300, Math.round(W * 0.7)));
