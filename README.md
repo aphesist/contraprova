@@ -34,6 +34,7 @@ main study moves to harder tasks.
 | Aider Polyglot harness, arms A–D, frozen partition, `--dry-run` with offline fakes | Built; pilot run on 18 tasks per arm |
 | Aider Polyglot pilot (5 smoke + 13 pilot exercises, arms A–D) | **Run**: [results](results/pilot/README.md) |
 | SWE-bench Pro harness (Python/JS subset, 327 tasks): outlines for the orchestrator, SEARCH/REPLACE edits, Docker verifier, probe pre-flight | Built, tested; scorer validated at $0 on the 12 probe tasks (empty patch 0, gold patch 1). Probe not yet run. [docs](docs/swepro.md) |
+| Contract Lanes on SWE-bench Pro (arm La: Opus-low planner from outlines, frozen interface board, Haiku lanes, governed and shadow merges, per-lane Haiku → Sonnet → Opus ladder, clash detectors, lane pre-flight, `report --lanes`) | Built, tested; validated at $0 (dry runs on the 12-task lanes probe; gold-lane check with the real verifier). Probe not yet run. [plan](docs/lanes-plan.md), [docs](docs/swepro.md#contract-lanes-arm-la) |
 | MCP edge (`submit_intent`, `query_projection`) | Built, tested |
 | Analysis and `contraprova report`: per-arm, paired, escalation value, gate quality, frontier | Built; run on the pilot log |
 | Replay UI | Built; shows the real SWE-bench Pro main study (replay check 30/30), with the synthetic demo one link away. [docs](docs/ui.md) |
@@ -143,7 +144,7 @@ documentation this relies on: [docs/claude-code.md](docs/claude-code.md).
 - [Statistics](docs/statistics.md), [replay UI](docs/ui.md), [MCP edge](docs/mcp.md)
 - [The cascade in Claude Code](docs/claude-code.md): the plugin, the gate hook, what differs from the study
 - [Related work](docs/related-work.md): ESAA, replay research, routing, verification, parallel lanes
-- Next step: [Contract Lanes study plan](docs/lanes-plan.md), with Haiku lanes vs cascade D on large multi-file SWE-bench Pro tasks, a shadow-merge headline and a cost estimate from measured tokens
+- Next step: the [Contract Lanes study](docs/lanes-plan.md) (built, validated at $0, probe not yet run), with Haiku lanes vs cascade D on large multi-file SWE-bench Pro tasks, a shadow-merge headline and a cost estimate from measured tokens
 
 ## Budget
 

@@ -1,7 +1,11 @@
 # Contract Lanes on SWE-bench Pro: study plan
 
-Status: **plan, not pre-registration.** Nothing here has been run, and no API call was made to write
-it. Every cost figure is computed from logged tokens of the main study
+Status: **built and validated at $0; not yet pre-registered; no paid request made.** The owner
+approved the study (probe cap $5, main cap $25). Arm La, the shadow and derived scorers, the clash
+detectors, the selection rule, the lane pre-flight, the CLI and the report are implemented as in §7
+(`harness/lanes.py`, `harness/lanes_detect.py`, `tests/test_lanes.py`; how to run it:
+[swepro.md](swepro.md#contract-lanes-arm-la)). Section 9 lists where the build differs from this plan
+and what the $0 validation found. The rest of this document is the plan as written. Every cost figure is computed from logged tokens of the main study
 ([results/swepro-main](../results/swepro-main/README.md), 300 requests) with contraprova's own pricing
 code (`pricing.request_cost`, table `anthropic-2026-11`). Each assumption is labelled **measured** or
 **assumed**. A PREREG.md that freezes the items in §6 must be committed before any paid request.
@@ -487,3 +491,70 @@ pre-registration, never after it.
 - **Detectors are unvalidated heuristics.** There is no human κ in this run.
 - **Generalisation.** Single-shot, oracle-files setting, one benchmark subset, one vendor. The probe
   reuses tasks that were already seen. Logs follow `--no-log-contents` licence hygiene, as before.
+
+## 9. As built (2026-11-12) and the $0 validation
+
+No API request was made. Everything below ran with fake clients and, for the gold-lane check, the
+official verifier in Docker.
+
+### Where the build differs from this plan
+
+| Item | Plan | Built | Why |
+|---|---|---|---|
+| Sonnet tier | effort `low` | effort `medium`, `max_tokens` 32K | owner's design |
+| Ladder | Haiku → Sonnet → Opus, at most 2 escalation rounds | per-lane ladder Haiku → **Haiku repair** (same tier, gate feedback) → Sonnet → Opus; at most 3 merge rounds after the first; only blamed lanes move | owner's design: one repair attempt before escalating |
+| Blame rule 3 | every lane that changed code | every lane | owner's design ("otherwise all lanes") |
+| Interface round | `interface.frozen` | one kernel step: the planner's interfaces plus every function/class/method of the task's `interface` field, with each lane's provides/needs on the board; a plan-time detector flags uses no lane provides | single cheap step, no model call |
+| `lane.submitted` | new event | dropped; `plan_id`, `lane_id`, `tier`, `round`, `rejected_blocks` are optional `task.submitted` fields | the plan allowed this; one fewer type |
+| `T0.interfaces` | frozen symbol still present with its signature | checked symbols = those the base defines, those a lane provides, and task-interface functions/classes/methods; present = defined (Python `ast`; JS/TS outline, else a word in a task file); for planner-frozen Python signatures the frozen parameter names must be accepted by some definition | a free-text signature compared literally would block correct patches |
+| Scope rejections | — | rejected out-of-scope blocks are counted as `scope_violation` clashes but not carried into `T0.edits`; parse/apply/truncation errors are | a lane that strays should not block a merge that is otherwise fine |
+| Shadow merge | first-pass outputs | the lanes' **first replies**, without their edit-repair turns | owner: no repair in the shadow |
+| Gate replays | — | every blocked merge is scored on the score tests (`outcome.scored` with `gate_seq`), so gate quality covers La | free (verifier only) |
+| Duplicated work | same new top-level symbol in two lanes | dunder names ignored | `__metaclass__ = type` boilerplate flagged on a gold split |
+| Probe arms | La only | La only (`--arms La`); main runs `--arms La,D` | D's rerun is for pairing on the fresh tasks |
+
+### Task lists (`results/swepro-lanes/splits.json`)
+
+Recomputed by `--action select-lanes` from the cached dataset and context files, against partition
+`b409bcdd…`: tier 1 = 30, tier 2 = 15, tier 3 = 22, exactly §3's counts. `lanes-main` = 40 tasks
+(sha256 of the ordered list `9661965e…`); `lanes-probe` = 12 tasks (`74574d74…`): from the main 90
+openlibrary-d109cc7e, ansible-ecea15c5, NodeBB-76797371, openlibrary-d40ec887, openlibrary-b112069e,
+ansible-eea46a0d; from probe 1/2 element-web-66d0b318, ansible-b748edea, openlibrary-630221ab,
+element-web-ad26925b, ansible-d72025be, openlibrary-25858f9f. File sha256 `1cc6131c…`.
+
+### Dry runs (fakes, the 12 probe tasks, arms La and D)
+
+| `--dry-solve` | La | La-first | La-sonnet | La-shadow | D | What it exercised |
+|---|---|---|---|---|---|---|
+| `all` (gold) | 12/12 | 12/12 | 12/12 | 12/12 | 12/12 | planner k = 3 on all 12, one round, T0.interfaces passed on every gold merge |
+| `escalate` | 12/12 | 0/12 | 12/12 | 0/12 | 12/12 (B 0/12) | Haiku fails the last lane: blamed (rule 1 via T0.interfaces 6, rule 2 via tracebacks 18), Haiku repair, then Sonnet passes; D forks to its Opus treatment |
+| `conflict` | 12/12 | 12/12 | 12/12 | 1/12 | 12/12 | lane L1 adds an out-of-scope block: rejected by the governed merge on 11 tasks (the 12th had no other-lane block to conflict with), applied by the shadow merge |
+
+Every log verified (`contraprova verify`: chain intact, replay clean). The fake's token counts are
+characters / 4, so these runs say nothing about real cost.
+
+### Gold-lane check on real images (`--action validate-lanes`, `results/swepro-lanes/validate-lanes.json`)
+
+The gold patch split by file into k = 3 lanes, pushed through each lane's applier, the governed
+merge, T0.interfaces (board seeded from the task's interface field) and the shadow merge; then lane
+L1 given one extra out-of-scope block that rewrites another lane's code file.
+
+| Task | Image GB | Empty / gold | Governed | Shadow | T0.interfaces (checked) | Conflicting lane: rejected / governed unchanged / shadow score |
+|---|---|---|---|---|---|---|
+| ansible-ecea15c5 | 2.16 | 0 / 1 | 1 | 1 | pass (none) | 1 / yes / 0 |
+| NodeBB-76797371 | 3.46 | 0 / 1 | 1 | 1 | pass (1) | 1 / yes / 0 |
+| openlibrary-d40ec887 | 3.19 | 0 / 1 | 1 | 1 | pass (3) | 1 / yes / 1 |
+| ansible-eea46a0d | 2.44 | 0 / 1 | 1 | 1 | pass (2) | no code block in another lane to conflict with |
+
+All 4 ok, 0 failures. The conflicting block was always rejected and the governed result unchanged;
+in the shadow merge it broke the score on 2 of 3 tasks (on openlibrary-d40ec887 the inserted line
+sits in code the tests do not reach). Afterwards `docker system df` showed 0 images and the daemon
+was stopped.
+
+### Still needed before the paid probe
+
+1. A PREREG.md freezing §6's items (prompts and their hashes, `LaneConfig`, ladder, blame, merge,
+   shadow and detector rules, task-list hashes above, price table, harness file hashes, analysis).
+2. An API key in the session (`--client anthropic`) and the free count_tokens pre-flight on the 12
+   probe tasks; the run refuses to start if expected × 1.2 exceeds the $5 cap.
+3. `--validate-before-run` repeats the empty/gold and gold-lane checks per task as images are pulled.

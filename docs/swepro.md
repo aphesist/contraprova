@@ -248,6 +248,77 @@ runs, including `test.sh`'s reset and test-patch steps.
 
 All ok: True; failures 0. Totals: pull 290 s, tests 361 s, images 38.1 GB, worker prompts 212,805 est. tokens, outlines 21,041.
 
+## Contract Lanes (arm La)
+
+The lanes study ([lanes-plan.md](lanes-plan.md)) adds arm `La` to this harness: code in
+`harness/lanes.py` (planner, board, lane prompts and runner, governed and shadow merges,
+`T0.interfaces`, blame, the per-lane ladder, the gold-lane check, the lane pre-flight) and
+`harness/lanes_detect.py` (clash detectors); tests in `tests/test_lanes.py`.
+
+- **Planner**: Opus 5.5, effort low, `max_tokens` 8K, `ProHarness.lead_context` (outline, no file
+  body) plus the list of files to assign; one strict JSON plan of 1 to 4 lanes, one plan-repair turn,
+  else one lane (`fallback: single_lane`).
+- **Board**: the planner's interfaces plus every function, class or method named in the task's
+  `interface` field, frozen in one kernel step (`interface.frozen`; no model call).
+- **Lanes**: Haiku 5.5 medium, 32K `max_tokens`, one edit-repair turn; own files in full, the other
+  files as an outline, the frozen interfaces, its goal and visible tests; blocks outside its files
+  or on tests are rejected before anything applies.
+- **Merge and gates**: union of the lanes' files, then `T0.scope`, `T0.edits`, `T0.interfaces`,
+  `T0.visible_tests`, `T1.private_tests`, `T2.review` (above 500 lines) on the merged patch.
+- **Blame and ladder**: a blocked merge blames lanes (direct, then failing test files and
+  tracebacks, then all lanes); each blamed lane moves one step on its own ladder: a Haiku repair
+  with the gate feedback, then Sonnet 5.5 medium, then Opus 5.5 low. Lanes not blamed keep their
+  output. The task stops at the first passing merge, or unsolved when a lane is blamed at Opus
+  (at most 3 rounds after the first). Fable is refused by `LaneConfig`.
+- **Shadow merge** (`La-shadow`): the lanes' first replies joined with no contract, no interface
+  check, no repair and no escalation, scored once on the score tests ($0 in tokens). `La-first`
+  (first governed merge) and `La-sonnet` (ladder without its Opus step) are derived the same way.
+
+### Task lists
+
+`--action select-lanes` freezes `<data>/lanes-splits.json` (its own file with a sha256, so the main
+partition `b409bcdd…` is unchanged; it records that partition's hash). The fresh pool is the main
+split in its seeded order minus probe, probe2 and the main study's eligible 90; tiers by gold files,
+changed lines and the estimated counted worker prompt ((gold-file bytes + statement) / 3 + 1,212,
+× 1.075). On the in-scope dataset: tier 1 = 30, tier 2 = 15, tier 3 = 22 tasks, exactly the plan's
+counts. `lanes-main` = all of tier 1 then the first 10 of tier 2 (40 tasks: openlibrary 16, ansible
+8, qutebrowser 6, element-web 5, NodeBB 5; mean 6.4 gold files, 343 changed lines). `lanes-probe` =
+6 tier-1 tasks of the main 90 that have A and D outcomes plus 6 tier-1 tasks of probe 1/2 (ranked
+by a seeded hash). The committed copy is
+[results/swepro-lanes/splits.json](../results/swepro-lanes/splits.json).
+
+### Command line
+
+```bash
+# $0: freeze the task lists (needs every task's context files under <data>/context)
+python -m contraprova.harness.run --benchmark swepro --action select-lanes
+
+# $0: empty/gold check plus the gold-lane check (gold split by file into k = 3 lanes, governed and
+# shadow merges must score 1, a conflicting out-of-scope lane must be rejected) on real images
+python -m contraprova.harness.run --benchmark swepro --action validate-lanes --split lanes-probe --out v.json
+
+# $0: the whole loop with fakes; --dry-solve escalate|conflict exercises repair, escalation, forks
+python -m contraprova.harness.run --benchmark swepro --lanes --split lanes-probe --arms La,D \
+    --log runs/lanes-dry.jsonl --budget-usd 25 --dry-run --dry-solve escalate
+
+# free pre-flight (count_tokens on the planner prompt and every lane prompt of a k = 3 by-file split,
+# and D's prompts), then the paid probe (La only, as planned) and the main run (La and D)
+python -m contraprova.harness.run --benchmark swepro --lanes --action preflight --split lanes-probe --arms La \
+    --client anthropic --log runs/lanes-probe.jsonl --budget-usd 5
+python -m contraprova.harness.run --benchmark swepro --lanes --split lanes-probe --arms La --client anthropic \
+    --log runs/lanes-probe.jsonl --budget-usd 5 --validate-before-run --no-log-contents --delete-images
+python -m contraprova.harness.run --benchmark swepro --lanes --split lanes-main --arms La,D --client anthropic \
+    --log runs/lanes-main.jsonl --budget-usd 25 --p-fork 0.35 --validate-before-run --no-log-contents --delete-images
+
+# the report: La vs La-shadow is the whole primary family (exact McNemar); La vs D by paired bootstrap
+contraprova report --lanes runs/lanes-main.jsonl
+```
+
+`--lanes` runs D as the main study's cascade (`--cascade`), runs the lane pre-flight before any
+paid request and refuses (exit 3) when expected cost × `--preflight-margin` exceeds `--budget-usd`;
+tasks whose counted planner, lane or D worker prompt exceeds 90K are excluded. With
+`--validate-before-run` each task also passes the gold-lane check before La runs.
+
 ## Licences
 
 - contraprova itself is Apache-2.0 (see the repository licence).
