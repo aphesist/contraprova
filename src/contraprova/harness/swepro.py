@@ -62,7 +62,10 @@ REPOS: tuple[str, ...] = ("NodeBB/NodeBB", "ansible/ansible", "element-hq/elemen
                           "qutebrowser/qutebrowser")
 EXCLUDED_REPOS_NOTE = "teleport and protonmail/webclients (images 11.8 / 22.6 GB) and the Go repositories"
 LANGUAGE_NAMES = {"py": "python", "js": "javascript", "ts": "javascript"}
-SPLITS: tuple[str, ...] = ("smoke", "probe", "probe2", "main")
+# The Contract Lanes study's splits live in their own frozen file (:class:`LaneSplits`), so the
+# main partition (and its sha256) stays exactly as the main study froze it.
+LANE_SPLITS: tuple[str, ...] = ("lanes-probe", "lanes-main")
+SPLITS: tuple[str, ...] = ("smoke", "probe", "probe2", "main", *LANE_SPLITS)
 # Pro's HARD-51 subset is defined in scaleapi/SWE-bench_Pro-os, v2/hard51_ids.txt (one instance_id
 # per line; v2/README.md); the dataset's ``hard`` column and its ``hard`` config carry the same 51
 # ids (checked 2026-11-11: identical, 25 of them in this module's five repositories).
@@ -443,6 +446,173 @@ def load_or_create_partition(path: str | Path, tasks: Sequence[ProTask], seed: i
     part = make_partition(tasks, seed)
     part.save(p)
     return part
+
+
+# ------------------------------------------------------------------ Contract Lanes task selection
+
+# docs/lanes-plan.md section 3. The worker-prompt estimate is (gold-file bytes + statement chars) / 3
+# plus the median overhead measured against the main log's worker_prompt_tokens_est (1,212), scaled
+# by the median counted/estimated ratio of the main pre-flight (1.075). Exact eligibility is decided
+# later by the free count_tokens pre-flight.
+LANE_PROMPT_OVERHEAD = 1212
+LANE_COUNT_SCALE = 1.075
+LANE_MIN_FILES = 3
+LANE_TIER1_LINES = 150
+LANE_TIER2_LINES = 100
+LANE_PROMPT_CAP = 90_000
+LANE_TIER3_CAP = 180_000
+LANE_MAIN_TIER2 = 10
+LANE_PROBE_PER_SOURCE = 6
+LANES_SPLITS_VERSION = 1
+
+
+def lane_prompt_estimate(task: ProTask, source_bytes: int) -> int:
+    """Estimated counted worker-prompt tokens for the lanes selection rule (see above)."""
+    stmt = len(task.problem_statement) + len(task.requirements) + len(task.interface)
+    return math.ceil(((source_bytes + stmt) / CHARS_PER_TOKEN + LANE_PROMPT_OVERHEAD) * LANE_COUNT_SCALE)
+
+
+def lane_tier(task: ProTask, prompt_tokens: int) -> int | None:
+    """1: >=3 gold files, >=150 changed lines, prompt <=90K; 2: >=3 files, 100-149 lines, <=90K;
+    3: >=3 files, >=100 lines, 90K-180K; None otherwise (also when the gold patch deletes or renames
+    a file, which the edit format cannot express)."""
+    if task.unsupported_gold():
+        return None
+    nf, nl = gold_size(task)
+    if nf < LANE_MIN_FILES or nl < LANE_TIER2_LINES:
+        return None
+    if prompt_tokens <= LANE_PROMPT_CAP:
+        return 1 if nl >= LANE_TIER1_LINES else 2
+    return 3 if prompt_tokens <= LANE_TIER3_CAP else None
+
+
+def lanes_selection(tasks: Sequence[ProTask], partition: Partition, *, main90: Iterable[str],
+                    main90_scored: Iterable[str], source_bytes: Callable[[ProTask], int],
+                    seed: int = DEFAULT_SEED, n_tier2: int = LANE_MAIN_TIER2,
+                    probe_per_source: int = LANE_PROBE_PER_SOURCE) -> dict[str, Any]:
+    """The Contract Lanes task lists (no model, no execution; $0).
+
+    Fresh pool: tasks of the partition's ``main`` split (its seeded, repository-interleaved order)
+    not in ``probe``, ``probe2`` or ``main90`` (the main study's eligible list), sorted into
+    :func:`lane_tier` tiers. ``lanes-main`` = every tier-1 task, then the first ``n_tier2`` tier-2
+    tasks, each in that order.
+
+    ``lanes-probe`` = already-used large tasks (tier 1: >=3 files, >=150 lines, prompt <=90K,
+    expressible): ``probe_per_source`` from ``main90_scored`` (main-90 tasks with both an A and a D
+    outcome; a task that failed validation has none) and as many from probe + probe2, each source
+    ranked by sha256 of (seed, "lanes-probe", id). ``source_bytes(task)`` is the UTF-8 size of the
+    files the gold patch modifies (the worker's context)."""
+    splits = partition.splits
+    probes = set(splits.get("probe", ())) | set(splits.get("probe2", ()))
+    m90, scored = set(main90), set(main90_scored)
+    by_id = {t.instance_id: t for t in tasks}
+    est = {t.instance_id: lane_prompt_estimate(t, source_bytes(t)) for t in tasks}
+    tiers: dict[int, list[str]] = {1: [], 2: [], 3: []}
+    for tid in splits["main"]:
+        if tid in probes or tid in m90 or tid not in by_id:
+            continue
+        tier = lane_tier(by_id[tid], est[tid])
+        if tier is not None:
+            tiers[tier].append(tid)
+    main = tiers[1] + tiers[2][:n_tier2]
+
+    def large(tid: str) -> bool:
+        t = by_id.get(tid)
+        return t is not None and lane_tier(t, est[tid]) == 1
+
+    def rank(tid: str) -> str:
+        return sha256_text(f"{seed}:lanes-probe:{tid}")
+
+    from_main = sorted((i for i in scored & m90 if large(i)), key=rank)
+    from_probes = sorted((i for i in probes if large(i)), key=rank)
+    if len(from_main) < probe_per_source or len(from_probes) < probe_per_source:
+        raise ValueError(f"lanes-probe needs {probe_per_source} large tasks per source; found "
+                         f"{len(from_main)} (main 90) and {len(from_probes)} (probe 1/2)")
+    probe = from_main[:probe_per_source] + from_probes[:probe_per_source]
+    return {"lanes-probe": probe, "lanes-main": main, "tiers": tiers,
+            "probe_sources": {"main90": from_main[:probe_per_source], "probe12": from_probes[:probe_per_source]},
+            "prompt_tokens_est": {i: est[i] for i in sorted(set(probe) | set(main) | set(tiers[3]))}}
+
+
+@dataclass(frozen=True)
+class LaneSplits:
+    """The Contract Lanes task lists, frozen with their sha256 (like :class:`Partition`)."""
+
+    splits: Mapping[str, tuple[str, ...]]  # split -> ids in run order (not sorted)
+    base_partition_sha256: str
+    dataset_sha256: str
+    rule: Mapping[str, Any]
+    tiers: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
+    probe_sources: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
+    prompt_tokens_est: Mapping[str, int] = field(default_factory=dict)
+
+    def body(self) -> dict:
+        return {"version": LANES_SPLITS_VERSION, "splits": {k: list(v) for k, v in self.splits.items()},
+                "sizes": {k: len(v) for k, v in self.splits.items()},
+                "base_partition_sha256": self.base_partition_sha256, "dataset_sha256": self.dataset_sha256,
+                "rule": dict(self.rule), "tiers": {k: list(v) for k, v in self.tiers.items()},
+                "probe_sources": {k: list(v) for k, v in self.probe_sources.items()},
+                "prompt_tokens_est": dict(sorted(self.prompt_tokens_est.items()))}
+
+    @property
+    def sha256(self) -> str:
+        return sha256_json(self.body())
+
+    def split_sha256(self, name: str) -> str:
+        """sha256 of one task list (its ids in run order), for pre-registration."""
+        return sha256_json(list(self.splits[name]))
+
+    def save(self, path: str | Path) -> str:
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps({**self.body(), "sha256": self.sha256,
+                                 "split_sha256": {k: self.split_sha256(k) for k in self.splits}},
+                                indent=1, sort_keys=True) + "\n", encoding="utf-8")
+        return self.sha256
+
+    @classmethod
+    def load(cls, path: str | Path) -> "LaneSplits":
+        d = json.loads(Path(path).read_text(encoding="utf-8"))
+        ls = cls({k: tuple(v) for k, v in d["splits"].items()}, d["base_partition_sha256"], d["dataset_sha256"],
+                 d["rule"], {k: tuple(v) for k, v in d.get("tiers", {}).items()},
+                 {k: tuple(v) for k, v in d.get("probe_sources", {}).items()}, d.get("prompt_tokens_est", {}))
+        if d.get("sha256") != ls.sha256:
+            raise ValueError(f"lane splits {path}: sha256 does not match its content")
+        return ls
+
+
+def make_lane_splits(tasks: Sequence[ProTask], partition: Partition, **kw: Any) -> LaneSplits:
+    """:func:`lanes_selection` frozen as a :class:`LaneSplits` (the rule's parameters included)."""
+    sel = lanes_selection(tasks, partition, **kw)
+    rule = {"min_files": LANE_MIN_FILES, "tier1_lines": LANE_TIER1_LINES, "tier2_lines": LANE_TIER2_LINES,
+            "prompt_cap": LANE_PROMPT_CAP, "tier3_cap": LANE_TIER3_CAP, "overhead": LANE_PROMPT_OVERHEAD,
+            "count_scale": LANE_COUNT_SCALE, "n_tier2": kw.get("n_tier2", LANE_MAIN_TIER2),
+            "probe_per_source": kw.get("probe_per_source", LANE_PROBE_PER_SOURCE),
+            "seed": kw.get("seed", DEFAULT_SEED), "order": "partition main order (seeded, repository-interleaved)"}
+    return LaneSplits({k: tuple(sel[k]) for k in LANE_SPLITS}, partition.sha256, partition.dataset_sha256, rule,
+                      {str(k): tuple(v) for k, v in sel["tiers"].items()},
+                      {k: tuple(v) for k, v in sel["probe_sources"].items()}, sel["prompt_tokens_est"])
+
+
+def scored_tasks(log_path: str | Path, arms: Sequence[str] = ("A", "D")) -> set[str]:
+    """Pairing keys with an own (not derived) arm outcome for every arm in ``arms`` in a JSON-lines log."""
+    seen: dict[str, set[str]] = {}
+    for line in Path(log_path).read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        e = json.loads(line)
+        p = e.get("payload", {})
+        if (e.get("type") == "outcome.scored" and p.get("fork_id") is None and p.get("gate_seq") is None
+                and p.get("arm") in arms and p.get("derived_from") is None):
+            seen.setdefault(str(p["task_id"]), set()).add(str(p["arm"]))
+    return {t for t, a in seen.items() if set(arms) <= a}
+
+
+def context_bytes(task: ProTask, data_dir: str | Path) -> int:
+    """UTF-8 size of the cached context files of ``task`` (the files its gold patch modifies)."""
+    modified, _ = task.gold_paths()
+    root = Path(data_dir) / "context" / task.instance_id / "files"
+    return sum((root / p).stat().st_size for p in modified if (root / p).is_file())
 
 
 # ------------------------------------------------------------------ verifier files
