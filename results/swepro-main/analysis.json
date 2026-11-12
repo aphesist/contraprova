@@ -1,0 +1,1057 @@
+{
+ "log_events": 1460,
+ "n_pairs": 88,
+ "partial_tasks_dropped": [],
+ "solve": {
+  "A": {
+   "solved": 85,
+   "n": 88,
+   "rate": 0.9659090909090909,
+   "wilson95": [
+    0.9045039571274427,
+    0.9883390028911263
+   ]
+  },
+  "D": {
+   "solved": 83,
+   "n": 88,
+   "rate": 0.9431818181818182,
+   "wilson95": [
+    0.8738006727143681,
+    0.9754889721813438
+   ]
+  },
+  "B_derived": {
+   "solved": 77,
+   "n": 88,
+   "rate": 0.875,
+   "wilson95": [
+    0.7898824407346114,
+    0.9287472587925294
+   ]
+  }
+ },
+ "primary": {
+  "diff_D_minus_A_points": -2.272727272727273,
+  "ci95_points": [
+   -7.954545454545454,
+   3.4090909090909087
+  ],
+  "margin_points": -10,
+  "non_inferior": true,
+  "discordant": {
+   "D_only": 2,
+   "A_only": 4
+  },
+  "mcnemar_p": 0.6875
+ },
+ "cost": {
+  "total": {
+   "A": 11.812504,
+   "D": 4.532812,
+   "D_measurement": 0.0575251,
+   "B_derived": 0.387248,
+   "all_recorded": 16.4028411
+  },
+  "per_task_mean": {
+   "A": 0.13423300000000002,
+   "D": 0.05150922727272727,
+   "B_derived": 0.004400545454545455
+  },
+  "per_solved": {
+   "A": 0.13897063529411766,
+   "D": 0.05461219277108433,
+   "B_derived": 0.005029194805194805
+  }
+ },
+ "co_primary": {
+  "cost_per_solved_ratio_D_over_A": 0.3929764921596782,
+  "ci95": [
+   0.29905936334291544,
+   0.5102991216443076
+  ],
+  "cheaper": true
+ },
+ "secondary_B_vs_A": {
+  "diff_points": -9.090909090909092,
+  "ci95_points": [
+   -17.045454545454543,
+   -2.272727272727273
+  ],
+  "mcnemar_p": 0.03857421875
+ },
+ "escalation_value": {
+  "n_forks": 8,
+  "fork_rate": 0.09090909090909091,
+  "treatment_opus": {
+   "solved": 6,
+   "n": 8,
+   "rate": 0.75,
+   "wilson95": [
+    0.40927542792725174,
+    0.9285207879020445
+   ]
+  },
+  "control_haiku_noise_floor": {
+   "solved": 2,
+   "n": 8,
+   "rate": 0.25,
+   "wilson95": [
+    0.07147921209795555,
+    0.5907245720727483
+   ]
+  },
+  "EV_points": 50.0,
+  "ci95_points": [
+   12.5,
+   87.5
+  ],
+  "mcnemar_p": 0.125
+ },
+ "repairs": {
+  "A": {
+   "requests_with_repair": 9,
+   "worker_requests": 88
+  },
+  "D": {
+   "requests_with_repair": 7,
+   "worker_requests": 88
+  },
+  "D:control-1": {
+   "requests_with_repair": 3,
+   "worker_requests": 8
+  },
+  "D:treatment": {
+   "requests_with_repair": 1,
+   "worker_requests": 8
+  }
+ },
+ "failure_categories": {
+  "A": {
+   "solved": 85,
+   "logic": 3,
+   "edit_format": 0
+  },
+  "D": {
+   "solved": 83,
+   "logic": 5,
+   "edit_format": 0
+  },
+  "B_derived": {
+   "solved": 77,
+   "logic": 11,
+   "edit_format": 0
+  }
+ },
+ "orchestrator_share_D": {
+  "dollars": 0.6274233301535559,
+  "tokens": 0.13084102448659057
+ },
+ "t2_reviews": 0,
+ "per_task": [
+  {
+   "task": "instance_internetarchive__openlibrary-0dc5b20fa186f9714f8a838178597e69f549d026-v2d9a6c849c60ed19fd0858ce9e40b7cc8e097e59",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.089856,
+   "cost_D": 0.0305287,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_ansible__ansible-189fcb37f973f0b1d52b555728208eeb9a6fce83-v906c969b551b346ef54a2c0b41e04f632b7b73c2",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.100944,
+   "cost_D": 0.045364499999999995,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_qutebrowser__qutebrowser-6b320dc18662580e1313d2548fdd6231d2a97e6d-v363c8a7e5ccdf6968fc7ab84a2053ac78036691d",
+   "A": true,
+   "D": false,
+   "B": false,
+   "cost_A": 0.111448,
+   "cost_D": 0.049483900000000004,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_element-hq__element-web-27139ca68eb075a4438c18fca184887002a4ffbc-vnan",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.0264,
+   "cost_D": 0.0223749,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_NodeBB__NodeBB-00c70ce7b0541cfc94afe567921d7668cdc8f4ac-vnan",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.16926000000000002,
+   "cost_D": 0.0330112,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_internetarchive__openlibrary-e390c1212055dd84a262a798e53487e771d3fb64-v8717e18970bcdc4e0d2cea3b1527752b21e74866",
+   "A": true,
+   "D": false,
+   "B": false,
+   "cost_A": 0.141072,
+   "cost_D": 0.2193273,
+   "D_branch": "treatment",
+   "fork": {
+    "control-1": false,
+    "treatment": false
+   }
+  },
+  {
+   "task": "instance_qutebrowser__qutebrowser-0b621cb0ce2b54d3f93d8d41d8ff4257888a87e5-v2ef375ac784985212b1805e1d0431dc8f1b3c171",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.02298,
+   "cost_D": 0.0197932,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_element-hq__element-web-2760bfc8369f1bee640d6d7a7e910783143d4c5f-vnan",
+   "A": true,
+   "D": false,
+   "B": false,
+   "cost_A": 0.32285600000000003,
+   "cost_D": 0.3013197,
+   "D_branch": "treatment",
+   "fork": {
+    "control-1": false,
+    "treatment": false
+   }
+  },
+  {
+   "task": "instance_internetarchive__openlibrary-1351c59fd43689753de1fca32c78d539a116ffc1-v29f82c9cf21d57b242f8d8b0e541525d259e2d63",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.115408,
+   "cost_D": 0.035336099999999995,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_ansible__ansible-ecea15c508f0e081525be036cf76bbb56dbcdd9d-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+   "A": true,
+   "D": true,
+   "B": false,
+   "cost_A": 0.35034,
+   "cost_D": 0.4583283,
+   "D_branch": "treatment",
+   "fork": {
+    "control-1": true,
+    "treatment": true
+   }
+  },
+  {
+   "task": "instance_qutebrowser__qutebrowser-deeb15d6f009b3ca0c3bd503a7cef07462bd16b4-v363c8a7e5ccdf6968fc7ab84a2053ac78036691d",
+   "A": true,
+   "D": true,
+   "B": false,
+   "cost_A": 0.079164,
+   "cost_D": 0.136565,
+   "D_branch": "treatment",
+   "fork": {
+    "control-1": false,
+    "treatment": true
+   }
+  },
+  {
+   "task": "instance_NodeBB__NodeBB-767973717be700f46f06f3e7f4fc550c63509046-vnan",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.153176,
+   "cost_D": 0.0407659,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_internetarchive__openlibrary-d109cc7e6e161170391f98f9a6fa1d02534c18e4-ve8c8d62a2b60610a3c4631f5f23ed866bada9818",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.255348,
+   "cost_D": 0.0639245,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_ansible__ansible-f327e65d11bb905ed9f15996024f857a95592629-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.22642400000000001,
+   "cost_D": 0.0329756,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_ansible__ansible-ed6581e4db2f1bec5a772213c3e186081adc162d-v0f01c69f1e2528b935359cfe578530722bca2c59",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.08208,
+   "cost_D": 0.037405400000000005,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_qutebrowser__qutebrowser-ed19d7f58b2664bb310c7cb6b52c5b9a06ea60b2-v059c6fdc75567943479b23ebca7c07b5e9a7f34c",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.237428,
+   "cost_D": 0.0521802,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_internetarchive__openlibrary-431442c92887a3aece3f8aa771dd029738a80eb1-v76304ecdb3a5954fcf13feb710e8c40fcf24b73c",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.055804,
+   "cost_D": 0.0302572,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_element-hq__element-web-b7fea97bb68c6628a644580076f840109132f074-vnan",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.08486,
+   "cost_D": 0.0292491,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_ansible__ansible-ea04e0048dbb3b63f876aad7020e1de8eee9f362-v1055803c3a812189a1133297f7f5468579283f86",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.311124,
+   "cost_D": 0.0512695,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_internetarchive__openlibrary-7bf3238533070f2d24bafbb26eedf675d51941f6-v08d8e8889ec945ab821fb156c04c7d2e2810debb",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.715768,
+   "cost_D": 0.0600573,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_ansible__ansible-c1f2df47538b884a43320f53e787197793b105e8-v906c969b551b346ef54a2c0b41e04f632b7b73c2",
+   "A": false,
+   "D": true,
+   "B": true,
+   "cost_A": 0.103428,
+   "cost_D": 0.0477847,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_qutebrowser__qutebrowser-44e64199ed38003253f0296badd4a447645067b6-v2ef375ac784985212b1805e1d0431dc8f1b3c171",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.074844,
+   "cost_D": 0.029927199999999998,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_NodeBB__NodeBB-087e6020e490b4a1759f38c1ad03869511928263-vf2cf3cbd463b7ad942381f1c6d077626485a1e9e",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.09038,
+   "cost_D": 0.0353947,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_qutebrowser__qutebrowser-5e0d6dc1483cb3336ea0e3dcbd4fe4aa00fc1742-v5149fcda2a9a6fe1d35dfed1bade1444a11ef271",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.298472,
+   "cost_D": 0.0491216,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_internetarchive__openlibrary-111347e9583372e8ef91c82e0612ea437ae3a9c9-v2d9a6c849c60ed19fd0858ce9e40b7cc8e097e59",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.120164,
+   "cost_D": 0.0417429,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_ansible__ansible-3b823d908e8a5d17674f8c26d337d3114b7493b1-v0f01c69f1e2528b935359cfe578530722bca2c59",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.167256,
+   "cost_D": 0.0463496,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_element-hq__element-web-18c03daa865d3c5b10e52b669cd50be34c67b2e5-vnan",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.052392,
+   "cost_D": 0.0238002,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_qutebrowser__qutebrowser-cc360cd4a34a126274c7b51f3b63afbaf3e05a02-v5fc38aaf22415ab0b70567368332beee7955b367",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.0776,
+   "cost_D": 0.03776,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_internetarchive__openlibrary-d40ec88713dc95ea791b252f92d2f7b75e107440-v13642507b4fc1f8d234172bf8129942da2c2ca26",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.153348,
+   "cost_D": 0.0468255,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_ansible__ansible-12734fa21c08a0ce8c84e533abdc560db2eb1955-v7eee2454f617569fd6889f2211f75bc02a35f9f8",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.056532,
+   "cost_D": 0.035402600000000006,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_NodeBB__NodeBB-4327a09d76f10a79109da9d91c22120428d3bdb9-vnan",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.102632,
+   "cost_D": 0.0315907,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_qutebrowser__qutebrowser-e57b6e0eeeb656eb2c84d6547d5a0a7333ecee85-v2ef375ac784985212b1805e1d0431dc8f1b3c171",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.130212,
+   "cost_D": 0.0327432,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_internetarchive__openlibrary-b112069e31e0553b2d374abb5f9c5e05e8f3dbbe-ve8c8d62a2b60610a3c4631f5f23ed866bada9818",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.13478,
+   "cost_D": 0.043674399999999995,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_qutebrowser__qutebrowser-77c3557995704a683cdb67e2a3055f7547fa22c3-v363c8a7e5ccdf6968fc7ab84a2053ac78036691d",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.051136,
+   "cost_D": 0.0261638,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_internetarchive__openlibrary-f8cc11d9c1575fdba5ac66aee0befca970da8d64-v13642507b4fc1f8d234172bf8129942da2c2ca26",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.031672,
+   "cost_D": 0.024516399999999997,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_ansible__ansible-cd473dfb2fdbc97acf3293c134b21cbbcfa89ec3-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+   "A": true,
+   "D": true,
+   "B": false,
+   "cost_A": 0.050568,
+   "cost_D": 0.1147711,
+   "D_branch": "treatment",
+   "fork": {
+    "control-1": false,
+    "treatment": true
+   }
+  },
+  {
+   "task": "instance_element-hq__element-web-cf3c899dd1f221aa1a1f4c5a80dffc05b9c21c85-vnan",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.169096,
+   "cost_D": 0.04827,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_NodeBB__NodeBB-1ea9481af6125ffd6da0592ed439aa62af0bca11-vd59a5728dfc977f44533186ace531248c2917516",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.061876,
+   "cost_D": 0.0211526,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_internetarchive__openlibrary-798055d1a19b8fa0983153b709f460be97e33064-v13642507b4fc1f8d234172bf8129942da2c2ca26",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.049316,
+   "cost_D": 0.0211143,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_ansible__ansible-a1569ea4ca6af5480cf0b7b3135f5e12add28a44-v0f01c69f1e2528b935359cfe578530722bca2c59",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.073764,
+   "cost_D": 0.0234909,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_internetarchive__openlibrary-00bec1e7c8f3272c469a58e1377df03f955ed478-v13642507b4fc1f8d234172bf8129942da2c2ca26",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.069404,
+   "cost_D": 0.032849,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_qutebrowser__qutebrowser-996487c43e4fcc265b541f9eca1e7930e3c5cf05-v2ef375ac784985212b1805e1d0431dc8f1b3c171",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.285048,
+   "cost_D": 0.050805499999999996,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_ansible__ansible-3889ddeb4b780ab4bac9ca2e75f8c1991bcabe83-v0f01c69f1e2528b935359cfe578530722bca2c59",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.111948,
+   "cost_D": 0.0366195,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_NodeBB__NodeBB-70b4a0e2aebebe8f2f559de6680093d96a697b2f-vnan",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.147516,
+   "cost_D": 0.0416526,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_internetarchive__openlibrary-72321288ea790a3ace9e36f1c05b68c93f7eec43-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.108292,
+   "cost_D": 0.0360207,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_qutebrowser__qutebrowser-35168ade46184d7e5b91dfa04ca42fe2abd82717-v363c8a7e5ccdf6968fc7ab84a2053ac78036691d",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.061764,
+   "cost_D": 0.0360244,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_ansible__ansible-f8ef34672b961a95ec7282643679492862c688ec-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.231168,
+   "cost_D": 0.0723652,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_internetarchive__openlibrary-123e6e5e1c85b9c07d1e98f70bfc480bc8016890-v2733ff199fb72f0d033a30dc62cb0a4742e3a7f4",
+   "A": false,
+   "D": true,
+   "B": true,
+   "cost_A": 0.090628,
+   "cost_D": 0.0370145,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_qutebrowser__qutebrowser-8d05f0282a271bfd45e614238bd1b555c58b3fc1-v35616345bb8052ea303186706cec663146f0f184",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.064516,
+   "cost_D": 0.0376684,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_ansible__ansible-748f534312f2073a25a87871f5bd05882891b8c4-v0f01c69f1e2528b935359cfe578530722bca2c59",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.065096,
+   "cost_D": 0.0274592,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_internetarchive__openlibrary-f3b26c2c0721f8713353fe4b341230332e30008d-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.086812,
+   "cost_D": 0.0440657,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_NodeBB__NodeBB-be43cd25974681c9743d424238b7536c357dc8d3-vf2cf3cbd463b7ad942381f1c6d077626485a1e9e",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.188416,
+   "cost_D": 0.0367865,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_qutebrowser__qutebrowser-36ade4bba504eb96f05d32ceab9972df7eb17bcc-v2ef375ac784985212b1805e1d0431dc8f1b3c171",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.029868,
+   "cost_D": 0.0298542,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_ansible__ansible-eea46a0d1b99a6dadedbb6a3502d599235fa7ec3-v390e508d27db7a51eece36bb6d9698b63a5b638a",
+   "A": true,
+   "D": true,
+   "B": false,
+   "cost_A": 0.188428,
+   "cost_D": 0.2175003,
+   "D_branch": "treatment",
+   "fork": {
+    "control-1": false,
+    "treatment": true
+   }
+  },
+  {
+   "task": "instance_internetarchive__openlibrary-5c6c22f3d2edf2f1b10f5dc335e32cb6a5f40341-v76304ecdb3a5954fcf13feb710e8c40fcf24b73c",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.123544,
+   "cost_D": 0.0433667,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_ansible__ansible-a6e671db25381ed111bbad0ab3e7d97366395d05-v0f01c69f1e2528b935359cfe578530722bca2c59",
+   "A": true,
+   "D": true,
+   "B": false,
+   "cost_A": 0.037552,
+   "cost_D": 0.0731038,
+   "D_branch": "treatment",
+   "fork": {
+    "control-1": true,
+    "treatment": true
+   }
+  },
+  {
+   "task": "instance_element-hq__element-web-ca58617cee8aa91c93553449bfdf9b3465a5119b-vnan",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.149092,
+   "cost_D": 0.026781100000000002,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_internetarchive__openlibrary-3f580a5f244c299d936d73d9e327ba873b6401d9-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.09236,
+   "cost_D": 0.0351224,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_NodeBB__NodeBB-b1f9ad5534bb3a44dab5364f659876a4b7fe34c1-vnan",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.182,
+   "cost_D": 0.0415081,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_ansible__ansible-379058e10f3dbc0fdcaf80394bd09b18927e7d33-v1055803c3a812189a1133297f7f5468579283f86",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.6667320000000001,
+   "cost_D": 0.0640299,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_internetarchive__openlibrary-3aeec6afed9198d734b7ee1293f03ca94ff970e1-v13642507b4fc1f8d234172bf8129942da2c2ca26",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.054296,
+   "cost_D": 0.0272496,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_ansible__ansible-cd9c4eb5a6b2bfaf4a6709f001ce3d0c92c1eed2-v0f01c69f1e2528b935359cfe578530722bca2c59",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.074528,
+   "cost_D": 0.0264902,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_qutebrowser__qutebrowser-7b603dd6bf195e3e723ce08ff64a82b406e3f6b6-v9f8e9d96c85c85a605e382f1510bd08563afc566",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.056096,
+   "cost_D": 0.0292265,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_NodeBB__NodeBB-7b8bffd763e2155cf88f3ebc258fa68ebe18188d-vf2cf3cbd463b7ad942381f1c6d077626485a1e9e",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.076044,
+   "cost_D": 0.0381111,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_ansible__ansible-3db08adbb1cc6aa9941be5e0fc810132c6e1fa4b-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.118328,
+   "cost_D": 0.027334999999999998,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_qutebrowser__qutebrowser-96b997802e942937e81d2b8a32d08f00d3f4bc4e-v5fc38aaf22415ab0b70567368332beee7955b367",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.069764,
+   "cost_D": 0.041409100000000004,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_internetarchive__openlibrary-d8162c226a9d576f094dc1830c4c1ffd0be2dd17-v76304ecdb3a5954fcf13feb710e8c40fcf24b73c",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.097428,
+   "cost_D": 0.032924499999999995,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_ansible__ansible-11c1777d56664b1acb56b387a1ad6aeadef1391d-v0f01c69f1e2528b935359cfe578530722bca2c59",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.040628,
+   "cost_D": 0.0197745,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_qutebrowser__qutebrowser-e34dfc68647d087ca3175d9ad3f023c30d8c9746-v363c8a7e5ccdf6968fc7ab84a2053ac78036691d",
+   "A": false,
+   "D": false,
+   "B": false,
+   "cost_A": 0.103684,
+   "cost_D": 0.040789,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_internetarchive__openlibrary-03095f2680f7516fca35a58e665bf2a41f006273-v8717e18970bcdc4e0d2cea3b1527752b21e74866",
+   "A": true,
+   "D": true,
+   "B": false,
+   "cost_A": 0.034012,
+   "cost_D": 0.0727433,
+   "D_branch": "treatment",
+   "fork": {
+    "control-1": false,
+    "treatment": true
+   }
+  },
+  {
+   "task": "instance_ansible__ansible-d9f1866249756efc264b00ff7497e92c11a9885f-v0f01c69f1e2528b935359cfe578530722bca2c59",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.16562,
+   "cost_D": 0.0412365,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_element-hq__element-web-459df4583e01e4744a52d45446e34183385442d6-vnan",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.227144,
+   "cost_D": 0.032980499999999996,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_NodeBB__NodeBB-f9ce92df988db7c1ae55d9ef96d247d27478bc70-vf2cf3cbd463b7ad942381f1c6d077626485a1e9e",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.025352,
+   "cost_D": 0.0239259,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_qutebrowser__qutebrowser-ebfe9b7aa0c4ba9d451f993e08955004aaec4345-v059c6fdc75567943479b23ebca7c07b5e9a7f34c",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.160312,
+   "cost_D": 0.038723400000000005,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_ansible__ansible-106909db8b730480615f4a33de0eb5b710944e78-v0f01c69f1e2528b935359cfe578530722bca2c59",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.164532,
+   "cost_D": 0.041386,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_qutebrowser__qutebrowser-9ed748effa8f3bcd804612d9291da017b514e12f-v363c8a7e5ccdf6968fc7ab84a2053ac78036691d",
+   "A": true,
+   "D": false,
+   "B": false,
+   "cost_A": 0.117564,
+   "cost_D": 0.0498147,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_internetarchive__openlibrary-08ac40d050a64e1d2646ece4959af0c42bf6b7b5-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.136484,
+   "cost_D": 0.0377978,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_element-hq__element-web-44b98896a79ede48f5ad7ff22619a39d5f6ff03c-vnan",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.071572,
+   "cost_D": 0.0280243,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_ansible__ansible-5c225dc0f5bfa677addeac100a8018df3f3a9db1-v173091e2e36d38c978002990795f66cfc0af30ad",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.280032,
+   "cost_D": 0.0349309,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_NodeBB__NodeBB-f083cd559d69c16481376868c8da65172729c0ca-vnan",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.132828,
+   "cost_D": 0.041776200000000006,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_internetarchive__openlibrary-9c392b60e2c6fa1d68cb68084b4b4ff04d0cb35c-v2d9a6c849c60ed19fd0858ce9e40b7cc8e097e59",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.031368,
+   "cost_D": 0.028445,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_qutebrowser__qutebrowser-fea33d607fde83cf505b228238cf365936437a63-v9f8e9d96c85c85a605e382f1510bd08563afc566",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.063532,
+   "cost_D": 0.0307413,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_ansible__ansible-a7d2a4e03209cff1e97e59fd54bb2b05fdbdbec6-v0f01c69f1e2528b935359cfe578530722bca2c59",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.172308,
+   "cost_D": 0.042450100000000004,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_element-hq__element-web-a692fe21811f88d92e8f7047fc615e4f1f986b0f-vnan",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.112476,
+   "cost_D": 0.0404137,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_internetarchive__openlibrary-a48fd6ba9482c527602bc081491d9e8ae6e8226c-vfa6ff903cb27f336e17654595dd900fa943dcd91",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.166132,
+   "cost_D": 0.0387135,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_ansible__ansible-1ee70fc272aff6bf3415357c6e13c5de5b928d9b-v1055803c3a812189a1133297f7f5468579283f86",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.032208,
+   "cost_D": 0.0211124,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_internetarchive__openlibrary-4a5d2a7d24c9e4c11d3069220c0685b736d5ecde-v13642507b4fc1f8d234172bf8129942da2c2ca26",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.312984,
+   "cost_D": 0.026872100000000003,
+   "D_branch": "initial",
+   "fork": {}
+  },
+  {
+   "task": "instance_NodeBB__NodeBB-bad15643013ca15affe408b75eba9e47cc604bb2-vd59a5728dfc977f44533186ace531248c2917516",
+   "A": true,
+   "D": true,
+   "B": true,
+   "cost_A": 0.033856,
+   "cost_D": 0.0257033,
+   "D_branch": "initial",
+   "fork": {}
+  }
+ ]
+}
