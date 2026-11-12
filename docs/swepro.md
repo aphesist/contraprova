@@ -250,6 +250,11 @@ All ok: True; failures 0. Totals: pull 290 s, tests 361 s, images 38.1 GB, worke
 
 ## Contract Lanes (arm La)
 
+> **Frozen.** This lane layer is kept as it was for the pre-registered lanes runs
+> ([results/swepro-lanes](../results/swepro-lanes/main/README.md); the sha256 of `harness/lanes.py`
+> and `harness/lanes_detect.py` are in their PREREG). Development continues in
+> [parataxis](https://github.com/aphesist/parataxis), which pins contraprova as its engine.
+
 The lanes study ([lanes-plan.md](lanes-plan.md)) adds arm `La` to this harness: code in
 `harness/lanes.py` (planner, board, lane prompts and runner, governed and shadow merges,
 `T0.interfaces`, blame, the per-lane ladder, the gold-lane check, the lane pre-flight) and

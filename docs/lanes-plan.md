@@ -1,6 +1,18 @@
 # Contract Lanes on SWE-bench Pro: study plan
 
-Status: **built and validated at $0; not yet pre-registered; no paid request made.** The owner
+**Current status (2026-11-12): done and frozen in contraprova; development continues in
+[parataxis](https://github.com/aphesist/parataxis).**
+
+- The probe (GO on all four rules) and the pre-registered main run (37 fresh tasks) are complete:
+  [results/swepro-lanes](../results/swepro-lanes/main/README.md).
+- contraprova keeps its lane layer (`harness/lanes.py`, `harness/lanes_detect.py`) frozen as the
+  version behind those results. Their sha256 are in
+  [results/swepro-lanes/PREREG.md](../results/swepro-lanes/PREREG.md).
+- New lane work (symbol-level lanes, the local track) happens in parataxis.
+
+The rest of this document is the plan and its build notes as written before the runs.
+
+Status when written: **built and validated at $0; not yet pre-registered; no paid request made.** The owner
 approved the study (probe cap $5, main cap $25). Arm La, the shadow and derived scorers, the clash
 detectors, the selection rule, the lane pre-flight, the CLI and the report are implemented as in §7
 (`harness/lanes.py`, `harness/lanes_detect.py`, `tests/test_lanes.py`; how to run it:

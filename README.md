@@ -141,12 +141,12 @@ claude --agent orchestrator --model opus --effort high
 | aider polyglot pilot (5 smoke + 13 pilot exercises, arms A–D) | **run**: [results](results/pilot/README.md) |
 | swe-bench pro main study (88 fresh tasks, arm A and the cascade D, B derived from D's first try) | **run, pre-registered**: [results](results/swepro-main/README.md) |
 | swe-bench pro harness (python/js subset, 327 tasks): outlines for the orchestrator, `SEARCH/REPLACE` edits, docker verifier, probe pre-flight | built, tested; three probes and the main study run. [docs](docs/swepro.md) |
-| contract lanes on swe-bench pro (arm La: opus-low planner from outlines, frozen interface board, haiku lanes, governed and shadow merges, per-lane haiku → sonnet → opus ladder, clash detectors, lane pre-flight, `report --lanes`) | built, tested; probe (12 tasks, go on all four rules) and pre-registered main run (37 tasks) done. [results](results/swepro-lanes/main/README.md), [plan](docs/lanes-plan.md), [docs](docs/swepro.md#contract-lanes-arm-la) |
+| contract lanes on swe-bench pro (arm La: opus-low planner from outlines, frozen interface board, haiku lanes, governed and shadow merges, per-lane haiku → sonnet → opus ladder, clash detectors, lane pre-flight, `report --lanes`) | built, tested; probe (12 tasks, go on all four rules) and pre-registered main run (37 tasks) done. **frozen here** as the version behind the pre-registered results in [results/swepro-lanes](results/swepro-lanes/main/README.md); development continues in [parataxis](https://github.com/aphesist/parataxis). [plan](docs/lanes-plan.md), [docs](docs/swepro.md#contract-lanes-arm-la) |
 | mcp edge (`submit_intent`, `query_projection`) | built, tested |
 | analysis and `contraprova report`: per-arm, paired, escalation value, gate quality, frontier | built; run on every study log |
 | replay ui | built; shows the real swe-bench pro main study (replay check 30/30), with the synthetic demo one link away. [docs](docs/ui.md) |
 | claude code plugin (session-inherited orchestrator, haiku → sonnet → opus, gate hook) | written, tested offline; not yet evaluated |
-| local track (contract lanes on a rented gpu) | planned |
+| local track (contract lanes on a rented gpu) | moved to [parataxis](https://github.com/aphesist/parataxis) |
 
 ## documents
 
@@ -157,6 +157,7 @@ claude --agent orchestrator --model opus --effort high
 - [the cascade in claude code](docs/claude-code.md): the plugin, the gate hook, what differs from the study
 - [related work](docs/related-work.md): esaa, replay research, routing, verification, parallel lanes
 - [contract lanes study plan](docs/lanes-plan.md), with how the build differs from it; results in [results/swepro-lanes](results/swepro-lanes/main/README.md)
+- [parataxis](https://github.com/aphesist/parataxis): where the contract lanes work continues (symbol-level lanes, the local track). contraprova keeps its lane layer (`harness/lanes.py`, `harness/lanes_detect.py`) frozen as the version behind the pre-registered results in [results/swepro-lanes](results/swepro-lanes/main/README.md)
 
 ## budget
 
