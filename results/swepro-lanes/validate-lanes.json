@@ -1,0 +1,209 @@
+{
+ "tasks": [
+  {
+   "task": "instance_ansible__ansible-ecea15c508f0e081525be036cf76bbb56dbcdd9d-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5",
+   "image_gb": 2.16,
+   "pull_s": 18.9,
+   "repo": "ansible/ansible",
+   "head_is_base": true,
+   "empty_reward": 0,
+   "gold_reward": 1,
+   "gold_edit_errors": [],
+   "gold_visible_ok": true,
+   "gold_private_ok": true,
+   "empty_visible_ok": false,
+   "empty_s": 29.2,
+   "gold_s": 32.1,
+   "ok": true,
+   "gold_lanes": {
+    "k": 3,
+    "lanes": {
+     "L1": [
+      "changelogs/fragments/ansible-galaxy-install.yaml"
+     ],
+     "L2": [
+      "docs/docsite/rst/shared_snippets/installing_multiple_collections.txt"
+     ],
+     "L3": [
+      "lib/ansible/cli/galaxy.py"
+     ]
+    },
+    "lane_edit_errors": [],
+    "governed_files": 3,
+    "interfaces_checked": [],
+    "interfaces_verdict": "pass",
+    "interfaces_reason": "",
+    "governed_equals_shadow": true,
+    "governed_reward": 1,
+    "shadow_reward": 1,
+    "conflict": {
+     "rejected_by_governed": 1,
+     "governed_unchanged": true,
+     "shadow_out_of_scope_applied": 1,
+     "shadow_reward": 0
+    },
+    "ok": true,
+    "verifier_runs": 2
+   },
+   "seconds": 120.4
+  },
+  {
+   "task": "instance_NodeBB__NodeBB-767973717be700f46f06f3e7f4fc550c63509046-vnan",
+   "image_gb": 3.46,
+   "pull_s": 0.0,
+   "repo": "NodeBB/NodeBB",
+   "head_is_base": true,
+   "empty_reward": 0,
+   "gold_reward": 1,
+   "gold_edit_errors": [],
+   "gold_visible_ok": true,
+   "gold_private_ok": true,
+   "empty_visible_ok": false,
+   "empty_s": 219.4,
+   "gold_s": 219.9,
+   "ok": true,
+   "gold_lanes": {
+    "k": 3,
+    "lanes": {
+     "L1": [
+      "src/database/mongo/hash.js",
+      "src/database/postgres/hash.js",
+      "src/database/redis/hash.js"
+     ],
+     "L2": [
+      "src/notifications.js",
+      "src/plugins/hooks.js",
+      "src/posts/delete.js"
+     ],
+     "L3": [
+      "src/topics/delete.js",
+      "src/user/delete.js",
+      "src/user/posts.js"
+     ]
+    },
+    "lane_edit_errors": [],
+    "governed_files": 9,
+    "interfaces_checked": [
+     "incrObjectFieldByBulk"
+    ],
+    "interfaces_verdict": "pass",
+    "interfaces_reason": "",
+    "governed_equals_shadow": true,
+    "governed_reward": 1,
+    "shadow_reward": 1,
+    "conflict": {
+     "rejected_by_governed": 1,
+     "governed_unchanged": true,
+     "shadow_out_of_scope_applied": 1,
+     "shadow_reward": 0
+    },
+    "ok": true,
+    "verifier_runs": 2
+   },
+   "seconds": 878.3
+  },
+  {
+   "task": "instance_internetarchive__openlibrary-d40ec88713dc95ea791b252f92d2f7b75e107440-v13642507b4fc1f8d234172bf8129942da2c2ca26",
+   "image_gb": 3.19,
+   "pull_s": 25.1,
+   "repo": "internetarchive/openlibrary",
+   "head_is_base": true,
+   "empty_reward": 0,
+   "gold_reward": 1,
+   "gold_edit_errors": [],
+   "gold_visible_ok": true,
+   "gold_private_ok": true,
+   "empty_visible_ok": false,
+   "empty_s": 3.1,
+   "gold_s": 3.5,
+   "ok": true,
+   "gold_lanes": {
+    "k": 3,
+    "lanes": {
+     "L1": [
+      "openlibrary/catalog/add_book/__init__.py"
+     ],
+     "L2": [
+      "openlibrary/catalog/add_book/load_book.py"
+     ],
+     "L3": [
+      "openlibrary/plugins/importapi/code.py"
+     ]
+    },
+    "lane_edit_errors": [],
+    "governed_files": 3,
+    "interfaces_checked": [
+     "add_book.check_cover_url_host",
+     "load_book.author_import_record_to_author",
+     "load_book.import_record_to_edition"
+    ],
+    "interfaces_verdict": "pass",
+    "interfaces_reason": "",
+    "governed_equals_shadow": true,
+    "governed_reward": 1,
+    "shadow_reward": 1,
+    "conflict": {
+     "rejected_by_governed": 1,
+     "governed_unchanged": true,
+     "shadow_out_of_scope_applied": 1,
+     "shadow_reward": 1
+    },
+    "ok": true,
+    "verifier_runs": 2
+   },
+   "seconds": 15.1
+  },
+  {
+   "task": "instance_ansible__ansible-eea46a0d1b99a6dadedbb6a3502d599235fa7ec3-v390e508d27db7a51eece36bb6d9698b63a5b638a",
+   "image_gb": 2.44,
+   "pull_s": 18.9,
+   "repo": "ansible/ansible",
+   "head_is_base": true,
+   "empty_reward": 0,
+   "gold_reward": 1,
+   "gold_edit_errors": [],
+   "gold_visible_ok": true,
+   "gold_private_ok": true,
+   "empty_visible_ok": false,
+   "empty_s": 126.4,
+   "gold_s": 154.8,
+   "ok": true,
+   "gold_lanes": {
+    "k": 3,
+    "lanes": {
+     "L1": [
+      ".github/BOTMETA.yml",
+      "docs/docsite/rst/network/user_guide/platform_eric_eccli.rst",
+      "docs/docsite/rst/network/user_guide/platform_index.rst"
+     ],
+     "L2": [
+      "lib/ansible/module_utils/network/eric_eccli/__init__.py",
+      "lib/ansible/module_utils/network/eric_eccli/eric_eccli.py",
+      "lib/ansible/modules/network/eric_eccli/__init__.py"
+     ],
+     "L3": [
+      "lib/ansible/modules/network/eric_eccli/eric_eccli_command.py",
+      "lib/ansible/plugins/cliconf/eric_eccli.py",
+      "lib/ansible/plugins/terminal/eric_eccli.py"
+     ]
+    },
+    "lane_edit_errors": [],
+    "governed_files": 9,
+    "interfaces_checked": [
+     "run_commands",
+     "parse_commands"
+    ],
+    "interfaces_verdict": "pass",
+    "interfaces_reason": "",
+    "governed_equals_shadow": true,
+    "governed_reward": 1,
+    "shadow_reward": 1,
+    "ok": true,
+    "verifier_runs": 1
+   },
+   "seconds": 435.0
+  }
+ ],
+ "failures": 0,
+ "docker_system_df": "TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE\nImages          0         0         0B        0B\nContainers      0         0         0B        0B\nLocal Volumes   0         0         0B        0B\nBuild Cache     0         0         0B        0B\n"
+}
