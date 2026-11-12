@@ -1,0 +1,11 @@
+{
+  "name": "contraprova-cascade",
+  "displayName": "contraprova cascade",
+  "version": "0.3.0",
+  "description": "A governed cascade for Claude Code: an orchestrator plans from outlines and writes a scoped brief, a Haiku 5.5 worker does the job, a gate checks scope, protected tests and your test command, and a block escalates one tier at a time to Sonnet 5.5, then Opus 5.5.",
+  "author": { "name": "aphesist", "url": "https://github.com/aphesist" },
+  "homepage": "https://github.com/aphesist/contraprova",
+  "repository": "https://github.com/aphesist/contraprova",
+  "license": "Apache-2.0",
+  "keywords": ["orchestration", "cascade", "subagents", "escalation", "cost"]
+}

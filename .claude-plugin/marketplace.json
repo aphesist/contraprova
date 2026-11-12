@@ -1,0 +1,14 @@
+{
+  "name": "contraprova",
+  "owner": { "name": "aphesist", "url": "https://github.com/aphesist" },
+  "description": "Plugins from contraprova, an event-sourced orchestrator for cheap Claude workers.",
+  "plugins": [
+    {
+      "name": "contraprova-cascade",
+      "source": "./config/claude-code",
+      "description": "Governed cascade: orchestrator, Haiku worker, gate, stepwise escalation to Sonnet then Opus.",
+      "category": "development",
+      "tags": ["orchestration", "subagents", "cost"]
+    }
+  ]
+}

@@ -1,34 +1,36 @@
-# Claude Code orchestrator configuration
+# contraprova-cascade (Claude Code plugin)
 
-A ready-to-use orchestrator/worker pair for [Claude Code subagents](https://code.claude.com/docs/en/sub-agents).
-The orchestrator runs on Opus 5.5 at low effort and may only plan, route and review. Workers run on
-Haiku 5.5 and do the edits.
+A governed cascade built from Claude Code subagents and a gate hook:
 
-## Use it
+1. `orchestrator` (your session's model and effort; Opus 5.5 at `medium` or `high` recommended,
+   Fable 5.2 also works) reads outlines, writes one brief with `scope:`, `test:` and `goal:` lines,
+   and dispatches it. It has no edit or shell tools.
+2. `worker` (Haiku 5.5, `medium`) does the job inside the scope and runs the test.
+3. The gate (`scripts/gate.py`, hooks on the `Agent` tool) checks the files the agent changed against
+   the scope, refuses changes to test files, and runs `$CONTRAPROVA_TEST_CMD` if set.
+4. On a block the orchestrator escalates one tier at a time: `escalation-sonnet` (Sonnet 5.5,
+   `medium`), then `escalation-opus` (Opus 5.5, `medium`), each with the brief and the previous
+   failure. Fable is never used for a tier.
 
-Copy the agents into a project and start Claude Code with the orchestrator as the main agent:
-
-```bash
-mkdir -p .claude/agents
-cp config/claude-code/agents/*.md .claude/agents/
-claude --agent orchestrator
-```
-
-The orchestrator's tool list (`Agent(worker), Read, Grep, Glob`) is what keeps it from doing the work
-itself: it has no edit or shell tools.
-
-For scripted runs, use an API key (not a subscription sign-in) and record usage per model:
+## Install
 
 ```bash
-export CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1   # workers may not spawn workers
-claude --bare -p "..." --agent orchestrator --output-format json --max-budget-usd 1
+claude plugin install contraprova-cascade --marketplace aphesist/contraprova
 ```
 
-`--output-format json` reports `modelUsage` per model, including subagents. contraprova treats those
-figures as estimates and recomputes cost from token counts (see `src/contraprova/pricing.py`).
+In a session: `/plugin install contraprova-cascade --marketplace aphesist/contraprova`, or
+`/plugin marketplace add aphesist/contraprova` then `/plugin install contraprova-cascade@contraprova`.
 
-## Why low effort for the orchestrator
+Without the plugin system, from a checkout: `pip install -e .` then `contraprova init-claude`
+(or `--user`) in your project.
 
-At list prices Opus 5.5 costs 40 times Haiku 5.5 per token. In a swarm the orchestrator's share of
-tokens decides whether the setup is cheap at all, so its plans and briefs are kept short on purpose.
-Whether that trade-off pays is exactly what contraprova measures; until then it is a hypothesis.
+## Run
+
+```bash
+export CONTRAPROVA_TEST_CMD='pytest -q'      # optional, but it makes the gate run your tests
+claude --agent orchestrator --model opus --effort high
+```
+
+This structure follows arm D of contraprova's SWE-bench Pro study, but the shipped configuration
+(session-inherited orchestrator, Haiku → Sonnet → Opus ladder, agentic workers) has not been
+measured. Details, limits and the documentation it relies on: [docs/claude-code.md](https://github.com/aphesist/contraprova/blob/main/docs/claude-code.md).
