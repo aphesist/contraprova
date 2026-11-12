@@ -30,6 +30,23 @@
     patch pushed through the SEARCH/REPLACE edit path (must score 1), delete the image, and report
     image size, pull time, test time, results and prompt sizes (``--out`` writes JSON).
 
+``--lanes`` (Contract Lanes, docs/lanes-plan.md)
+    Arms La and D (D as the main study's cascade) on ``--split lanes-probe`` or ``lanes-main``.
+    Before any paid request a pre-flight counts the planner prompt and every lane prompt of a
+    by-file split (``--lanes-k``, default 3) and D's prompts with the free ``count_tokens``
+    endpoint, prices them (``lanes.lane_preflight``, ``swepro_arms.main_preflight``), drops tasks
+    with a counted prompt above ``--max-prompt-tokens`` and refuses to start (exit 3) if expected
+    cost x margin exceeds ``--budget-usd``. ``--action preflight --lanes`` prints it only.
+
+``select-lanes``
+    Freeze the Contract Lanes task lists (tiers, lanes-main, lanes-probe) with their sha256 in
+    ``--lanes-splits`` (default ``<data>/lanes-splits.json``).
+
+``validate-lanes``
+    The $0 check for arm La: per task, the empty/gold check plus the gold-lane check (the gold patch
+    split by file into lanes through the lane applier, the governed and shadow merges and
+    T0.interfaces; both merges must score 1 and a conflicting out-of-scope lane must be rejected).
+
 Data lives in ``--data`` (default ``data/swepro``): ``tasks.jsonl``, ``verifiers/``, ``context/``,
 ``partition.json`` and the image cache state. None of it is committed (upstream licences).
 """
@@ -51,15 +68,21 @@ from .docker import GB, ImageCache, ensure_dockerd, image_head, run_verifier, st
 from .swepro import (
     DEFAULT_SEED,
     MAX_WORKER_PROMPT_TOKENS,
+    LANE_SPLITS,
     SPLITS,
+    LaneSplits,
     ProExercise,
     ProTestSplit,
     fetch_dataset,
     load_context,
     load_or_create_partition,
     load_tasks,
+    context_bytes,
+    make_lane_splits,
+    scored_tasks,
     verifier_dir,
 )
+from .lanes import LaneAssumptions, LaneConfig, by_file_plan, gold_lane_check, lane_preflight
 from .swepro_arms import (
     DEFAULT_T2_MAX_LINES,
     PRO_ARMS,
@@ -84,7 +107,21 @@ def _parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="python -m contraprova.harness.run --benchmark swepro",
                                  description="SWE-bench Pro (py/js subset) harness")
     ap.add_argument("--benchmark", default="swepro", choices=["swepro"])
-    ap.add_argument("--action", default="run", choices=["run", "prepare", "validate", "preflight"])
+    ap.add_argument("--action", default="run",
+                    choices=["run", "prepare", "validate", "preflight", "select-lanes", "validate-lanes"])
+    ap.add_argument("--lanes", action="store_true",
+                    help="Contract Lanes study: arms La,D by default, D as the main study's cascade, the lane "
+                         "pre-flight before any paid request (docs/lanes-plan.md)")
+    ap.add_argument("--max-lanes", type=int, default=4, help="arm La: most lanes the planner may choose (cap 4)")
+    ap.add_argument("--lanes-k", type=int, default=3,
+                    help="lanes in the naive by-file split (lane pre-flight, gold-lane validation, dry-run planner)")
+    ap.add_argument("--lanes-splits", default=None,
+                    help="frozen Contract Lanes task lists (default: <data>/lanes-splits.json; --action select-lanes)")
+    ap.add_argument("--main90", default="results/swepro-main/eligible-90.txt",
+                    help="select-lanes: the main study's eligible task list")
+    ap.add_argument("--main-log", default="results/swepro-main/log.jsonl",
+                    help="select-lanes: the main study's log (tasks with A and D outcomes)")
+    ap.add_argument("--p-block", type=float, default=0.45, help="lane pre-flight: assumed first-merge block rate")
     ap.add_argument("--split", default="probe", choices=SPLITS)
     ap.add_argument("--arms", default="B", help=f"comma-separated, from {','.join(PRO_ARMS)}")
     ap.add_argument("--probe", action="store_true", help="the feasibility probe (arms B,B2,A; split --probe-split)")
@@ -116,7 +153,10 @@ def _parser() -> argparse.ArgumentParser:
     ap.add_argument("--task", action="append", default=[], help="only this task id (repeatable)")
     ap.add_argument("--budget-usd", type=float, default=None, help="cap on total recorded spend in the log")
     ap.add_argument("--dry-run", action="store_true", help="offline fakes; no API calls, nothing executed")
-    ap.add_argument("--dry-solve", default="all", choices=["all", "none"], help="dry-run workers: gold or nothing")
+    ap.add_argument("--dry-solve", default="all", choices=["all", "none", "escalate", "conflict"],
+                    help="dry-run workers: gold, nothing, 'escalate' (Haiku fails D's worker and La's last lane, "
+                         "so D forks and La repairs then escalates that lane) or 'conflict' (La's first lane also "
+                         "writes an out-of-scope block)")
     ap.add_argument("--client", help="'anthropic' (one Messages API client per role, shared budget) or module:attr")
     ap.add_argument("--router", help="module:attr of a Router (arm D)")
     ap.add_argument("--no-t2-review", action="store_true", help="no T2.review judge in arm D")
@@ -145,8 +185,28 @@ def _tasks(args) -> tuple[list, Any]:
     return tasks, part
 
 
+def _lanes_path(args) -> Path:
+    return Path(args.lanes_splits) if args.lanes_splits else Path(args.data) / "lanes-splits.json"
+
+
+def _lane_splits(args, part) -> LaneSplits:
+    p = _lanes_path(args)
+    if not p.exists():
+        raise SystemExit(f"{p} does not exist; freeze the Contract Lanes task lists with --action select-lanes")
+    ls = LaneSplits.load(p)
+    if ls.base_partition_sha256 != part.sha256:
+        raise SystemExit(f"{p} was frozen against partition {ls.base_partition_sha256[:12]}, not {part.sha256[:12]}")
+    return ls
+
+
+def _split_ids(args, part) -> list[str]:
+    if args.split in LANE_SPLITS:
+        return list(_lane_splits(args, part).splits[args.split])
+    return list(part.splits[args.split])
+
+
 def _selected(args, part) -> list[str]:
-    ids = list(part.splits[args.split])
+    ids = _split_ids(args, part)
     if args.task:
         ids = [i for i in ids if i in set(args.task)]
     return ids[: args.limit] if args.limit else ids
@@ -199,7 +259,26 @@ def action_prepare(args) -> int:
     return 0
 
 
-def validate_exercise(ex: ProExercise, h: ProHarness, args, cache: ImageCache | None = None) -> dict[str, Any]:
+def gold_lanes_row(ex: ProExercise, args, k: int) -> dict[str, Any]:
+    """The plan's gold-lane check on the real verifier: the gold patch split by file into ``k`` lanes,
+    pushed through the lane applier, the governed merge, T0.interfaces and the shadow merge (both
+    must score 1), then a conflicting lane (an out-of-scope block breaking another lane's file) that
+    the governed merge must reject. Each distinct file set runs the verifier once."""
+    memo: dict[str, Any] = {}
+
+    def score(files):
+        key = json.dumps(dict(files), sort_keys=True)
+        if key not in memo:
+            memo[key] = run_verifier(ex.task.image, ex.verifier, dict(files), timeout=args.test_timeout).reward
+        return memo[key]
+
+    row = gold_lane_check(ex, by_file_plan(ex, k), score)
+    row["verifier_runs"] = len(memo)
+    return row
+
+
+def validate_exercise(ex: ProExercise, h: ProHarness, args, cache: ImageCache | None = None,
+                      lanes_k: int | None = None) -> dict[str, Any]:
     """The $0 check for one loaded task: the empty patch must score 0 and fail the visible subset,
     the gold patch through the edit path must score 1 and pass both gate subsets by per-test status.
     Returns a row with ``ok``. The image is pulled through ``cache`` first, so the cache owns it and
@@ -221,6 +300,9 @@ def validate_exercise(ex: ProExercise, h: ProHarness, args, cache: ImageCache | 
         row["ok"] = (row["head_is_base"] and empty.reward == 0 and gold.reward == 1 and not errors
                      and bool(gold.statuses) and row["gold_visible_ok"] and row["gold_private_ok"]
                      and not row["empty_visible_ok"])
+        if lanes_k and row["ok"]:
+            row["gold_lanes"] = gold_lanes_row(ex, args, lanes_k)
+            row["ok"] = bool(row["gold_lanes"]["ok"])
     except Exception as e:
         row["ok"] = False
         row["error"] = f"{type(e).__name__}: {e}"
@@ -307,7 +389,22 @@ def _count_fn(client):
     return fn
 
 
+def _dry_policy(mode: str):
+    """The dry-run fake's per-request behaviour for ``--dry-solve escalate|conflict`` (None otherwise)."""
+    if mode == "escalate":
+        # Haiku fails D's worker (D forks; its Opus treatment solves) and La's last lane (blamed, repaired
+        # on Haiku, then escalated to Sonnet, which solves).
+        return lambda tid, model, lane: "none" if model == HAIKU and (lane is None or lane[0] == f"L{lane[1]}") else "gold"
+    if mode == "conflict":
+        return lambda tid, model, lane: "conflict" if lane is not None and lane[0] == "L1" and model == HAIKU else "gold"
+    return None
+
+
 def action_run(args, preflight_only: bool = False) -> int:
+    if args.lanes:
+        args.cascade = True
+        if args.arms == "B":
+            args.arms = "La,D"
     if args.probe:
         args.split = args.probe_split
         arms = PROBE_ARMS
@@ -329,7 +426,7 @@ def action_run(args, preflight_only: bool = False) -> int:
     ids = _selected(args, part)
     if args.task_file:
         wanted = [ln.strip() for ln in Path(args.task_file).read_text(encoding="utf-8").splitlines() if ln.strip()]
-        outside = [i for i in wanted if i not in set(part.splits[args.split])]
+        outside = [i for i in wanted if i not in set(_split_ids(args, part))]
         if outside:
             raise SystemExit(f"--task-file has {len(outside)} ids outside split {args.split!r}: {outside[:3]}")
         ids = wanted[: args.limit] if args.limit else wanted
@@ -357,7 +454,8 @@ def action_run(args, preflight_only: bool = False) -> int:
         if args.dry_run:
             from .run import CascadeRouter, UniformRouter
 
-            client = ProFakeClient(exercises, solve=(lambda i: True) if args.dry_solve == "all" else (lambda i: False))
+            client = ProFakeClient(exercises, solve=(lambda i: args.dry_solve != "none"),
+                                   policy=_dry_policy(args.dry_solve), lanes_k=args.lanes_k)
             router = CascadeRouter(HAIKU, OPUS) if args.cascade else UniformRouter()
             verifier = Verifier(gold_oracle(exercises))
         else:
@@ -388,7 +486,7 @@ def action_run(args, preflight_only: bool = False) -> int:
                 return exercises[tid]
             got = _exercise(by_id[tid], part, args, h, cache, with_verifier=not args.dry_run)
             if not isinstance(got, str) and args.validate_before_run and not args.dry_run and not preflight_only:
-                row = validate_exercise(got, h, args, cache)
+                row = validate_exercise(got, h, args, cache, lanes_k=args.lanes_k if "La" in arms else None)
                 with validation_path.open("a", encoding="utf-8") as f:
                     f.write(json.dumps(row, sort_keys=True) + "\n")
                 if not row["ok"]:
@@ -401,13 +499,67 @@ def action_run(args, preflight_only: bool = False) -> int:
                 exercises[tid] = got
             return got
 
+        h.lane_config = LaneConfig(max_lanes=args.max_lanes)  # type: ignore[attr-defined]
         pre = None
-        if preflight_only and args.cascade:
+        if args.lanes and "La" in arms:
+            # Contract Lanes: count every planner prompt and every lane prompt of a naive by-file split
+            # (free), price La with the plan's cost model and D with the main study's, drop tasks whose
+            # counted lane prompt or D worker prompt exceeds the bound, and refuse a run whose expected
+            # cost x margin exceeds the cap. Nothing paid is sent before this.
+            count = _count_fn(client)
+            assume = LaneAssumptions(p_block=args.p_block)
+            eligible, la_rows, d_rows = [], [], []
+            for tid in ids:
+                got = provider(tid)
+                if isinstance(got, str):
+                    excluded[tid] = got
+                    continue
+                lr = lane_preflight(h, got, got.test_split, count, h.lane_config, k=args.lanes_k, a=assume)
+                dr = (main_preflight(h, [got], count, p_fork=args.p_fork, repair_rate=args.repair_rate)[0]
+                      if "D" in arms else None)
+                biggest = max([*lr.lane_inputs, lr.planner_input, dr.d_worker_input if dr else 0])
+                if biggest > args.max_prompt_tokens:
+                    excluded[tid] = f"counted prompt {biggest} tokens > {args.max_prompt_tokens}"
+                    exercises.pop(tid, None)
+                    continue
+                got.meta["prompt_tokens_exact"] = {"planner": lr.planner_input, "lanes_by_file": list(lr.lane_inputs),
+                                                   **({"d_worker": dr.d_worker_input, "d_lead": dr.d_lead_input}
+                                                      if dr else {})}
+                eligible.append(tid)
+                la_rows.append(lr)
+                d_rows.append(dr)
+                if cache is not None and args.delete_images:
+                    cache.remove(got.task.image)
+            exp_la = sum(r.expected for r in la_rows)
+            exp_d = sum(r.expected_d_shipped for r in d_rows if r)
+            exp_m = sum(r.expected_d_measurement for r in d_rows if r)
+            expected = exp_la + exp_d + exp_m
+            parts = {k: round(sum(r.by_part[k] for r in la_rows), 4) for k in (la_rows[0].by_part if la_rows else {})}
+            pre = {"n": len(eligible), "order": eligible, "expected_usd": round(expected, 4),
+                   "expected_by_arm": {"La": round(exp_la, 4), "D_shipped": round(exp_d, 4),
+                                       "D_measurement": round(exp_m, 4)},
+                   "la_by_part": parts, "worst_case_usd": round(sum(r.worst for r in la_rows)
+                                                                + sum(r.worst for r in d_rows if r), 4),
+                   "margin": args.preflight_margin, "cap_usd": args.budget_usd,
+                   "fits": expected * args.preflight_margin <= args.budget_usd,
+                   "assumptions": {**assume.__dict__, "p_fork": args.p_fork, "repair_rate": args.repair_rate,
+                                   "lanes_k": args.lanes_k},
+                   "lane_config": h.lane_config.to_dict(),
+                   "rows": [{"la": r.__dict__, "d": (d.__dict__ if d else None)} for r, d in zip(la_rows, d_rows)]}
+            ids = eligible
+            if preflight_only:
+                print(json.dumps({"preflight": pre, "excluded": excluded}, indent=2, default=list))
+                return 0
+            if expected * args.preflight_margin > args.budget_usd:
+                print(json.dumps({"preflight": {k: v for k, v in pre.items() if k != "rows"},
+                                  "refused": "expected cost x margin exceeds --budget-usd"}, indent=2))
+                return 3
+        elif preflight_only and args.cascade:
             # Main study: walk the split in its seeded order, keep tasks whose counted worker prompt
             # (Haiku with a brief, Opus without) is within the bound, until --limit are eligible.
             target = args.limit or len(ids)
             eligible, rows = [], []
-            for tid in (list(part.splits[args.split]) if not args.task_file else ids):
+            for tid in (_split_ids(args, part) if not args.task_file else ids):
                 if len(eligible) >= target:
                     break
                 got = provider(tid)
@@ -484,14 +636,81 @@ def action_run(args, preflight_only: bool = False) -> int:
         stop_dockerd(started)
 
 
+def action_select_lanes(args) -> int:
+    """Freeze the Contract Lanes task lists ($0): the fresh tiers, lanes-main (all tier 1, then
+    ``n_tier2`` tier-2 tasks in the partition's seeded order) and the 12-task lanes-probe. Needs the
+    context files of every task (``--action prepare`` or a filled ``<data>/context``)."""
+    tasks, part = _tasks(args)
+    main90 = [ln.strip() for ln in Path(args.main90).read_text(encoding="utf-8").splitlines()
+              if ln.strip() and not ln.startswith("#")]
+    missing = [t.instance_id for t in tasks if not (Path(args.data) / "context" / t.instance_id / "meta.json").is_file()]
+    if missing:
+        raise SystemExit(f"{len(missing)} tasks have no cached context in {args.data}/context (e.g. {missing[0]})")
+    ls = make_lane_splits(tasks, part, main90=main90, main90_scored=scored_tasks(args.main_log),
+                          source_bytes=lambda t: context_bytes(t, args.data), seed=args.seed)
+    path = _lanes_path(args)
+    sha = ls.save(path)
+    out = {"path": str(path), "sha256": sha, "base_partition_sha256": ls.base_partition_sha256,
+           "sizes": {k: len(v) for k, v in ls.splits.items()}, "tiers": {k: len(v) for k, v in ls.tiers.items()},
+           "split_sha256": {k: ls.split_sha256(k) for k in ls.splits}}
+    if args.out:
+        ls.save(args.out)
+    print(json.dumps(out, indent=2))
+    return 0
+
+
+def action_validate_lanes(args) -> int:
+    """The $0 check for arm La on real images: per task, the empty/gold check and the gold-lane check
+    (``gold_lanes_row``); the image is deleted afterwards and the daemon stopped if this started it."""
+    tasks, part = _tasks(args)
+    by_id = {t.instance_id: t for t in tasks}
+    started = ensure_dockerd()
+    cache = _cache(args)
+    h = ProHarness(EventLog(Path(args.data) / "validate-scratch.jsonl"), ProFakeClient({}), lambda s, c: False,
+                   config=pro_arm_config(), t2_max_lines=args.t2_max_lines)
+    rows, failures = [], 0
+    try:
+        for tid in _selected(args, part):
+            t = by_id[tid]
+            row: dict[str, Any] = {"task": tid}
+            try:
+                pull = cache.ensure(t.image)
+                row.update(image_gb=round(pull.bytes / GB, 2), pull_s=round(pull.seconds, 1))
+                ex = _exercise(t, part, args, h, cache, with_verifier=True)
+                if isinstance(ex, str):
+                    raise RuntimeError(ex)
+                t0 = time.monotonic()
+                row.update(validate_exercise(ex, h, args, cache, lanes_k=args.lanes_k))
+                row["seconds"] = round(time.monotonic() - t0, 1)
+            except Exception as e:
+                row["ok"] = False
+                row["error"] = f"{type(e).__name__}: {e}"
+            finally:
+                cache.remove(t.image)
+            failures += 0 if row.get("ok") else 1
+            rows.append(row)
+            print(json.dumps(row), flush=True)
+        df = system_df()
+    finally:
+        stop_dockerd(started)
+    out = {"tasks": rows, "failures": failures, "docker_system_df": df}
+    if args.out:
+        Path(args.out).write_text(json.dumps(out, indent=1) + "\n", encoding="utf-8")
+    return 1 if failures else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if args.action == "prepare":
         return action_prepare(args)
     if args.action == "validate":
         return action_validate(args)
+    if args.action == "select-lanes":
+        return action_select_lanes(args)
+    if args.action == "validate-lanes":
+        return action_validate_lanes(args)
     if args.action == "preflight":
-        args.probe = not args.cascade
+        args.probe = not (args.cascade or args.lanes)
         return action_run(args, preflight_only=True)
     return action_run(args)
 
