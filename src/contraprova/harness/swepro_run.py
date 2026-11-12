@@ -90,7 +90,11 @@ def _parser() -> argparse.ArgumentParser:
     ap.add_argument("--probe-split", default="probe", choices=["probe", "probe2"],
                     help="which probe set --probe and --action preflight run (default: probe)")
     ap.add_argument("--haiku-max-tokens", type=int, default=None,
-                    help="worker max_tokens for Haiku (default: pro_arm_config's 16K)")
+                    help="worker max_tokens for Haiku (default: pro_arm_config's 32K)")
+    ap.add_argument("--opus-max-tokens", type=int, default=None,
+                    help="worker max_tokens for Opus (default: pro_arm_config's 32K)")
+    ap.add_argument("--no-repair", action="store_true",
+                    help="no repair turn after a truncated, unparsable or unappliable reply")
     ap.add_argument("--no-log-contents", action="store_true",
                     help="log per-file sha256 instead of full file contents in task.submitted (publishable logs)")
     ap.add_argument("--data", default="data/swepro", help="data directory (tasks, verifiers, context, partition)")
@@ -293,9 +297,12 @@ def action_run(args, preflight_only: bool = False) -> int:
     cache = _cache(args) if (args.context_source == "image" or not args.dry_run) else None
     try:
         overrides: dict[str, Any] = {}
-        if args.haiku_max_tokens:
+        if args.haiku_max_tokens or args.opus_max_tokens:
             by_model = dict(pro_arm_config().worker_max_tokens_by_model)
-            by_model[HAIKU] = args.haiku_max_tokens
+            if args.haiku_max_tokens:
+                by_model[HAIKU] = args.haiku_max_tokens
+            if args.opus_max_tokens:
+                by_model[OPUS] = args.opus_max_tokens
             overrides["worker_max_tokens_by_model"] = tuple(sorted(by_model.items()))
         config = pro_arm_config(**overrides)
         exercises: dict[str, ProExercise] = {}
@@ -318,7 +325,7 @@ def action_run(args, preflight_only: bool = False) -> int:
                                 ensure_image=cache.ensure if cache else None)
         h = ProHarness(EventLog(log_path), client, ProScorer(verifier), ProGates(verifier, args.t2_max_lines), router,
                        BudgetGuard(args.budget_usd), config, part.sha256, t2_max_lines=args.t2_max_lines,
-                       log_contents=not args.no_log_contents)
+                       log_contents=not args.no_log_contents, repair=not args.no_repair)
 
         excluded: dict[str, str] = {}
 
@@ -369,7 +376,7 @@ def action_run(args, preflight_only: bool = False) -> int:
         s.excluded.update(excluded)
         print(json.dumps({**s.__dict__, "partition_sha256": part.sha256, "dry_run": args.dry_run,
                           "t2_review_model": config.t2_review_model, "t2_max_lines": args.t2_max_lines,
-                          "verifier_runs": verifier.runs, "log_contents": not args.no_log_contents,
+                          "verifier_runs": verifier.runs, "log_contents": not args.no_log_contents, "repair": not args.no_repair,
                           "worker_max_tokens_by_model": dict(config.worker_max_tokens_by_model), "seconds": round(time.monotonic() - t0, 1),
                           "preflight": {k: v for k, v in (pre or {}).items() if k != "rows"} or None}, indent=2))
         return 2 if s.stopped else 0

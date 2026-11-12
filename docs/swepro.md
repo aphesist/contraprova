@@ -83,9 +83,18 @@ Every in-scope gold patch was pushed through this path (context downloaded at th
 format cannot express; those tasks are excluded (`ProTask.unsupported_gold`), so the reference
 solution of every remaining task is expressible by a worker.
 
+**One repair turn** (every arm, forks included). If a reply was cut off at `max_tokens`, or some
+block failed to parse or apply, the worker gets one follow-up user turn holding only that edit error
+(for truncation: "your answer was cut off at the output limit; reply with only the remaining edit
+blocks"). It never includes test names, test output or results. The blocks that applied plus the
+repair's blocks are applied together; there is no second repair. The repair request is tagged
+`repair` in `usage.recorded` and counts toward the arm's cost; `task.submitted` records
+`repair_used` and the failure before and after it. `--no-repair` turns it off. Added after probe 2,
+where four of Opus's five failures were edit-format failures.
+
 Whole-file returns were dropped because a 50K-character file would cost Opus about $0.30 per
-attempt in output alone and a truncated reply would lose the whole file. Worker `max_tokens` is 16K
-for Haiku and Sonnet and 12K for Opus.
+attempt in output alone and a truncated reply would lose the whole file. Worker `max_tokens` is 32K
+for Haiku and Opus (equal since probe 3; probes 1 and 2 used 16K/32K for Haiku and 12K for Opus) and 16K for Sonnet.
 
 ## Scoring and gates
 

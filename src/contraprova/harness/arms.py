@@ -474,15 +474,20 @@ class Harness:
 
     def call(self, *, arm: str, role: str, task_id: str, model: str, system: str, user: str,
              max_tokens: int, effort: str | None = None, fork_id: str | None = None,
-             cache_upto: int = 0) -> Completion:
-        """One single-turn request. ``cache_upto`` marks the first ``cache_upto`` characters of
-        ``user`` as a prefix that a later request with the same model and system repeats exactly;
-        set it only where such a request is planned, since a cache write costs a premium."""
-        self.budget.check(self.log, model, len(system) + len(user), max_tokens)
-        tags = {"arm": arm, "role": role, "task_id": task_id}
+             cache_upto: int = 0, history: Sequence[Message] = (),
+             extra_tags: Mapping[str, Any] | None = None) -> Completion:
+        """One request: ``history`` (earlier turns, usually empty) then ``user``. ``cache_upto`` marks
+        the first ``cache_upto`` characters of ``user`` as a prefix that a later request with the same
+        model and system repeats exactly; set it only where such a request is planned, since a cache
+        write costs a premium. ``extra_tags`` are added to the usage record (e.g. ``repair``)."""
+        self.budget.check(self.log, model, len(system) + len(user) + sum(len(m.content) for m in history),
+                          max_tokens)
+        tags: dict[str, Any] = {"arm": arm, "role": role, "task_id": task_id}
         if fork_id is not None:
             tags["fork_id"] = fork_id
-        c = self.client.complete(model=model, system=system, messages=[Message("user", user, cache_upto)],
+        tags.update(extra_tags or {})
+        c = self.client.complete(model=model, system=system,
+                                 messages=[*history, Message("user", user, cache_upto)],
                                  max_tokens=max_tokens, effort=effort, tags=tags)
         usage = dict(c.usage)
         usage["model"] = usage.get("model") or c.model or model

@@ -407,10 +407,10 @@ def test_scope_rejects_test_and_out_of_lane_edits(tmp_path, exercises):
 
 def test_worker_max_tokens_by_model(tmp_path, exercises):
     h, _ = harness(tmp_path, exercises)
-    assert (h.worker_max_tokens(HAIKU), h.worker_max_tokens(OPUS), h.worker_max_tokens(SONNET)) == (16000, 12000, 16000)
+    assert (h.worker_max_tokens(HAIKU), h.worker_max_tokens(OPUS), h.worker_max_tokens(SONNET)) == (32000, 32000, 16000)
     run_tasks(h, PROBE_IDS[:1], ["A", "B"], lambda i: exercises[i])
     mt = {c["model"]: c["max_tokens"] for c in h.client.calls}
-    assert mt == {OPUS: 12000, HAIKU: 16000}
+    assert mt == {OPUS: 32000, HAIKU: 32000}
 
 
 def test_budget_stop_is_clean(tmp_path, exercises):
@@ -432,9 +432,9 @@ def test_preflight_prices_exact_counts(tmp_path, exercises):
     assert len(rows) == 4 and len(seen) == 4
     r_h = next(r for r in rows if r.model == HAIKU)
     r_o = next(r for r in rows if r.model == OPUS)
-    assert r_h.max_tokens == 16000 and r_o.max_tokens == 12000
+    assert r_h.max_tokens == 32000 and r_o.max_tokens == 32000
     assert r_o.expected_usd == pytest.approx((10_000 * 4 + r_o.expected_output_tokens * 20) / 1e6)
-    assert r_h.worst_usd == pytest.approx(2 * (10_000 * 0.1 + 16000 * 0.5) / 1e6)
+    assert r_h.worst_usd == pytest.approx(2 * (10_000 * 0.1 + 32000 * 0.5) / 1e6)
 
 
 def test_cli_dry_run_probe_and_refusal(tmp_path, data_dir, capsys):
@@ -577,5 +577,136 @@ def test_log_contents_off_logs_hashes_not_file_bodies(tmp_path, exercises):
 
 def test_probe_cli_flags_parse():
     from contraprova.harness.swepro_run import _parser
-    a = _parser().parse_args(["--probe", "--probe-split", "probe2", "--haiku-max-tokens", "32000", "--no-log-contents"])
+    a = _parser().parse_args(["--probe", "--probe-split", "probe2", "--haiku-max-tokens", "32000", "--no-log-contents",
+                              "--opus-max-tokens", "24000", "--no-repair"])
     assert a.probe_split == "probe2" and a.haiku_max_tokens == 32000 and a.no_log_contents
+    assert a.opus_max_tokens == 24000 and a.no_repair
+
+
+# ------------------------------------------------------------------ the repair turn
+
+
+class ScriptedClient:
+    """Replies with ``script`` in order: (text, stop_reason) pairs. Records every request."""
+
+    def __init__(self, script):
+        self.script = list(script)
+        self.calls = []
+
+    def complete(self, *, model, system, messages, max_tokens, effort=None, tags=None):
+        from contraprova.interfaces import Completion
+        text, stop = self.script.pop(0)
+        self.calls.append({"model": model, "messages": list(messages), "tags": dict(tags or {}),
+                           "max_tokens": max_tokens})
+        usage = {"model": model, "input_tokens": 1000 * len(messages), "output_tokens": 500,
+                 "cache_read_tokens": 0, "cache_write_5m_tokens": 0, "cache_write_1h_tokens": 0}
+        return Completion(text=text, model=model, usage=usage, stop_reason=stop, request_id=f"r{len(self.calls)}")
+
+
+def _gold_blocks(ex):
+    from contraprova.harness.edits import diff_to_blocks
+    return list(diff_to_blocks(ex.task.patch, ex.context.files))
+
+
+def _repair_harness(tmp_path, exercises, script, **kw):
+    h, v = harness(tmp_path, exercises)
+    h.client = ScriptedClient(script)
+    for k, val in kw.items():
+        setattr(h, k, val)
+    return h
+
+
+def _no_test_info(text, ex):
+    names = set(ex.test_split.tests) | set(ex.test_split.score)
+    return not any(n in text for n in names) and "pass" not in text.lower().replace("passed", "") \
+        and "test" not in text.lower()
+
+
+def _run_b(h, ex):
+    run_tasks(h, [ex.id], ["B"], lambda i: ex)
+    ev = h.log.events()
+    sub = next(e.payload for e in ev if e.type == "task.submitted")
+    out = next(e.payload for e in ev if e.type == "outcome.scored")
+    usage = [e.payload for e in ev if e.type == "usage.recorded"]
+    return sub, out, usage
+
+
+def test_repair_after_parse_error(tmp_path, exercises):
+    from contraprova.harness.edits import format_blocks
+    ex = exercises[PROBE_IDS[0]]
+    blocks = _gold_blocks(ex)
+    good = format_blocks(blocks)
+    broken = good.replace("=======\n", "", 1)  # first block loses its divider: a parse error
+    h = _repair_harness(tmp_path, exercises, [(broken, "end_turn"), (format_blocks(blocks[:1]), "end_turn")])
+    sub, out, usage = _run_b(h, ex)
+    assert sub["repair_used"] and sub["original_failure"] == "parse" and sub["final_failure"] is None
+    assert out["solved"] and len(h.client.calls) == 2
+    repair_req = h.client.calls[1]["messages"]
+    assert [m.role for m in repair_req] == ["user", "assistant", "user"]
+    assert repair_req[1].content == broken.rstrip() and "could not be used" in repair_req[2].content
+    assert _no_test_info(repair_req[2].content, ex)
+
+
+def test_repair_after_apply_error(tmp_path, exercises):
+    from dataclasses import replace as dc_replace
+    from contraprova.harness.edits import format_blocks
+    ex = exercises[PROBE_IDS[0]]
+    blocks = _gold_blocks(ex)
+    i = next(k for k, b in enumerate(blocks) if b.search)
+    wrong = list(blocks)
+    wrong[i] = dc_replace(blocks[i], search="this line is not in the file\n")
+    h = _repair_harness(tmp_path, exercises, [(format_blocks(wrong), "end_turn"),
+                                              (format_blocks([blocks[i]]), "end_turn")])
+    sub, out, _ = _run_b(h, ex)
+    assert sub["repair_used"] and sub["original_failure"] == "apply" and sub["original_errors"]
+    assert out["solved"] and sub["parse_errors"] == []
+    msg = h.client.calls[1]["messages"][-1].content
+    assert "SEARCH" in msg and _no_test_info(msg, ex)
+
+
+def test_repair_after_truncation_applies_the_union(tmp_path, exercises):
+    from contraprova.harness.edits import format_blocks
+    ex = exercises[PROBE_IDS[0]]
+    blocks = _gold_blocks(ex)
+    assert len(blocks) >= 2
+    first = format_blocks(blocks[:1]) + "\n" + format_blocks(blocks[1:])[:40]  # cut off inside block 2
+    h = _repair_harness(tmp_path, exercises, [(first, "max_tokens"), (format_blocks(blocks[1:]), "end_turn")])
+    sub, out, _ = _run_b(h, ex)
+    assert sub["original_failure"] == "truncated" and sub["repair_used"] and out["solved"]
+    from contraprova.harness.swepro_arms import REPAIR_TRUNCATED
+    assert h.client.calls[1]["messages"][-1].content == REPAIR_TRUNCATED
+
+
+def test_at_most_one_repair_and_cost_includes_it(tmp_path, exercises):
+    from contraprova.harness.edits import format_blocks
+    from contraprova.pricing import PRICE_TABLES, DEFAULT_TABLE, cost_by
+    from contraprova.projections import arm_usage_records
+    ex = exercises[PROBE_IDS[0]]
+    broken = format_blocks(_gold_blocks(ex)).replace("=======\n", "", 1)
+    h = _repair_harness(tmp_path, exercises, [(broken, "end_turn"), (broken, "max_tokens"), ("unused", "end_turn")])
+    sub, out, usage = _run_b(h, ex)
+    assert len(h.client.calls) == 2 and not out["solved"]
+    assert sub["final_failure"] == "truncated" and any("cut off" in e for e in sub["parse_errors"])
+    assert [u.get("repair", False) for u in usage] == [False, True]
+    assert all(u["arm"] == "B" and u["task_id"] == f"B:{ex.id}" for u in usage)
+    by_arm = cost_by(arm_usage_records(h.log.events()), PRICE_TABLES[DEFAULT_TABLE], "arm")
+    assert by_arm["B"] == pytest.approx(sum(cost_by([u], PRICE_TABLES[DEFAULT_TABLE], "arm")["B"] for u in usage))
+
+
+def test_no_repair_when_the_reply_is_clean_or_repair_is_off(tmp_path, exercises):
+    from contraprova.harness.edits import format_blocks
+    ex = exercises[PROBE_IDS[0]]
+    good = format_blocks(_gold_blocks(ex))
+    h = _repair_harness(tmp_path / "a", exercises, [(good, "end_turn")])
+    sub, out, usage = _run_b(h, ex)
+    assert out["solved"] and not sub["repair_used"] and sub["original_failure"] is None and len(usage) == 1
+    h2 = _repair_harness(tmp_path / "b", exercises, [(good.replace("=======\n", "", 1), "end_turn")], repair=False)
+    sub2, out2, usage2 = _run_b(h2, ex)
+    assert not sub2["repair_used"] and sub2["original_failure"] == "parse" and len(usage2) == 1 and not out2["solved"]
+
+
+def test_repair_message_never_carries_test_information():
+    from contraprova.harness.swepro_arms import repair_message
+    errs = [f"block {i} (lib/x.py): SEARCH text not found in the file" for i in range(30)]
+    m = repair_message("apply", errs)
+    assert "block 0" in m and "and 10 more" in m and "test" not in m.lower()

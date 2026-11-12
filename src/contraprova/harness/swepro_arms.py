@@ -27,7 +27,7 @@ payloads are exactly the Polyglot harness's. What differs:
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Mapping, Sequence
 
 from ..contracts import DEFAULT_PROTECTED, LaneContract, check_scope
@@ -309,11 +309,42 @@ class ProScorer:
 # ------------------------------------------------------------------ harness
 
 
+REPAIR_TRUNCATED = ("Your answer was cut off at the output limit. Reply with only the remaining SEARCH/REPLACE "
+                    "edit blocks; do not repeat blocks you already sent in full.")
+REPAIR_ERRORS = ("Some of your SEARCH/REPLACE blocks could not be used:\n\n{errors}\n\n"
+                 "Reply with only corrected edit blocks for those edits. The blocks that applied are kept; "
+                 "do not repeat them.")
+REPAIR_MAX_ERRORS = 20
+
+
+def edit_failure(stop_reason: str | None, parse_errors: Sequence[str], apply_errors: Sequence[str]) -> str | None:
+    """The edit-format failure of one reply: "truncated" (cut off at max_tokens), "parse" (a block
+    was malformed), "apply" (a block did not match its file or was out of scope), or None."""
+    if stop_reason == "max_tokens":
+        return "truncated"
+    if parse_errors:
+        return "parse"
+    if apply_errors:
+        return "apply"
+    return None
+
+
+def repair_message(failure: str, errors: Sequence[str]) -> str:
+    """The one repair turn's text: only the edit error, never test names, test output or results."""
+    if failure == "truncated":
+        return REPAIR_TRUNCATED
+    shown = list(errors[:REPAIR_MAX_ERRORS])
+    if len(errors) > REPAIR_MAX_ERRORS:
+        shown.append(f"... and {len(errors) - REPAIR_MAX_ERRORS} more")
+    return REPAIR_ERRORS.format(errors="\n".join(f"- {e}" for e in shown))
+
+
 def pro_arm_config(**overrides: Any) -> ArmConfig:
-    """Arm settings for Pro: workers get 16K output tokens on Haiku and Sonnet and 12K on Opus;
-    the orchestrator 4K (its thinking counts against max_tokens)."""
+    """Arm settings for Pro: workers get 32K output tokens on Haiku and Opus (the same for both, so
+    neither arm is cut off sooner; probe 2 truncated both at 32K and 12K) and 16K on Sonnet; the
+    orchestrator 4K (its thinking counts against max_tokens)."""
     base = dict(worker_max_tokens=16_000,
-                worker_max_tokens_by_model=((HAIKU, 16_000), (SONNET, 16_000), (OPUS, 12_000)),
+                worker_max_tokens_by_model=((HAIKU, 32_000), (SONNET, 16_000), (OPUS, 32_000)),
                 orchestrator_max_tokens=4_000, feedback_chars=3_000, t2_diff_chars=DIFF_MAX_CHARS)
     base.update(overrides)
     return ArmConfig(**base)
@@ -322,6 +353,11 @@ def pro_arm_config(**overrides: Any) -> ArmConfig:
 @dataclass
 class ProHarness(Harness):
     t2_max_lines: int = DEFAULT_T2_MAX_LINES
+    # One repair turn per worker request (every arm, forks included): if the reply was cut off at
+    # max_tokens, or some SEARCH/REPLACE block failed to parse or apply, one follow-up user turn
+    # gives only that edit error (never test names or results); the blocks that applied plus the
+    # repair's blocks are applied together. The repair request is tagged ``repair`` and costs the arm.
+    repair: bool = True
     # False: task.submitted carries per-file sha256 (``contents_sha256``) instead of the files' full
     # new content, so a log can be published without redistributing repository code. The diff, the
     # worker's reply (its edit blocks) and test results are still logged.
@@ -375,6 +411,45 @@ class ProHarness(Harness):
     def scope(self, ex: ProExercise):
         return scope_checker(ex.solution_files, (*DEFAULT_PROTECTED, *TEST_PATTERNS))
 
+    def _work(self, arm: str, task_id: str, ex: ProExercise, model: str, prompt: str, attempt: int,  # type: ignore[override]
+              effort: str | None = None, role: str = "worker", fork_id: str | None = None,
+              cache_upto: int = 0) -> Submission:
+        self.emit("task.claimed", f"worker:{model}", {"task_id": task_id, "worker": model, "attempt": attempt})
+        if effort is None:
+            effort = self.config.worker_effort
+        mt = self.worker_max_tokens(model)
+        kw = dict(arm=arm, role=role, task_id=task_id, model=model, system=self.worker_system, max_tokens=mt,
+                  effort=effort, fork_id=fork_id)
+        c = self.call(user=prompt, cache_upto=cache_upto, **kw)
+        scope = self.scope(ex)
+        parsed = parse_edits(c.text)
+        applied = apply_edits(parsed.blocks, ex.context.files, scope=scope)
+        failure = edit_failure(c.stop_reason, parsed.errors, applied.errors)
+        first_errors = list(parsed.errors + applied.errors)
+        info: dict[str, Any] = {"repair_used": False, "original_failure": failure, "original_errors": first_errors,
+                                "stop_reason": c.stop_reason}
+        blocks, final, last_parse, last_stop = list(parsed.blocks), applied, parsed.errors, c.stop_reason
+        if failure and self.repair:
+            history = (Message("user", prompt, cache_upto), Message("assistant", c.text.rstrip() or "(no output)"))
+            c2 = self.call(user=repair_message(failure, first_errors), history=history,
+                           extra_tags={"repair": True}, **kw)
+            parsed2 = parse_edits(c2.text)
+            offset = max((b.index for b in parsed.blocks), default=0)
+            ok = set(applied.applied)
+            blocks = [b for b in parsed.blocks if b.index in ok] + [replace(b, index=b.index + offset)
+                                                                   for b in parsed2.blocks]
+            final = apply_edits(blocks, ex.context.files, scope=scope)
+            last_parse, last_stop = parsed2.errors, c2.stop_reason
+            info.update(repair_used=True, repair_stop_reason=c2.stop_reason, repair_response=c2.text,
+                        repair_blocks=len(parsed2.blocks))
+        errors = list(last_parse + final.errors)
+        if last_stop == "max_tokens":
+            errors.append(f"reply cut off at max_tokens ({mt}); the unfinished block was dropped")
+        info["final_failure"] = edit_failure(last_stop, last_parse, final.errors)
+        self._last_blocks = len(blocks)
+        return self.submit(task_id, attempt, model, ParsedFiles(final.files, tuple(errors)), ex, response=c.text,
+                           extra=info)
+
     def parse_reply(self, text: str, ex: ProExercise) -> ParsedFiles:  # type: ignore[override]
         parsed = parse_edits(text)
         applied = apply_edits(parsed.blocks, ex.context.files, scope=self.scope(ex))
@@ -382,7 +457,7 @@ class ProHarness(Harness):
         return ParsedFiles(applied.files, parsed.errors + applied.errors)
 
     def submit(self, task_id: str, attempt: int, model: str, parsed: ParsedFiles, ex: ProExercise,  # type: ignore[override]
-               response: str | None = None) -> Submission:
+               response: str | None = None, extra: Mapping[str, Any] | None = None) -> Submission:
         files = dict(parsed.files)
         diff = unified_patch(ex.context.files, files)
         self.emit("task.submitted", f"worker:{model}", {
@@ -393,6 +468,7 @@ class ProHarness(Harness):
             "response": response if response is not None else "", "diff": diff,
             "edit_blocks": getattr(self, "_last_blocks", 0), "changed_lines": changed_lines(Submission(task_id, files),
                                                                                           ex.context.files),
+            **dict(extra or {}),
         })
         return ProSubmission(task_id=task_id, files=files, attempt=attempt, edit_errors=tuple(parsed.errors),
                              blocks=getattr(self, "_last_blocks", 0))

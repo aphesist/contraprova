@@ -18,12 +18,13 @@ absent. Unknown extra fields are allowed and ignored.
 |---|---|---|
 | `task.created` | `task_id`, `title`, `scope` | `kind`, `max_attempts`, `supersedes`, `arm`, `exercise_id`, `language`, `split`, `partition_sha256`, `contract`, `prompt`, `system`, `fork_of`, `synthetic`; SWE-bench Pro adds `benchmark` (`swepro`), `repo`, `image`, `base_commit`, `worker_prompt_tokens_est`, `lead_prompt_tokens_est`, `outline_tokens_est`, `prompt_tokens_exact` (model → count from the pre-flight) |
 | `task.claimed` | `task_id` | `worker`, `attempt` |
-| `task.submitted` | `task_id` | `attempt`, `model`, `files`, `contents`, `files_sha256`, `response` (raw worker reply, used to rebuild fork prefixes), `parse_errors`; SWE-bench Pro adds `diff` (unified diff against the base files), `edit_blocks` (blocks parsed), `changed_lines` |
+| `task.submitted` | `task_id` | `attempt`, `model`, `files`, `contents`, `files_sha256`, `response` (raw worker reply, used to rebuild fork prefixes), `parse_errors`; SWE-bench Pro adds `diff` (unified diff against the base files), `edit_blocks` (blocks parsed), `changed_lines`, `contents_sha256` (instead of `contents` with `--no-log-contents`), and the repair turn's `repair_used`, `original_failure` / `final_failure` (`truncated`, `parse`, `apply` or null), `original_errors`, `stop_reason`, `repair_stop_reason`, `repair_response`, `repair_blocks` |
 | `gate.decided` | `task_id`, `gate`, `verdict` (`pass`/`block`), `reason` | `attempt`, `tier`, `tests_sha256`, `results` / `gates` (per-gate detail), `evidence` |
 
 On SWE-bench Pro, `contents` holds the full new content of each changed file only, and the gate names
 include `T0.edits` (every SEARCH/REPLACE block applied); see [swepro.md](swepro.md). Arm `B2` is a
-second, independent single-Haiku sample (the probe's retry noise floor).
+second, independent single-Haiku sample (the probe's retry noise floor). A worker's repair request is
+a `usage.recorded` with the same tags plus `repair: true`, so it counts toward that arm's cost.
 
 **One `gate.decided` per submission.** The task projection treats the first `pass` as final, so a run
 of several gates is folded into one event (`gates.decision_payload`). Gate `reason` text is shown to
