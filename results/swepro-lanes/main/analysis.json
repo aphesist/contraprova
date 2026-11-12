@@ -1,0 +1,423 @@
+{
+ "n": 37,
+ "per_task": {
+  "instance_NodeBB__NodeBB-04998908ba6721d64eba79ae3b65a351dcfbc5b5-vnan": {
+   "La-shadow": true,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": false,
+   "D": false
+  },
+  "instance_NodeBB__NodeBB-8ca65b0c78c67c1653487c02d1135e1b702185e1-vf2cf3cbd463b7ad942381f1c6d077626485a1e9e": {
+   "La-shadow": true,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_NodeBB__NodeBB-9c576a0758690f45a6ca03b5884c601e473bf2c1-vd59a5728dfc977f44533186ace531248c2917516": {
+   "La-shadow": true,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_NodeBB__NodeBB-a5afad27e52fd336163063ba40dcadc80233ae10-vd59a5728dfc977f44533186ace531248c2917516": {
+   "La-shadow": true,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_NodeBB__NodeBB-f1a80d48cc45877fcbadf34c2345dd9709722c7f-v4fbcfae8b15e4ce5d132c408bca69ebb9cf146ed": {
+   "La-shadow": true,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_ansible__ansible-395e5e20fab9cad517243372fa3c3c5d9e09ab2a-v7eee2454f617569fd6889f2211f75bc02a35f9f8": {
+   "La-shadow": true,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_ansible__ansible-5260527c4a71bfed99d803e687dd19619423b134-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5": {
+   "La-shadow": true,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_ansible__ansible-949c503f2ef4b2c5d668af0492a5c0db1ab86140-v0f01c69f1e2528b935359cfe578530722bca2c59": {
+   "La-shadow": false,
+   "La-first": false,
+   "La-sonnet": false,
+   "La": false,
+   "B": false,
+   "D": false
+  },
+  "instance_ansible__ansible-bec27fb4c0a40c5f8bbcf26a475704227d65ee73-v30a923fb5c164d6cd18280c02422f75e611e8fb2": {
+   "La-shadow": true,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_ansible__ansible-bf98f031f3f5af31a2d78dc2f0a58fe92ebae0bb-v1055803c3a812189a1133297f7f5468579283f86": {
+   "La-shadow": true,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_ansible__ansible-d2f80991180337e2be23d6883064a67dcbaeb662-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5": {
+   "La-shadow": false,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_ansible__ansible-d58e69c82d7edd0583dd8e78d76b075c33c3151e-v173091e2e36d38c978002990795f66cfc0af30ad": {
+   "La-shadow": false,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_ansible__ansible-de5858f48dc9e1ce9117034e0d7e76806f420ca8-v1055803c3a812189a1133297f7f5468579283f86": {
+   "La-shadow": true,
+   "La-first": false,
+   "La-sonnet": true,
+   "La": true,
+   "B": false,
+   "D": true
+  },
+  "instance_element-hq__element-web-33e8edb3d508d6eefb354819ca693b7accc695e7": {
+   "La-shadow": false,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_element-hq__element-web-582a1b093fc0b77538052f45cbb9c7295f991b51-vnan": {
+   "La-shadow": true,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_element-hq__element-web-aec454dd6feeb93000380523cbb0b3681c0275fd-vnan": {
+   "La-shadow": false,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_element-hq__element-web-d06cf09bf0b3d4a0fbe6bd32e4115caea2083168-vnan": {
+   "La-shadow": false,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_element-hq__element-web-fe14847bb9bb07cab1b9c6c54335ff22ca5e516a-vnan": {
+   "La-shadow": true,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": false,
+   "D": true
+  },
+  "instance_internetarchive__openlibrary-0a90f9f0256e4f933523e9842799e39f95ae29ce-v76304ecdb3a5954fcf13feb710e8c40fcf24b73c": {
+   "La-shadow": true,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_internetarchive__openlibrary-1be7de788a444f6255e89c10ef6aa608550604a8-v29f82c9cf21d57b242f8d8b0e541525d259e2d63": {
+   "La-shadow": true,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_internetarchive__openlibrary-308a35d6999427c02b1dbf5211c033ad3b352556-ve8c8d62a2b60610a3c4631f5f23ed866bada9818": {
+   "La-shadow": true,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_internetarchive__openlibrary-30bc73a1395fba2300087c7f307e54bb5372b60a-v76304ecdb3a5954fcf13feb710e8c40fcf24b73c": {
+   "La-shadow": true,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_internetarchive__openlibrary-4b7ea2977be2747496ba792a678940baa985f7ea-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4": {
+   "La-shadow": true,
+   "La-first": false,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_internetarchive__openlibrary-6fdbbeee4c0a7e976ff3e46fb1d36f4eb110c428-v08d8e8889ec945ab821fb156c04c7d2e2810debb": {
+   "La-shadow": true,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_internetarchive__openlibrary-798a582540019363d14b2090755cc7b89a350788-v430f20c722405e462d9ef44dee7d34c41e76fe7a": {
+   "La-shadow": false,
+   "La-first": false,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_internetarchive__openlibrary-7c8dc180281491ccaa1b4b43518506323750d1e4-v298a7a812ceed28c4c18355a091f1b268fe56d86": {
+   "La-shadow": true,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_internetarchive__openlibrary-7cbfb812ef0e1f9716e2d6e85d538a96fcb79d13-vfa6ff903cb27f336e17654595dd900fa943dcd91": {
+   "La-shadow": false,
+   "La-first": false,
+   "La-sonnet": true,
+   "La": true,
+   "B": false,
+   "D": false
+  },
+  "instance_internetarchive__openlibrary-7f6b722a10f822171501d027cad60afe53337732-ve8c8d62a2b60610a3c4631f5f23ed866bada9818": {
+   "La-shadow": true,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_internetarchive__openlibrary-8a5a63af6e0be406aa6c8c9b6d5f28b2f1b6af5a-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4": {
+   "La-shadow": true,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_internetarchive__openlibrary-92db3454aeaa02f89b4cdbc3103f7e95c9759f92-v2c55207218fb8a0138425cbf7d9675272e240b90": {
+   "La-shadow": true,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_internetarchive__openlibrary-c506c1b0b678892af5cb22c1c1dbc35d96787a0a-v0f5aece3601a5b4419f7ccec1dbda2071be28ee4": {
+   "La-shadow": true,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_qutebrowser__qutebrowser-394bfaed6544c952c6b3463751abab3176ad4997-vafb3e8e01b31319c66c4e666b8a3b1d8ba55db24": {
+   "La-shadow": false,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_qutebrowser__qutebrowser-3fd8e12949b8feda401930574facf09dd4180bba": {
+   "La-shadow": true,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_qutebrowser__qutebrowser-85b867fe8d4378c8e371f055c70452f546055854-v2ef375ac784985212b1805e1d0431dc8f1b3c171": {
+   "La-shadow": true,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_qutebrowser__qutebrowser-bedc9f7fadf93f83d8dee95feeecb9922b6f063f-v2ef375ac784985212b1805e1d0431dc8f1b3c171": {
+   "La-shadow": true,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_qutebrowser__qutebrowser-de4a1c1a2839b5b49c3d4ce21d39de48d24e2091-v2ef375ac784985212b1805e1d0431dc8f1b3c171": {
+   "La-shadow": true,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  },
+  "instance_qutebrowser__qutebrowser-e5340c449f23608803c286da0563b62f58ba25b0-v059c6fdc75567943479b23ebca7c07b5e9a7f34c": {
+   "La-shadow": true,
+   "La-first": true,
+   "La-sonnet": true,
+   "La": true,
+   "B": true,
+   "D": true
+  }
+ },
+ "La_vs_La-shadow": {
+  "a_solved": 36,
+  "b_solved": 28,
+  "a_only": 8,
+  "b_only": 0,
+  "mcnemar_p": 0.0078125,
+  "diff_points": 21.62162162162162,
+  "ci95": [
+   8.108108108108109,
+   35.13513513513514
+  ]
+ },
+ "La_vs_D": {
+  "a_solved": 36,
+  "b_solved": 34,
+  "a_only": 2,
+  "b_only": 0,
+  "mcnemar_p": 0.5,
+  "diff_points": 5.405405405405405,
+  "ci95": [
+   0.0,
+   13.513513513513514
+  ]
+ },
+ "La-first_vs_La-shadow": {
+  "a_solved": 32,
+  "b_solved": 28,
+  "a_only": 6,
+  "b_only": 2,
+  "mcnemar_p": 0.2890625,
+  "diff_points": 10.81081081081081,
+  "ci95": [
+   -2.7027027027027026,
+   24.324324324324326
+  ]
+ },
+ "La-sonnet_vs_La-first": {
+  "a_solved": 36,
+  "b_solved": 32,
+  "a_only": 4,
+  "b_only": 0,
+  "mcnemar_p": 0.125,
+  "diff_points": 10.81081081081081,
+  "ci95": [
+   2.7027027027027026,
+   21.62162162162162
+  ]
+ },
+ "La_vs_B": {
+  "a_solved": 36,
+  "b_solved": 32,
+  "a_only": 4,
+  "b_only": 0,
+  "mcnemar_p": 0.125,
+  "diff_points": 10.81081081081081,
+  "ci95": [
+   2.7027027027027026,
+   21.62162162162162
+  ]
+ },
+ "D_vs_B": {
+  "a_solved": 34,
+  "b_solved": 32,
+  "a_only": 2,
+  "b_only": 0,
+  "mcnemar_p": 0.5,
+  "diff_points": 5.405405405405405,
+  "ci95": [
+   0.0,
+   13.513513513513514
+  ]
+ },
+ "solve": {
+  "La": {
+   "solved": 36,
+   "n": 37,
+   "wilson95": [
+    0.8617593000381216,
+    0.9952130256010299
+   ]
+  },
+  "D": {
+   "solved": 34,
+   "n": 37,
+   "wilson95": [
+    0.7869932051629003,
+    0.972039426117491
+   ]
+  },
+  "B": {
+   "solved": 32,
+   "n": 37,
+   "wilson95": [
+    0.7202258808047923,
+    0.9408670561168389
+   ]
+  },
+  "La-shadow": {
+   "solved": 28,
+   "n": 37,
+   "wilson95": [
+    0.5988270774532871,
+    0.8663864707508238
+   ]
+  },
+  "La-first": {
+   "solved": 32,
+   "n": 37,
+   "wilson95": [
+    0.7202258808047923,
+    0.9408670561168389
+   ]
+  },
+  "La-sonnet": {
+   "solved": 36,
+   "n": 37,
+   "wilson95": [
+    0.8617593000381216,
+    0.9952130256010299
+   ]
+  }
+ }
+}
