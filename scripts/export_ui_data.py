@@ -652,10 +652,12 @@ def inline_html(template: str, data_json: str) -> str:
 KIT_DIR = Path(__file__).resolve().parents[1] / "ui" / "vendor" / "lab-kit" / "v1"
 KIT_CSS_LINK = '<link rel="stylesheet" href="vendor/lab-kit/v1/lab.css">'
 KIT_JS_TAG = '<script src="vendor/lab-kit/v1/lab.js" defer></script>'
+FAVICON_LINK = '<link rel="icon" href="favicon.svg" type="image/svg+xml">'
 
 
 def inline_kit(template: str, kit_dir: str | Path = KIT_DIR) -> str:
-    """Replace the page's links to the vendored lab kit with the kit itself (fonts as data URIs)."""
+    """Replace the page's links to the vendored lab kit with the kit itself (fonts as data URIs), and the
+    favicon with a data URI."""
     kit = Path(kit_dir)
     if KIT_CSS_LINK not in template or KIT_JS_TAG not in template:
         raise ValueError("ui/index.html does not link the vendored lab kit")
@@ -670,7 +672,12 @@ def inline_kit(template: str, kit_dir: str | Path = KIT_DIR) -> str:
     if "</style" in css.lower() or "</script" in js.lower():
         raise ValueError("the lab kit cannot be inlined as it is")
     out = template.replace(KIT_CSS_LINK, f"<style>{css}</style>", 1)
-    return out.replace(KIT_JS_TAG, f"<script>{js}</script>", 1)
+    out = out.replace(KIT_JS_TAG, f"<script>{js}</script>", 1)
+    icon = kit.parents[2] / "favicon.svg"   # ui/favicon.svg, contraprova's icon
+    if FAVICON_LINK in out and icon.is_file():
+        data = base64.b64encode(icon.read_bytes()).decode("ascii")
+        out = out.replace(FAVICON_LINK, f'<link rel="icon" href="data:image/svg+xml;base64,{data}" type="image/svg+xml">', 1)
+    return out
 
 
 def main(argv: Iterable[str] | None = None) -> int:

@@ -310,7 +310,8 @@ def test_standalone_html_inlines_the_lab_kit(demo):
     template = (UI / "index.html").read_text(encoding="utf-8")
     html = export_ui_data.inline_html(export_ui_data.inline_kit(template), export_ui_data.dumps(data))
     p = _page_resources(html)
-    assert p.refs == [], p.refs
+    assert [r for r in p.refs if not r[1].startswith("data:")] == [], p.refs   # the favicon is inlined as a data URI
+    assert ("link", "favicon.svg") not in p.refs and "data:image/svg+xml;base64," in html
     assert "data:font/woff2;base64," in html and 'url("fonts/' not in html
     assert "window.Lab" in html and "vendor/lab-kit" not in html.split("<body", 1)[0]
 
