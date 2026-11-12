@@ -764,14 +764,17 @@ def _stem(path: str) -> str:
 
 
 def blame(plan: LanePlan, results: Sequence[GateResult], *, failed_tests: Sequence[str] = (),
-          output: str = "") -> tuple[tuple[str, ...], int, str]:
+          output: str = "", previous: Sequence[str] = ()) -> tuple[tuple[str, ...], int, str]:
     """(blamed lane ids, rule, basis) for a blocked merged decision.
 
     Rule 1 (direct): T0.edits -> the lanes whose edit errors blocked it; T0.interfaces -> the owners
     of the broken symbols; a test gate -> the lanes the plan assigned a failing test.
     Rule 2: a failing test's file stem equals a lane file's stem, or the verifier output names a
     lane file (tracebacks; the kernel reads them, workers never see them).
-    Rule 3: every lane (nothing else attributes the block)."""
+    Rule 3: every lane (nothing else attributes the block).
+    Widening: when a test gate blocks again and rule 1 would blame exactly the lanes it blamed the round
+    before (``previous``), their repair did not help, so the cause may lie elsewhere: rule 2 is tried with
+    those lanes kept, and if it adds no lane the block goes to every lane (rule 3)."""
     all_ids = tuple(ln.lane_id for ln in plan.lanes)
     block = next((r for r in results if r.verdict != "pass"), None)
     if block is None:
@@ -789,7 +792,8 @@ def blame(plan: LanePlan, results: Sequence[GateResult], *, failed_tests: Sequen
     if block.gate in (T0_VISIBLE, T1_PRIVATE):
         failed = set(failed_tests)
         lanes = tuple(ln.lane_id for ln in plan.lanes if failed & set(ln.tests))
-        if lanes:
+        widen = bool(lanes) and bool(previous) and set(lanes) == set(previous)
+        if lanes and not widen:
             return lanes, 1, "tests:assigned"
         hit = set()
         stems = {_stem(t.split("::")[0].split(" | ")[0].strip()) for t in failed}
@@ -797,6 +801,10 @@ def blame(plan: LanePlan, results: Sequence[GateResult], *, failed_tests: Sequen
             for p in ln.files:
                 if _stem(p) in stems or (output and (p in output or (p.count("/") >= 1 and p.split("/", 1)[1] in output))):
                     hit.add(ln.lane_id)
+        if widen:
+            if hit - set(previous):
+                return tuple(i for i in all_ids if i in hit | set(previous)), 2, "tests:widened"
+            return all_ids, 3, "tests:widened"
         lanes = tuple(i for i in all_ids if i in hit)
         if lanes:
             return lanes, 2, "tests:traceback"
@@ -1008,7 +1016,8 @@ def run_la(h, ex: ProExercise, ts: ProTestSplit, split: str = "", cfg: LaneConfi
         blamed: tuple[str, ...] = ()
         rule, basis = 0, "none"
         if not passed:
-            blamed, rule, basis = blame(plan, results, failed_tests=failed, output=res.output_tail if res else "")
+            blamed, rule, basis = blame(plan, results, failed_tests=failed, output=res.output_tail if res else "",
+                                        previous=escalated if rnd > 0 else ())
             if rule == 3:
                 _emit_clashes(h, tid, plan_id, [Clash("unattributable_failure", blamed, {"basis": basis})],
                               rnd, "governed")

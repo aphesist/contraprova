@@ -484,6 +484,22 @@ def test_blame_rules():
     assert blame(plan, [GateResult("T2.review", "block")])[1] == 3
 
 
+def test_blame_widens_when_the_same_lanes_are_blamed_again():
+    """the probe's ansible-ecea15c5: rule 1 kept blaming L1 for its assigned test while it climbed the ladder"""
+    plan = LanePlan((Lane("L1", ("lib/a.py",), tests=("tests/test_a.py::t1",)), Lane("L2", ("lib/b.py",)),
+                     Lane("L3", ("lib/c.py",))))
+    vis = [GateResult("T0.edits", "pass"), GateResult("T0.visible_tests", "block", "x", {})]
+    failed = ["tests/test_a.py::t1"]
+    # first block, or a different lane blamed before: rule 1 as usual
+    assert blame(plan, vis, failed_tests=failed) == (("L1",), 1, "tests:assigned")
+    assert blame(plan, vis, failed_tests=failed, previous=("L2",)) == (("L1",), 1, "tests:assigned")
+    # the same lane again: a traceback naming another lane's file adds that lane, keeping L1
+    tb = 'File "/app/lib/b.py", line 9'
+    assert blame(plan, vis, failed_tests=failed, output=tb, previous=("L1",)) == (("L1", "L2"), 2, "tests:widened")
+    # nothing new attributes it: every lane
+    assert blame(plan, vis, failed_tests=failed, previous=("L1",)) == (("L1", "L2", "L3"), 3, "tests:widened")
+
+
 def test_detectors():
     ex = make_ex()
     assert overlapping_scopes([("L1", ("a", "b")), ("L2", ("b",))])[0].lanes == ("L1", "L2")
