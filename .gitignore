@@ -17,3 +17,5 @@ runs/
 
 # SWE-bench Pro data (tasks, verifier files, context, image cache state): upstream licences, never committed
 data/
+# the replay UI's exports (summaries of committed logs, no task data) are committed
+!ui/data/

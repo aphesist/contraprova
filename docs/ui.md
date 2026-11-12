@@ -1,6 +1,14 @@
 # Replay UI
 
-`ui/index.html` is a static page that shows an event log as evidence. It has three linked
+`ui/index.html` is a static page that shows an event log as evidence. By default it shows the
+**real SWE-bench Pro main study** (`ui/data/swepro-main.json`, exported from
+`results/swepro-main/log.jsonl`); the "synthetic demo" link (`?demo`) switches to the synthetic demo
+log (`ui/demo-data.json`), and `?data=FILE` loads any other export in the folder.
+
+For a real study exported with its analysis file (`--analysis`), the page opens with **what this
+study found**: stat tiles (solve rate with its Wilson interval for A, D and the derived B, cost per
+solved task, forks, the orchestrator's share of D's dollars) and the cost-per-task (log x) against
+solve-rate chart for A, D and B over the whole log, with its table. Then come three linked
 panels, all showing the state **as of event N** on the timeline:
 
 1. **Attempts**: one point per (arm, task), including fork re-runs (labelled `D:control`, `D:treatment` from
@@ -11,6 +19,15 @@ panels, all showing the state **as of event N** on the timeline:
    for its task (the event trail); clicking a trail row moves the scrubber to that event.
 
 Below them an honesty table says what each claim on the page rests on.
+
+**Where the study's numbers come from.** The tiles and the first three honesty rows (non-inferiority
+of D to A, cost per solved D/A, escalation value) are formatted by the exporter from the
+pre-registered analysis file (`results/swepro-main/analysis.json`, written by its `analyze.py`).
+The exporter refuses an analysis that does not describe the log: event count, solve counts per arm,
+cost totals (A, D, derived B, fork measurement overhead) and fork outcomes must all match its own
+recomputation from the log. The chart and its table use the export's final arm totals. The page
+types in no study number; `tests/test_ui_real_study.py` checks the rows and tiles against
+`analysis.json` and, where node with playwright is installed, reads them back from the rendered page.
 
 Python is the source of truth. `scripts/export_ui_data.py` verifies the log (hash chain plus full
 replay), prices every `usage.recorded` event under every price table with
@@ -34,12 +51,24 @@ python scripts/export_ui_data.py /tmp/demo.jsonl -o ui/demo-data.json
 python -m http.server -d ui 8000      # then open http://localhost:8000/
 ```
 
-For a real log:
+The main study (this is how `ui/data/swepro-main.json` is made; a test checks it is up to date):
+
+```bash
+python scripts/export_ui_data.py results/swepro-main/log.jsonl \
+  --analysis results/swepro-main/analysis.json -o ui/data/swepro-main.json
+# open http://localhost:8000/          (the synthetic demo: http://localhost:8000/?demo)
+```
+
+Any other real log:
 
 ```bash
 python scripts/export_ui_data.py path/to/log.jsonl -o ui/data.json
 # open http://localhost:8000/?data=data.json
 ```
+
+The main-study log was written with `--no-log-contents`, and the export carries no file contents in
+any case: one summary line per event (task id, gate verdict and reason, model and token counts),
+never a diff, a worker reply or a file. The export is about 0.66 MB.
 
 Browsers block `fetch` from `file://`. To open the page straight from disk, either use the file
 picker it shows, or build a standalone copy with the data inlined:
@@ -50,7 +79,8 @@ python scripts/export_ui_data.py path/to/log.jsonl -o /tmp/data.json --html /tmp
 
 The page makes no requests outside its own folder: its data file and the vendored lab kit
 (`ui/vendor/lab-kit/v1/`: `lab.css`, `lab.js`, the two fonts). No CDN, no analytics. It works on
-GitHub Pages as-is (it loads `demo-data.json` next to it). The `--html` copy inlines the kit too
+GitHub Pages as-is: `.github/workflows/pages.yml` publishes `ui/` unchanged, with no build step (it
+loads `data/swepro-main.json`, or `demo-data.json`, next to it). The `--html` copy inlines the kit too
 (stylesheet, fonts as data URIs, script), so it is one file. `tests/test_ui_export.py` checks every
 resource the page and the kit name, and the kit's checksums.
 
@@ -99,7 +129,14 @@ Payloads follow [events.md](events.md).
 - Fork re-runs are fork events: usage and outcomes keyed by `fork_id`. For display only, the exporter
   labels each fork `<parent arm>:<role>` (`D:control`, `D:treatment`; further controls at the same
   fork point are `D:control-2`, ...), and lists those labels in `arms` with `kind: "fork"`, `parent`,
-  `role` and `replicate`. Every fork's cost is shown under the fork's label. The branch an arm shipped (its outcome's `branch_task_id`) also counts toward that arm, as a cost delta on the arm's attempt at the arm's outcome event; the rest of the fork spend is measurement overhead (`final.measurement_overhead`, shown under the arm table) and in no arm's cost (see statistics.md).
+  `role`, `replicate` and the fork's `model` (the page shows `D:control · haiku`, `D:treatment · opus`). Every fork's cost is shown under the fork's label. The branch an arm shipped (its outcome's `branch_task_id`) also counts toward that arm, as a cost delta on the arm's attempt at the arm's outcome event; the rest of the fork spend is measurement overhead (`final.measurement_overhead`, shown under the arm table) and in no arm's cost (see statistics.md).
+- **Derived arms.** An arm outcome with `derived_from` (arm `B`, D's first brief-assisted Haiku attempt
+  scored on its own) is listed in `arms` with `derived_from`. Its cost is the parent arm's own worker
+  requests on the outcome's `model` for that kernel task (`log_task_id`; first attempt plus repair
+  turn), the same rule as `results/swepro-main/analyze.py`. That spend stays the parent's too, so a
+  derived arm is a view, not extra spend.
+- **Repair turns** (`usage.recorded` with `repair: true`) are marked on their attempt (tooltip) and in
+  the event line ("repair turn"). SWE-bench Pro attempts carry the task's `repo`.
 - An attempt's **model tier** is the strongest model that did worker work on it (roles `worker`,
   `control`, `treatment`, or the routed model). **Escalated** means a route to a non-Haiku model on a
   retry (`decision: after_gate_failure`, or `features.attempt > 0`, the `router.featurize` encoding of attempt 2 and later) or a treatment fork. **Blocked** means at least one `gate.decided`
@@ -137,7 +174,7 @@ the explained variance and the top loadings, and the axis labels show them.
 - **Synthetic data is labelled.** If any `task.created` payload has `"synthetic": true`, the export
   sets `synthetic: true` and the page shows a "synthetic demo data — not results" callout, a
   watermark on the map, and marks every quantitative claim in the honesty table "synthetic demo, not
-  results" (for a real log they read measured, modelled or hypothesis). `ui/demo-data.json` is synthetic: its solve probabilities are invented and say nothing
+  results" (for a real log they read measured, modelled, tested or hypothesis; for the main study the escalation row is measured, imprecise, from its 8 forks). `ui/demo-data.json` is synthetic: its solve probabilities are invented and say nothing
   about any model.
 - **Re-pricing.** The selector offers every table in `contraprova.pricing.PRICE_TABLES` plus a
   what-if with Haiku at half price (built with `pricing.scale_table`). It is a what-if, not a

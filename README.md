@@ -36,7 +36,7 @@ main study moves to harder tasks.
 | SWE-bench Pro harness (Python/JS subset, 327 tasks): outlines for the orchestrator, SEARCH/REPLACE edits, Docker verifier, probe pre-flight | Built, tested; scorer validated at $0 on the 12 probe tasks (empty patch 0, gold patch 1). Probe not yet run. [docs](docs/swepro.md) |
 | MCP edge (`submit_intent`, `query_projection`) | Built, tested |
 | Analysis and `contraprova report`: per-arm, paired, escalation value, gate quality, frontier | Built; run on the pilot log |
-| Replay UI | Built; shown on a synthetic demo log |
+| Replay UI | Built; shows the real SWE-bench Pro main study (replay check 30/30), with the synthetic demo one link away. [docs](docs/ui.md) |
 | Reusable Claude Code orchestrator/worker configuration | Written, not yet evaluated |
 | Local track (Contract Lanes on a rented GPU) | Planned |
 

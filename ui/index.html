@@ -83,8 +83,17 @@
   #trail tr.future > * { opacity: .45; }
   #trail tr.now > * { color: var(--ink); background: linear-gradient(to right, var(--accent) 2px, transparent 2px) left bottom / 4px 2px repeat-x; }
   #trail td { overflow-wrap: anywhere; }
+  #trail td.ty { overflow-wrap: normal; white-space: nowrap; }
 
   #loader { margin-top: var(--space-6); }
+
+  /* the data set switch and the findings */
+  .cp-sets { display: inline-flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); align-items: baseline; }
+  .cp-sets a[aria-current="page"] { color: var(--ink); text-decoration: none; }
+  #app > .cp-found { margin-top: 0; }
+  .cp-found > .lab-stats { margin-top: var(--space-5); }
+  .cp-found-grid { margin-top: var(--space-6); grid-template-columns: minmax(0, 1fr); max-width: 760px; }
+  #app > .cp-replay-head { margin-top: var(--space-7); }
 
   @media (max-width: 860px) {
     .cp-grid { grid-template-columns: minmax(0, 1fr); }
@@ -114,6 +123,7 @@
   <h1 class="lab-title">the replay</h1>
   <p class="lab-lede">one hash-chained event log, replayed event by event: every task attempt, the cost of each arm against its solve rate, and the trail of events behind any point.</p>
   <div class="cp-meta lab-meta">
+    <nav class="cp-sets" id="sets" aria-label="data set">data set <a href="./" id="set-main">main study</a> <a href="./?demo" id="set-demo">synthetic demo</a></nav>
     <span class="cp-src" id="src"></span>
     <span class="lab-ev" id="check" data-ev="tested" title="the page folds the per-event deltas itself and compares its totals with the ones python computed at each checkpoint.">replay check: pending</span>
   </div>
@@ -132,6 +142,22 @@
 </section>
 
 <div id="app" hidden>
+  <section class="lab-section cp-found" id="found" aria-labelledby="h-found" hidden>
+    <h2 id="h-found">what this study found</h2>
+    <p class="lab-prose" id="found-lede"></p>
+    <dl class="lab-stats" id="tiles"></dl>
+    <div class="cp-grid cp-found-grid">
+      <figure class="lab-chart" id="fig-front">
+        <div class="lab-chart-head"><h3 id="h-front">cost per task against solve rate, the whole study</h3></div>
+        <svg id="front" class="lab-svg" role="img" aria-label="cost per task against solve rate for arms A, D and B"></svg>
+        <ul class="lab-legend" id="frontlegend" style="margin-top: var(--space-3)"></ul>
+        <figcaption id="frontsub"></figcaption>
+      </figure>
+      <div class="lab-table-wrap"><table class="lab-table lab-table--dense" id="fronttable"></table></div>
+    </div>
+  </section>
+
+  <h2 class="cp-replay-head" id="h-replay" hidden>the log, event by event</h2>
   <dl class="lab-stats" aria-live="polite">
     <div class="lab-stat"><dt class="lab-stat-label">event</dt><dd class="lab-stat-value num" id="st-ev">0</dd><dd class="lab-stat-note" id="st-ev-note"></dd></div>
     <div class="lab-stat"><dt class="lab-stat-label">attempts shown</dt><dd class="lab-stat-value num" id="st-att">0</dd><dd class="lab-stat-note" id="st-att-note"></dd></div>
@@ -228,7 +254,7 @@
       <span class="lab-ev" data-ev="measured">measured · observed directly</span>
       <span class="lab-ev" data-ev="modelled">modelled · computed from what was measured</span>
       <span class="lab-ev" data-ev="tested">tested · checked, and it held</span>
-      <span class="lab-ev" data-ev="hypothesis">hypothesis · not checked yet</span>
+      <span class="lab-ev" data-ev="hypothesis" id="ev-hyp">hypothesis · not checked yet</span>
       <span class="lab-ev" data-ev="synthetic" id="ev-synth" hidden>synthetic demo, not results · invented data, nothing measured</span>
     </div>
   </section>
@@ -287,7 +313,7 @@ function start(data) {
     const li = document.createElement("li"), b = document.createElement("button");
     b.type = "button";
     b.className = `lab-button lab-key lab-key--dot cp-id ${keyClass(armToken(a.id))}${a.kind === "fork" ? " cp-key-hollow" : ""}`;
-    b.textContent = a.id; b.setAttribute("aria-pressed", "true"); b.setAttribute("aria-label", `show arm ${a.id}`);
+    b.textContent = armName(a.id); b.setAttribute("aria-pressed", "true"); b.setAttribute("aria-label", `show arm ${armName(a.id)}`);
     b.onclick = () => { if (hidden.has(a.id)) hidden.delete(a.id); else hidden.add(a.id); b.setAttribute("aria-pressed", String(!hidden.has(a.id))); render(); };
     li.appendChild(b); chips.appendChild(li);
   });
@@ -306,14 +332,20 @@ function start(data) {
   if (window.Lab) $("kit-version").textContent = Lab.version;
   runCheck();
   honesty();
+  findings();
   render();
 }
 function showLoader(msg) { $("loader").hidden = false; if (msg) $("loadmsg").textContent = msg; }
+// the real main study by default; ?demo for the synthetic demo; ?data=FILE for any other export in this folder
+const MAIN_DATA = "data/swepro-main.json", DEMO_DATA = "demo-data.json";
 async function load() {
   const emb = $("embedded-data").textContent.trim();
-  if (emb) { start(JSON.parse(emb)); return; }
-  const q = new URLSearchParams(location.search).get("data");
-  const urls = [q || "demo-data.json"];
+  if (emb) { $("sets").hidden = true; start(JSON.parse(emb)); return; }
+  const qs = new URLSearchParams(location.search);
+  const q = qs.get("data") || (qs.has("demo") ? DEMO_DATA : MAIN_DATA);
+  const cur = q === MAIN_DATA ? "set-main" : q === DEMO_DATA ? "set-demo" : null;
+  if (cur) $(cur).setAttribute("aria-current", "page");
+  const urls = [q];
   for (const u of urls) {
     try { const r = await fetch(u, { cache: "no-store" }); if (r.ok) { start(await r.json()); return; } } catch (e) { /* try next */ }
   }
@@ -325,7 +357,7 @@ $("file").onchange = (e) => { const f = e.target.files[0]; if (!f) return; f.tex
 // Applies the per-event deltas Python wrote. No pricing or task logic lives here.
 function fold(upto, onCheckpoint) {
   const T = D.table_names.length;
-  const A = D.attempts.map(() => ({ seen: false, cost: new Array(T).fill(0), solved: null, blocked: false, gated: false, escalated: false, tier: -1, status: null, fork: null }));
+  const A = D.attempts.map(() => ({ seen: false, cost: new Array(T).fill(0), solved: null, blocked: false, gated: false, escalated: false, repair: false, tier: -1, status: null, fork: null }));
   const arms = {};
   const arm = (id) => arms[id] || (arms[id] = { cost: new Array(T).fill(0), tasks: new Set(), out: {} });
   const cps = new Map((D.checkpoints || []).map((c) => [c.seq, c]));
@@ -338,6 +370,7 @@ function fold(upto, onCheckpoint) {
       else if (f === "solved") { a.solved = v; const m = arm(at.arm); m.out[at.task_id] = v; m.tasks.add(at.task_id); }
       else if (f === "blocked") a.blocked = true;
       else if (f === "escalated") a.escalated = true;
+      else if (f === "repair") a.repair = true;
       else if (f === "model" || f === "route") { a.tier = Math.max(a.tier, D.tier_order.indexOf(v)); }
       else if (f === "status") a.status = v;
       else if (f === "fork") { a.fork = v; a.tier = Math.max(a.tier, D.tier_order.indexOf(v.model)); }
@@ -390,16 +423,21 @@ function honesty() {
   const synth = '<span class="lab-ev" data-ev="synthetic">synthetic demo, not results</span>';
   const q = (kind) => syn ? synth : ev(kind);
   const failed = (w) => `<span class="lab-fail">did not hold · ${esc(w)}</span>`;
-  const rows = [
-    [`this page's fold of the log equals python's arm totals at every checkpoint (${checkRes.ok}/${checkRes.ok + checkRes.bad})`, checkRes.bad ? failed(`${checkRes.bad} checkpoints differ`) : ev("tested")],
-    ["the log's hash chain and full replay verified before export", D.source.verified ? ev("tested") : failed("not verified")],
-    ["costs, task counts and solve rates per arm, as logged", q("measured")],
+  const replay = [`this page's fold of the log equals python's arm totals at every checkpoint (${checkRes.ok}/${checkRes.ok + checkRes.bad})`, checkRes.bad ? failed(`${checkRes.bad} checkpoints differ`) : ev("tested")];
+  const chain = ["the log's hash chain and full replay verified before export", D.source.verified ? ev("tested") : failed("not verified")];
+  const layout = [
     ["the 95% wilson intervals and the pareto frontier at the scrubber", q("modelled")],
     ["re-pricing the same history under another price table, including the haiku ×0.5 what-if", q("modelled")],
     ["nearby points did similar amounts of work (a pca layout of counts, not meaning)", q("modelled")],
-    ["escalating after a failed gate solves more than a same-model retry", q("hypothesis")],
   ];
+  // a real study: its pre-registered findings, as exported from its analysis file (never typed into this page)
+  const study = !syn && D.study && D.study.honesty ? D.study.honesty.map((h) => [h.claim, ev(h.kind, esc(h.word))]) : null;
+  const rows = study
+    ? [...study, replay, chain, ["costs, task counts and solve rates per arm, recomputed from the logged tokens and outcomes", ev("measured")], ...layout]
+    : [replay, chain, ["costs, task counts and solve rates per arm, as logged", q("measured")], ...layout,
+       ["escalating after a failed gate solves more than a same-model retry", q("hypothesis")]];
   $("ev-synth").hidden = !syn;
+  $("ev-hyp").hidden = !!study;   // the key lists only the kinds the table uses
   document.querySelector("#honesty tbody").innerHTML = rows.map(([c, e]) => `<tr><td>${esc(c)}</td><td>${e}</td></tr>`).join("");
 }
 
@@ -407,6 +445,20 @@ function honesty() {
 // keys: [label, token, shape]; one series is ink, two or more take the slots in order, context is lab-dim.
 const armSlot = (id) => { const i = D.arms.findIndex((a) => a.id === id); return i >= 0 && i < 8 ? i + 1 : 0; };
 const armToken = (id) => { const k = armSlot(id); return k ? "lab-cat-" + k : "lab-dim"; };
+// a display name: a derived arm says so, a fork names its model ("D:control · haiku"); the id stays the key
+const armName = (id) => {
+  const a = D.arms.find((x) => x.id === id);
+  if (!a) return id;
+  if (a.derived_from) return `${id} (derived)`;
+  if (a.kind === "fork" && a.model) return `${id} · ${String(a.model).replace("claude-", "").replace(/-\d.*$/, "")}`;
+  return id;
+};
+let measureCtx = null;
+function textWidth(t) {   // the width of a direct label in the label font, so labels can be kept apart
+  measureCtx = measureCtx || document.createElement("canvas").getContext("2d");
+  measureCtx.font = `11px ${fontText()}`;
+  return measureCtx.measureText(t).width + 4;
+}
 const ENC = {
   arm: { keys: null, of: null },
   outcome: { keys: [["solved", "lab-cat-1"], ["not solved", "lab-cat-2"], ["not scored yet", "lab-dim"]],
@@ -417,7 +469,7 @@ const ENC = {
     of: (a) => a.blocked ? 0 : a.gated ? 1 : 2 },
 };
 function encKeys(mode) {
-  if (mode === "arm") return D.arms.map((a) => [a.id, armToken(a.id), null, true]);
+  if (mode === "arm") return D.arms.map((a) => [armName(a.id), armToken(a.id), null, true]);
   if (mode !== "tier") return ENC[mode].keys;
   return D.tier_order.slice(0, 8).map((m, i) => [m.replace("claude-", ""), "lab-cat-" + (i + 1)]).concat([["no worker call yet", "lab-dim"]]);
 }
@@ -433,6 +485,7 @@ function keyOf(mode, i, a) {
 function render() {
   if (!D) return;
   state = fold(N);
+  drawFindings();
   drawMap();
   drawLegend();
   drawPareto();
@@ -515,7 +568,7 @@ function drawMap() {
       let ly = y + 4; while (used.some(([ux, uy]) => Math.abs(ux - x) < 90 && Math.abs(uy - ly) < 13)) ly += 13;
       used.push([x, ly]);
       g.fillStyle = tok("ink");
-      const lbl = D.attempts[i].arm + (i === selected ? " · selected" : ""), tw = g.measureText(lbl).width;
+      const lbl = armName(D.attempts[i].arm) + (i === selected ? " · selected" : ""), tw = g.measureText(lbl).width;
       const lx = x + r + 5 + tw > W - pad.r ? x - r - 5 - tw : x + r + 5;
       g.fillText(lbl, lx, ly);
     }
@@ -526,9 +579,10 @@ function drawMap() {
   for (const [i] of pts) { const k = keyOf(mode, i, state.A[i]); const c = counts.find((x) => x[0] === k[0]); if (c) c[1]++; }
   const modeName = $("colorby").selectedOptions[0].textContent;
   cv.setAttribute("aria-label", `point map: ${vis} of ${D.attempts.length} attempts visible at event ${N}, coloured by ${modeName}: ` +
-    counts.filter((c) => c[1]).map((c) => `${c[0]} ${c[1]}`).join(", ") + (selTask ? `. selected: ${D.attempts[selected].arm} on ${selTask}` : "") + (D.synthetic ? ". synthetic demo data" : ""));
+    counts.filter((c) => c[1]).map((c) => `${c[0]} ${c[1]}`).join(", ") + (selTask ? `. selected: ${armName(D.attempts[selected].arm)} on ${selTask}` : "") + (D.synthetic ? ". synthetic demo data" : ""));
   $("mapsub").textContent = `${vis} of ${D.attempts.length} attempts visible at event ${N}. a deterministic pca layout of work counts, not semantic meaning. size = cost under ${D.table_names[tableIx]}; hollow = fork re-run.` +
-    (mode === "gate" ? " blocked attempts are diamonds." : mode === "escalated" ? " escalated attempts are triangles." : "");
+    (mode === "gate" ? " blocked attempts are diamonds." : mode === "escalated" ? " escalated attempts are triangles." : "") +
+    D.arms.filter((a) => a.derived_from).map((a) => ` ${armName(a.id)} logs no requests of its own (it scores ${a.derived_from}'s first attempt), so its points sit together at the edge of the layout.`).join("");
 }
 
 function drawLegend() {
@@ -556,8 +610,8 @@ $("map").addEventListener("mousemove", (ev) => {
   if (i < 0) { tip.classList.remove("on"); return; }
   const at = D.attempts[i], a = state.A[i];
   const tier = a.tier >= 0 ? D.tier_order[a.tier].replace("claude-", "") : "-";
-  tip.textContent = `${at.arm} · ${at.task_id}\nmodel tier: ${tier}\ncost: ${fmtUSD(a.cost[tableIx])}\nsolved: ${a.solved === null ? "not scored yet" : a.solved ? "yes" : "no"}` +
-    (a.blocked ? "\nblocked by a gate" : "") + (a.escalated ? "\nescalated" : "") + (a.status ? `\ntask status: ${a.status}` : "");
+  tip.textContent = `${armName(at.arm)} · ${at.task_id}${at.repo ? "\nrepository: " + at.repo : ""}\nmodel tier: ${tier}\ncost: ${fmtUSD(a.cost[tableIx])}\nsolved: ${a.solved === null ? "not scored yet" : a.solved ? "yes" : "no"}` +
+    (a.blocked ? "\nblocked by a gate" : "") + (a.repair ? "\nused a repair turn" : "") + (a.escalated ? "\nescalated" : "") + (a.status ? `\ntask status: ${a.status}` : "");
   tip.classList.add("on");
   const r = tip.getBoundingClientRect();
   let px = ev.clientX + 14, py = ev.clientY + 14;
@@ -632,11 +686,11 @@ function drawPareto() {
   for (const p of pts.slice().sort((a, b) => a.c - b.c)) {
     const x = Math.round(lx(p.c)), y = Math.round(ly(p.q)), [w0, w1] = p.s.wilson95;
     el("rect", { class: `lab-dot ${p.k}${p.fork ? " cp-hollow" : ""}`, x: x - 4, y: y - 4, width: 8, height: 8, tabindex: 0,
-      "data-tip": `${p.id}${p.fork ? " · fork re-run (failed-once tasks only)" : ""}${frontIds.has(p.id) ? " · on the frontier" : ""}\nsolve rate ${pct(p.q)} (${p.s.n_solved}/${p.s.n_scored}) · 95% ${pct(w0)}–${pct(w1)}\n${fmtUSD(p.c)} per task` }, f.g);
+      "data-tip": `${armName(p.id)}${p.fork ? " · fork re-run (failed-once tasks only)" : ""}${frontIds.has(p.id) ? " · on the frontier" : ""}\nsolve rate ${pct(p.q)} (${p.s.n_solved}/${p.s.n_scored}) · 95% ${pct(w0)}–${pct(w1)}\n${fmtUSD(p.c)} per task` }, f.g);
     if (p.id === selArm) el("rect", { class: "lab-ring", x: x - 8.5, y: y - 8.5, width: 17, height: 17 }, f.g);
     if (!labelled && p.id !== selArm) continue;
-    const label = (p.fork ? `${p.id} n=${p.s.n_scored}` : p.id) + (p.id === selArm ? " · selected" : "");
-    const tw = label.length * 7.3;
+    const label = (p.fork ? `${armName(p.id)} n=${p.s.n_scored}` : armName(p.id)) + (p.id === selArm ? " · selected" : "");
+    const tw = textWidth(label);
     const right = x + 12 + tw > f.iw;
     const lx0 = right ? x - 12 - tw : x + 12;
     let ty = y + 4;
@@ -645,20 +699,20 @@ function drawPareto() {
     el("text", { x: lx0, y: ty, class: "lab-label cp-id" }, f.g, label);
   }
   // legend: one key per series shown, the band, the frontier, the ring
-  const legend = pts.map((p) => `<li class="lab-key lab-key--dot cp-id ${p.k}${p.fork ? " cp-key-hollow" : ""}">${esc(p.id)}</li>`);
+  const legend = pts.map((p) => `<li class="lab-key lab-key--dot cp-id ${p.k}${p.fork ? " cp-key-hollow" : ""}">${esc(armName(p.id))}</li>`);
   legend.push('<li class="lab-key lab-key--band lab-soft">95% wilson interval</li>', '<li class="lab-key lab-ink">pareto frontier, arms A–D</li>');
   if (selArm && pts.some((p) => p.id === selArm)) legend.push('<li class="lab-key cp-key-ring">the selected attempt\'s arm</li>');
   $("parlegend").innerHTML = legend.join("");
   const best = main.slice().sort((a, b) => b.q - a.q || a.c - b.c)[0];
   svg.setAttribute("aria-label", pts.length ? `cost per task against solve rate for ${pts.length} arms at event ${N}, under ${D.table_names[tableIx]}: ` +
-    `the frontier runs ${front.map((p) => p.id).join(" to ") || "through no arm yet"}` + (best ? `; the highest solve rate among arms A–D is ${best.id}, ${pct(best.q)} at ${fmtUSD(best.c)} per task` : "") +
+    `the frontier runs ${front.map((p) => armName(p.id)).join(" to ") || "through no arm yet"}` + (best ? `; the highest solve rate among arms A–D is ${armName(best.id)}, ${pct(best.q)} at ${fmtUSD(best.c)} per task` : "") +
     (D.synthetic ? ". synthetic demo data, not results" : "") : `no arm has a scored task yet at event ${N}`);
   $("parsub").textContent = `as of event ${N}, priced with ${D.table_names[tableIx]}. stippled bands: 95% wilson interval. ink step: pareto frontier over arms A–D. hollow: fork re-runs (failed-once tasks only), kept off the frontier.`;
   // table view of the same numbers
   const rows = Object.entries(arms).map(([id, s]) => {
     const solvedCost = s.n_solved ? s.cost[tableIx] / s.n_solved : null;
     const fork = kinds[id] === "fork";
-    return `<tr><th scope="row"><span class="lab-key lab-key--dot cp-id ${keyClass(armToken(id))}${fork ? " cp-key-hollow" : ""}">${esc(id)}${frontIds.has(id) ? " *" : ""}</span></th><td class="num">${s.n_scored}</td><td class="num">${s.n_solved}</td><td class="num">${s.n_scored ? pct(s.solve_rate) : "-"}</td><td class="num">${s.n_scored ? pct(s.wilson95[0]) + "–" + pct(s.wilson95[1]) : "-"}</td><td class="num">${fmtUSD(s.cost_per_task[tableIx])}</td><td class="num">${solvedCost === null ? "-" : fmtUSD(solvedCost)}</td></tr>`;
+    return `<tr><th scope="row"><span class="lab-key lab-key--dot cp-id ${keyClass(armToken(id))}${fork ? " cp-key-hollow" : ""}">${esc(armName(id))}${frontIds.has(id) ? " *" : ""}</span></th><td class="num">${s.n_scored}</td><td class="num">${s.n_solved}</td><td class="num">${s.n_scored ? pct(s.solve_rate) : "-"}</td><td class="num">${s.n_scored ? pct(s.wilson95[0]) + "–" + pct(s.wilson95[1]) : "-"}</td><td class="num">${fmtUSD(s.cost_per_task[tableIx])}</td><td class="num">${solvedCost === null ? "-" : fmtUSD(solvedCost)}</td></tr>`;
   }).join("");
   $("armtable").innerHTML = `<caption>the numbers behind the chart, as of event ${N} under ${esc(D.table_names[tableIx])}. * on the frontier.</caption><thead><tr><th scope="col">arm</th><th scope="col" class="num">n</th><th scope="col" class="num">solved</th><th scope="col" class="num">rate</th><th scope="col" class="num">95% ci</th><th scope="col" class="num">$/task</th><th scope="col" class="num">$/solved</th></tr></thead><tbody>${rows}</tbody>`;
   // paired fork summary
@@ -673,6 +727,82 @@ function drawPareto() {
   const ov = (D.final || {}).measurement_overhead || {};
   const ovRows = Object.entries(ov).flatMap(([a, roles]) => Object.entries(roles).map(([role, c]) => `${esc(a)} ${esc(role)} ${fmtUSD(c[tableIx])}`));
   if (ovRows.length) $("esc").innerHTML += ` <b>measurement overhead</b> (whole log: fork spend no arm shipped, in no arm's cost): ${ovRows.join(", ")}. an arm's cost includes the one fork branch it shipped.`;
+}
+
+// ------------------------------------------------------------ what this study found (a real study with an analysis file only)
+// Every number here comes from the export: the tiles are formatted in python from the analysis file (which the exporter
+// checks against the log), and the chart and its table use the final arm totals python computed, under the study's table.
+function findings() {
+  const st = D.synthetic ? null : D.study;
+  $("found").hidden = !st;
+  $("h-replay").hidden = !st;
+  if (!st) return;
+  const repos = st.repos || [];
+  $("found-lede").textContent = `${st.benchmark === "swepro" ? "swe-bench pro" : st.benchmark || "the benchmark"}` +
+    `${st.split ? ", split " + st.split : ""}: ${st.n_pairs} task pairs (each task run by arm A and arm D)` +
+    `${repos.length ? ` from ${repos.length} repositories (${repos.join(", ")})` : ""}. pre-registered; numbers from ${st.analysis_source.file}, checked against this log at export.`;
+  $("tiles").innerHTML = st.tiles.map((t) =>
+    `<div class="lab-stat${t.arm ? " " + keyClass(armToken(t.arm)) : ""}"><dt class="lab-stat-label">${esc(t.label)}</dt>` +
+    `<dd class="lab-stat-value num">${esc(t.value)}${t.small ? `<small>${esc(t.small)}</small>` : ""}</dd>` +
+    `${t.note ? `<dd class="lab-stat-note">${esc(t.note)}</dd>` : ""}</div>`).join("");
+}
+function drawFindings() {
+  if ($("found").hidden) return;
+  const ti = Math.max(0, D.table_names.indexOf(D.default_table)), table = D.table_names[ti];
+  const svg = $("front");
+  const W = Math.max(260, Math.round($("fig-front").getBoundingClientRect().width)), H = Math.max(240, Math.min(300, Math.round(W * 0.7)));
+  svg.setAttribute("width", W); svg.setAttribute("height", H); svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.textContent = "";
+  const m = { l: 40, r: 14, t: 22, b: 40 };
+  const f = { iw: W - m.l - m.r, ih: H - m.t - m.b };
+  f.g = el("g", { transform: `translate(${m.l},${m.t})` }, svg);
+  const pts = D.arms.filter((a) => a.kind === "arm" && D.final.arms[a.id] && D.final.arms[a.id].n_scored > 0)
+    .map((a) => { const s = D.final.arms[a.id]; return { id: a.id, s, c: s.cost_per_task[ti], q: s.solve_rate, k: keyClass(armToken(a.id)) }; });
+  const cs = pts.map((p) => p.c).filter((c) => c > 0);
+  const lo = Math.min(...cs) / 2.5, hi = Math.max(...cs) * 2.5;
+  const lx = (c) => (Math.log10(Math.max(c, lo)) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo)) * f.iw;
+  // the solve rates sit high: the y axis starts at a round number below the lowest interval, and says so
+  const qlo = Math.max(0, Math.floor(Math.min(...pts.map((p) => p.s.wilson95[0])) * 10 - 0.5) / 10);
+  const ly = (q) => (1 - (q - qlo) / (1 - qlo)) * f.ih;
+  const yt = []; for (let q = qlo; q <= 1.0001; q += (1 - qlo) <= 0.3 ? 0.05 : 0.1) yt.push(Math.round(q * 100) / 100);
+  const xt = [];
+  for (let e = Math.ceil(Math.log10(lo)) - 1; e <= Math.floor(Math.log10(hi)); e++) for (const k of [1, 3]) { const c = k * Math.pow(10, e); if (c >= lo && c <= hi) xt.push(c); }
+  axisY(f, ly, yt, pct, `solve rate (axis from ${pct(qlo)})`);
+  axisX(f, lx, xt, fmtUSD, "cost per task, log scale");
+  const front = pts.filter((p) => !pts.some((o) => o.c <= p.c && o.q >= p.q && (o.c < p.c || o.q > p.q))).sort((a, b) => a.c - b.c || b.q - a.q);
+  const frontIds = new Set(front.map((p) => p.id));
+  for (const p of pts) {
+    const [w0, w1] = p.s.wilson95, x = Math.round(lx(p.c));
+    el("rect", { class: `lab-band ${p.k}`, x: x - 5, y: Math.round(ly(w1)), width: 10, height: Math.max(1, Math.round(ly(w0) - ly(w1))) }, f.g);
+  }
+  if (front.length) {
+    let d = `M${lx(front[0].c).toFixed(1)},${ly(front[0].q).toFixed(1)}`;
+    for (let i = 1; i < front.length; i++) d += `H${lx(front[i].c).toFixed(1)}V${ly(front[i].q).toFixed(1)}`;
+    d += `H${f.iw}`;
+    el("path", { class: "lab-halo", d }, f.g);
+    el("path", { class: "lab-step lab-ink", d }, f.g);
+  }
+  const placed = [];
+  for (const p of pts.slice().sort((a, b) => a.c - b.c)) {
+    const x = Math.round(lx(p.c)), y = Math.round(ly(p.q)), [w0, w1] = p.s.wilson95;
+    el("rect", { class: `lab-dot ${p.k}`, x: x - 4, y: y - 4, width: 8, height: 8, tabindex: 0,
+      "data-tip": `${armName(p.id)}\nsolve rate ${(100 * p.q).toFixed(1)}% (${p.s.n_solved}/${p.s.n_scored}) · 95% ${(100 * w0).toFixed(1)}–${(100 * w1).toFixed(1)}%\n${fmtUSD(p.c)} per task` }, f.g);
+    const label = armName(p.id), tw = textWidth(label);
+    const lx0 = x + 12 + tw > f.iw ? x - 12 - tw : x + 12;
+    let ty = y + 4;
+    for (let k = 1; placed.some(([px, py, pw]) => lx0 < px + pw && px < lx0 + tw && Math.abs(py - ty) < 13) && k < 8; k++) ty = y + 4 + (k % 2 ? 1 : -1) * 13 * Math.ceil(k / 2);
+    placed.push([lx0, ty, tw]);
+    el("text", { x: lx0, y: ty, class: "lab-label cp-id" }, f.g, label);
+  }
+  $("frontlegend").innerHTML = pts.map((p) => `<li class="lab-key lab-key--dot cp-id ${p.k}">${esc(armName(p.id))}</li>`).join("") +
+    '<li class="lab-key lab-key--band lab-soft">95% wilson interval</li><li class="lab-key lab-ink">pareto frontier</li>';
+  const desc = pts.map((p) => `${armName(p.id)} ${(100 * p.q).toFixed(1)}% at ${fmtUSD(p.c)} per task`).join("; ");
+  svg.setAttribute("aria-label", `cost per task against solve rate over the whole study, under ${table}: ${desc}. the frontier runs ${front.map((p) => armName(p.id)).join(" to ")}.`);
+  $("frontsub").textContent = `the whole log, priced with ${table} (the study's frozen table). B is derived from D's first haiku attempt, so it costs only those requests. ` +
+    `fork re-runs are not shown here (see the replay below). stippled bands: 95% wilson interval; ink step: pareto frontier.`;
+  $("fronttable").innerHTML = `<caption>the numbers behind the chart, whole study, ${esc(table)}. * on the frontier.</caption><thead><tr><th scope="col">arm</th><th scope="col" class="num">solved</th><th scope="col" class="num">rate</th><th scope="col" class="num">95% ci</th><th scope="col" class="num">$ total</th><th scope="col" class="num">$/task</th><th scope="col" class="num">$/solved</th></tr></thead><tbody>` +
+    pts.map((p) => `<tr><th scope="row"><span class="lab-key lab-key--dot cp-id ${p.k}">${esc(armName(p.id))}${frontIds.has(p.id) ? " *" : ""}</span></th><td class="num">${p.s.n_solved}/${p.s.n_scored}</td><td class="num">${(100 * p.q).toFixed(1)}%</td><td class="num">${(100 * p.s.wilson95[0]).toFixed(1)}–${(100 * p.s.wilson95[1]).toFixed(1)}%</td><td class="num">$${p.s.cost[ti].toFixed(4)}</td><td class="num">${fmtUSD(p.c)}</td><td class="num">${p.s.n_solved ? fmtUSD(p.s.cost[ti] / p.s.n_solved) : "-"}</td></tr>`).join("") +
+    "</tbody>" + (Object.keys(D.final.measurement_overhead || {}).length ? `<tfoot><tr><td colspan="7">fork controls (measurement overhead, in no arm's cost): ${Object.entries(D.final.measurement_overhead).flatMap(([a, r]) => Object.entries(r).map(([role, c]) => `${esc(a)} ${esc(role)} $${c[ti].toFixed(4)}`)).join(", ")}</td></tr></tfoot>` : "");
 }
 
 // ------------------------------------------------------------ the event strip: one lane per kind, shape and slot per kind
