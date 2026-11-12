@@ -49,8 +49,9 @@ Every claim this project will make, and what kind of evidence stands behind it t
 | Replay is deterministic; finished tasks never change; any edit to history is detected | **Tested** (property-based, not proof) | Hypothesis runs in `tests/test_properties.py` |
 | Re-pricing the history is exact and linear in the price table | **Tested** | `tests/test_pricing.py` |
 | On Aider Polyglot, single Haiku 5.5 matches the orchestrated arms at ~1/25 of Opus's cost | **Measured (pilot, n=18; benchmark at ceiling)** | [results/pilot](results/pilot/README.md): Haiku 17/18 (94% [74%, 99%]) vs 18/18 for A, C, D; $0.0013 [$0.0011, $0.0016] vs Opus $0.0323 [$0.0275, $0.0372] per task |
-| The governed swarm costs less per solved task than a single Opus at low effort | Hypothesis, pending the harder benchmark | Paired bootstrap CI on 90 tasks |
-| Escalating to Sonnet beats a same-model Haiku retry | Hypothesis, pending the harder benchmark (Polyglot gives too few forks) | Paired CI over about 60 forks, with the control as noise floor |
+| The governed cascade (Opus plans from outlines, Haiku works, escalate to Opus on a gate block) solves as many tasks as a single Opus at low effort | **Measured (pre-registered, n=88 fresh SWE-bench Pro tasks)**: non-inferior within 10 points | [results/swepro-main](results/swepro-main/README.md): 83/88 vs 85/88, difference −2.3 points [−8.0, +3.4]; single Opus is near its ceiling (96.6%) |
+| The governed cascade costs less per solved task than a single Opus at low effort | **Measured (pre-registered, n=88)** | $0.055 vs $0.139 per solved task, ratio 0.39 [0.30, 0.51], about 61% cheaper |
+| Escalating to a stronger model beats a same-model Haiku retry | Measured but imprecise (8 forks) | Opus 6/8 vs Haiku retry 2/8 at the same fork points: +50 points [+12.5, +87.5], exact McNemar p = 0.125 |
 | A router learned from the log beats a fixed cascade | Hypothesis | Regret against the full fork matrix |
 | Log-only (off-policy) estimates recover the true policy value | Hypothesis | Estimate minus full-matrix truth |
 | Lane contracts and a test gate beat an ungated merge of the same lane outputs | Hypothesis | Shadow merge, exact McNemar |
