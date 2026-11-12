@@ -1,0 +1,269 @@
+{
+  "preflight": {
+    "expected_usd": 2.9546,
+    "worst_case_usd": 9.3449,
+    "margin": 1.2,
+    "cap_usd": 5.0,
+    "input_tokens": {
+      "claude-haiku-5-5": 304968,
+      "claude-opus-5-5": 304968
+    },
+    "order": [
+      "instance_ansible__ansible-d62496fe416623e88b90139dc7917080cb04ce70-v0f01c69f1e2528b935359cfe578530722bca2c59",
+      "instance_element-hq__element-web-ecfd1736e5dd9808e87911fc264e6c816653e1a9-vnan",
+      "instance_ansible__ansible-40ade1f84b8bb10a63576b0ac320c13f57c87d34-v6382ea168a93d80a64aab1fbd8c4f02dc5ada5bf",
+      "instance_NodeBB__NodeBB-8168c6c40707478f71b8af60300830fe554c778c-vf2cf3cbd463b7ad942381f1c6d077626485a1e9e",
+      "instance_element-hq__element-web-66d0b318bc6fee0d17b54c1781d6ab5d5d323135-vnan",
+      "instance_ansible__ansible-e9e6001263f51103e96e58ad382660df0f3d0e39-v30a923fb5c164d6cd18280c02422f75e611e8fb2",
+      "instance_internetarchive__openlibrary-53d376b148897466bb86d5accb51912bbbe9a8ed-v08d8e8889ec945ab821fb156c04c7d2e2810debb",
+      "instance_internetarchive__openlibrary-322d7a46cdc965bfabbf9500e98fde098c9d95b2-v13642507b4fc1f8d234172bf8129942da2c2ca26",
+      "instance_ansible__ansible-d72025be751c894673ba85caa063d835a0ad3a8c-v390e508d27db7a51eece36bb6d9698b63a5b638a",
+      "instance_qutebrowser__qutebrowser-3e21c8214a998cb1058defd15aabb24617a76402-v5fc38aaf22415ab0b70567368332beee7955b367",
+      "instance_ansible__ansible-b748edea457a4576847a10275678127895d2f02f-v1055803c3a812189a1133297f7f5468579283f86",
+      "instance_internetarchive__openlibrary-630221ab686c64e75a2ce253c893c033e4814b2e-v93c53c13d5f9b383ebb411ee7750b49dcd1a34c6"
+    ],
+    "rows": [
+      {
+        "task_id": "instance_ansible__ansible-d62496fe416623e88b90139dc7917080cb04ce70-v0f01c69f1e2528b935359cfe578530722bca2c59",
+        "model": "claude-haiku-5-5",
+        "samples": 2,
+        "input_tokens": 4012,
+        "expected_output_tokens": 3444,
+        "max_tokens": 32000,
+        "expected_usd": 0.0042464,
+        "worst_usd": 0.0328024
+      },
+      {
+        "task_id": "instance_ansible__ansible-d62496fe416623e88b90139dc7917080cb04ce70-v0f01c69f1e2528b935359cfe578530722bca2c59",
+        "model": "claude-opus-5-5",
+        "samples": 1,
+        "input_tokens": 4012,
+        "expected_output_tokens": 2244,
+        "max_tokens": 32000,
+        "expected_usd": 0.060928,
+        "worst_usd": 0.656048
+      },
+      {
+        "task_id": "instance_element-hq__element-web-ecfd1736e5dd9808e87911fc264e6c816653e1a9-vnan",
+        "model": "claude-haiku-5-5",
+        "samples": 2,
+        "input_tokens": 7412,
+        "expected_output_tokens": 5042,
+        "max_tokens": 32000,
+        "expected_usd": 0.0065244,
+        "worst_usd": 0.0334824
+      },
+      {
+        "task_id": "instance_element-hq__element-web-ecfd1736e5dd9808e87911fc264e6c816653e1a9-vnan",
+        "model": "claude-opus-5-5",
+        "samples": 1,
+        "input_tokens": 7412,
+        "expected_output_tokens": 3842,
+        "max_tokens": 32000,
+        "expected_usd": 0.106488,
+        "worst_usd": 0.669648
+      },
+      {
+        "task_id": "instance_ansible__ansible-40ade1f84b8bb10a63576b0ac320c13f57c87d34-v6382ea168a93d80a64aab1fbd8c4f02dc5ada5bf",
+        "model": "claude-haiku-5-5",
+        "samples": 2,
+        "input_tokens": 9947,
+        "expected_output_tokens": 12358,
+        "max_tokens": 32000,
+        "expected_usd": 0.0143474,
+        "worst_usd": 0.0339894
+      },
+      {
+        "task_id": "instance_ansible__ansible-40ade1f84b8bb10a63576b0ac320c13f57c87d34-v6382ea168a93d80a64aab1fbd8c4f02dc5ada5bf",
+        "model": "claude-opus-5-5",
+        "samples": 1,
+        "input_tokens": 9947,
+        "expected_output_tokens": 11158,
+        "max_tokens": 32000,
+        "expected_usd": 0.262948,
+        "worst_usd": 0.679788
+      },
+      {
+        "task_id": "instance_NodeBB__NodeBB-8168c6c40707478f71b8af60300830fe554c778c-vf2cf3cbd463b7ad942381f1c6d077626485a1e9e",
+        "model": "claude-haiku-5-5",
+        "samples": 2,
+        "input_tokens": 12540,
+        "expected_output_tokens": 4820,
+        "max_tokens": 32000,
+        "expected_usd": 0.007328,
+        "worst_usd": 0.034508
+      },
+      {
+        "task_id": "instance_NodeBB__NodeBB-8168c6c40707478f71b8af60300830fe554c778c-vf2cf3cbd463b7ad942381f1c6d077626485a1e9e",
+        "model": "claude-opus-5-5",
+        "samples": 1,
+        "input_tokens": 12540,
+        "expected_output_tokens": 3620,
+        "max_tokens": 32000,
+        "expected_usd": 0.12256,
+        "worst_usd": 0.69016
+      },
+      {
+        "task_id": "instance_element-hq__element-web-66d0b318bc6fee0d17b54c1781d6ab5d5d323135-vnan",
+        "model": "claude-haiku-5-5",
+        "samples": 2,
+        "input_tokens": 17018,
+        "expected_output_tokens": 10369,
+        "max_tokens": 32000,
+        "expected_usd": 0.013772600000000001,
+        "worst_usd": 0.0354036
+      },
+      {
+        "task_id": "instance_element-hq__element-web-66d0b318bc6fee0d17b54c1781d6ab5d5d323135-vnan",
+        "model": "claude-opus-5-5",
+        "samples": 1,
+        "input_tokens": 17018,
+        "expected_output_tokens": 9169,
+        "max_tokens": 32000,
+        "expected_usd": 0.251452,
+        "worst_usd": 0.708072
+      },
+      {
+        "task_id": "instance_ansible__ansible-e9e6001263f51103e96e58ad382660df0f3d0e39-v30a923fb5c164d6cd18280c02422f75e611e8fb2",
+        "model": "claude-haiku-5-5",
+        "samples": 2,
+        "input_tokens": 17550,
+        "expected_output_tokens": 4909,
+        "max_tokens": 32000,
+        "expected_usd": 0.008419,
+        "worst_usd": 0.03551
+      },
+      {
+        "task_id": "instance_ansible__ansible-e9e6001263f51103e96e58ad382660df0f3d0e39-v30a923fb5c164d6cd18280c02422f75e611e8fb2",
+        "model": "claude-opus-5-5",
+        "samples": 1,
+        "input_tokens": 17550,
+        "expected_output_tokens": 3709,
+        "max_tokens": 32000,
+        "expected_usd": 0.14438,
+        "worst_usd": 0.7102
+      },
+      {
+        "task_id": "instance_internetarchive__openlibrary-53d376b148897466bb86d5accb51912bbbe9a8ed-v08d8e8889ec945ab821fb156c04c7d2e2810debb",
+        "model": "claude-haiku-5-5",
+        "samples": 2,
+        "input_tokens": 27099,
+        "expected_output_tokens": 5285,
+        "max_tokens": 32000,
+        "expected_usd": 0.010704799999999999,
+        "worst_usd": 0.0374198
+      },
+      {
+        "task_id": "instance_internetarchive__openlibrary-53d376b148897466bb86d5accb51912bbbe9a8ed-v08d8e8889ec945ab821fb156c04c7d2e2810debb",
+        "model": "claude-opus-5-5",
+        "samples": 1,
+        "input_tokens": 27099,
+        "expected_output_tokens": 4085,
+        "max_tokens": 32000,
+        "expected_usd": 0.190096,
+        "worst_usd": 0.748396
+      },
+      {
+        "task_id": "instance_internetarchive__openlibrary-322d7a46cdc965bfabbf9500e98fde098c9d95b2-v13642507b4fc1f8d234172bf8129942da2c2ca26",
+        "model": "claude-haiku-5-5",
+        "samples": 2,
+        "input_tokens": 27477,
+        "expected_output_tokens": 10654,
+        "max_tokens": 32000,
+        "expected_usd": 0.0161494,
+        "worst_usd": 0.0374954
+      },
+      {
+        "task_id": "instance_internetarchive__openlibrary-322d7a46cdc965bfabbf9500e98fde098c9d95b2-v13642507b4fc1f8d234172bf8129942da2c2ca26",
+        "model": "claude-opus-5-5",
+        "samples": 1,
+        "input_tokens": 27477,
+        "expected_output_tokens": 9454,
+        "max_tokens": 32000,
+        "expected_usd": 0.298988,
+        "worst_usd": 0.749908
+      },
+      {
+        "task_id": "instance_ansible__ansible-d72025be751c894673ba85caa063d835a0ad3a8c-v390e508d27db7a51eece36bb6d9698b63a5b638a",
+        "model": "claude-haiku-5-5",
+        "samples": 2,
+        "input_tokens": 28313,
+        "expected_output_tokens": 12793,
+        "max_tokens": 32000,
+        "expected_usd": 0.0184556,
+        "worst_usd": 0.0376626
+      },
+      {
+        "task_id": "instance_ansible__ansible-d72025be751c894673ba85caa063d835a0ad3a8c-v390e508d27db7a51eece36bb6d9698b63a5b638a",
+        "model": "claude-opus-5-5",
+        "samples": 1,
+        "input_tokens": 28313,
+        "expected_output_tokens": 11593,
+        "max_tokens": 32000,
+        "expected_usd": 0.345112,
+        "worst_usd": 0.753252
+      },
+      {
+        "task_id": "instance_qutebrowser__qutebrowser-3e21c8214a998cb1058defd15aabb24617a76402-v5fc38aaf22415ab0b70567368332beee7955b367",
+        "model": "claude-haiku-5-5",
+        "samples": 2,
+        "input_tokens": 54231,
+        "expected_output_tokens": 4822,
+        "max_tokens": 32000,
+        "expected_usd": 0.0156682,
+        "worst_usd": 0.042846199999999994
+      },
+      {
+        "task_id": "instance_qutebrowser__qutebrowser-3e21c8214a998cb1058defd15aabb24617a76402-v5fc38aaf22415ab0b70567368332beee7955b367",
+        "model": "claude-opus-5-5",
+        "samples": 1,
+        "input_tokens": 54231,
+        "expected_output_tokens": 3622,
+        "max_tokens": 32000,
+        "expected_usd": 0.289364,
+        "worst_usd": 0.856924
+      },
+      {
+        "task_id": "instance_ansible__ansible-b748edea457a4576847a10275678127895d2f02f-v1055803c3a812189a1133297f7f5468579283f86",
+        "model": "claude-haiku-5-5",
+        "samples": 2,
+        "input_tokens": 46051,
+        "expected_output_tokens": 9925,
+        "max_tokens": 32000,
+        "expected_usd": 0.0191352,
+        "worst_usd": 0.041210199999999995
+      },
+      {
+        "task_id": "instance_ansible__ansible-b748edea457a4576847a10275678127895d2f02f-v1055803c3a812189a1133297f7f5468579283f86",
+        "model": "claude-opus-5-5",
+        "samples": 1,
+        "input_tokens": 46051,
+        "expected_output_tokens": 8725,
+        "max_tokens": 32000,
+        "expected_usd": 0.358704,
+        "worst_usd": 0.824204
+      },
+      {
+        "task_id": "instance_internetarchive__openlibrary-630221ab686c64e75a2ce253c893c033e4814b2e-v93c53c13d5f9b383ebb411ee7750b49dcd1a34c6",
+        "model": "claude-haiku-5-5",
+        "samples": 2,
+        "input_tokens": 53318,
+        "expected_output_tokens": 8997,
+        "max_tokens": 32000,
+        "expected_usd": 0.019660599999999997,
+        "worst_usd": 0.042663599999999996
+      },
+      {
+        "task_id": "instance_internetarchive__openlibrary-630221ab686c64e75a2ce253c893c033e4814b2e-v93c53c13d5f9b383ebb411ee7750b49dcd1a34c6",
+        "model": "claude-opus-5-5",
+        "samples": 1,
+        "input_tokens": 53318,
+        "expected_output_tokens": 7797,
+        "max_tokens": 32000,
+        "expected_usd": 0.369212,
+        "worst_usd": 0.853272
+      }
+    ]
+  },
+  "excluded": {}
+}
