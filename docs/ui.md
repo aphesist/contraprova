@@ -80,7 +80,9 @@ python scripts/export_ui_data.py path/to/log.jsonl -o /tmp/data.json --html /tmp
 The page makes no requests outside its own folder: its data file and the vendored lab kit
 (`ui/vendor/lab-kit/v1/`: `lab.css`, `lab.js`, the two fonts). No CDN, no analytics. It works on
 GitHub Pages as-is: `.github/workflows/pages.yml` publishes `ui/` unchanged, with no build step (it
-loads `data/swepro-main.json`, or `demo-data.json`, next to it). The `--html` copy inlines the kit too
+loads `data/swepro-main.json`, or `demo-data.json`, next to it). It is served at
+https://contraprova.aphes.ist/ (`ui/CNAME`); every path is relative, so it works at a domain's root and under
+a sub-path alike. The `--html` copy inlines the kit too
 (stylesheet, fonts as data URIs, script), so it is one file. `tests/test_ui_export.py` checks every
 resource the page and the kit name, and the kit's checksums.
 

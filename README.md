@@ -17,7 +17,7 @@ is a projection of it. When a worker fails, the log forks and the task re-runs t
 once with the same cheap model (the *contraprova*, the control) and once with a stronger one. The gap
 between them is what escalation actually buys.
 
-**[The replay](https://aphesist.github.io/contraprova/)**: the main study's log, replayed event by event
+**[The replay](https://contraprova.aphes.ist/)**: the main study's log, replayed event by event
 in the browser.
 
 ## What it found
