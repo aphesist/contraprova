@@ -48,8 +48,7 @@ task, against a single Opus 5.5 at low effort:
 The orchestrator reads outlines only and writes one brief with a file scope and a test command. A Haiku
 worker does the job inside that scope. A gate checks the changed files, refuses edits to tests, and runs the
 visible and private tests. A pass ships; a block forks the log into the control and the escalation. Each
-step is an event the single writer validates before it is appended, after
-[ESAA](https://github.com/elzobrito/ESAA-Core); cost is never stored, only tokens, re-priced on demand.
+step is an event the single writer validates before it is appended, cost is never stored, only tokens, re-priced on demand.
 
 ## Status
 
