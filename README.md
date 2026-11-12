@@ -52,6 +52,7 @@ Every claim this project will make, and what kind of evidence stands behind it t
 | The governed cascade (Opus plans from outlines, Haiku works, escalate to Opus on a gate block) solves as many tasks as a single Opus at low effort | **Measured (pre-registered, n=88 fresh SWE-bench Pro tasks)**: non-inferior within 10 points | [results/swepro-main](results/swepro-main/README.md): 83/88 vs 85/88, difference −2.3 points [−8.0, +3.4]; single Opus is near its ceiling (96.6%) |
 | The governed cascade costs less per solved task than a single Opus at low effort | **Measured (pre-registered, n=88)** | $0.055 vs $0.139 per solved task, ratio 0.39 [0.30, 0.51], about 61% cheaper |
 | Escalating to a stronger model beats a same-model Haiku retry | Measured but imprecise (8 forks) | Opus 6/8 vs Haiku retry 2/8 at the same fork points: +50 points [+12.5, +87.5], exact McNemar p = 0.125 |
+| The shipped Claude Code plugin (session-inherited orchestrator, Haiku → Sonnet → Opus on a gate block) keeps the measured cascade's quality and cost advantage | Hypothesis: not measured; the measured cascade was a fixed Haiku → Opus under an Opus-`low` orchestrator, run by the harness | The same paired study with the plugin's configuration, run headless with logged usage |
 | A router learned from the log beats a fixed cascade | Hypothesis | Regret against the full fork matrix |
 | Log-only (off-policy) estimates recover the true policy value | Hypothesis | Estimate minus full-matrix truth |
 | Lane contracts and a test gate beat an ungated merge of the same lane outputs | Hypothesis | Shadow merge, exact McNemar |
@@ -81,11 +82,58 @@ done
 
 Python 3.11+, no runtime dependencies.
 
-## Use the orchestrator configuration on its own
+## Use the cascade in your own project
 
-`config/claude-code/` holds an orchestrator/worker pair for Claude Code subagents: Opus 5.5 limited to
-plan, route and review (it has no edit tools), Haiku 5.5 workers bound to file-scope contracts. See
-[its README](config/claude-code/README.md).
+`config/claude-code/` is a Claude Code plugin that rebuilds the cascade's structure from subagents
+and a gate hook: an orchestrator plans from outlines and writes one brief with an explicit file scope
+and test command, a Haiku 5.5 worker does the job, a gate checks the changed files and runs your
+tests, and only a blocked attempt escalates, one tier at a time, to Sonnet 5.5 and then Opus 5.5.
+
+**Prerequisites:** [Claude Code](https://code.claude.com/docs/en/overview) 2.1.292 or later, signed in
+with a Claude plan or an API key. Scripted or headless use (`claude -p`) needs an API key under
+Anthropic's terms. `python3` on your PATH for the gate.
+
+**Install** (one command; or in a session, `/plugin marketplace add aphesist/contraprova` then
+`/plugin install contraprova-cascade@contraprova`):
+
+```bash
+claude plugin install contraprova-cascade --marketplace aphesist/contraprova
+```
+
+Without the plugin system, from a checkout of this repository: `pip install -e .`, then in your
+project `contraprova init-claude` (into `./.claude`; `--user` for `~/.claude`; existing files are
+kept unless `--force`).
+
+**First run**, from your project's root:
+
+```bash
+export CONTRAPROVA_TEST_CMD='pytest -q'   # the gate runs this after every agent; optional but recommended
+claude --agent orchestrator --model opus --effort high
+```
+
+| Agent | Model | Does |
+|---|---|---|
+| `orchestrator` | your session's (`--model`, `--effort`) | Reads outlines, writes a brief starting with `scope:`, `test:`, `goal:`, dispatches, reads the gate, escalates. No edit or shell tools |
+| `worker` | Haiku 5.5, `medium` | Works inside the scope, never edits tests, runs the test, reports a JSON block |
+| `escalation-sonnet` | Sonnet 5.5, `medium` | Same contract; gets the brief and the worker's failure |
+| `escalation-opus` | Opus 5.5, `medium` | Same contract; gets the brief and Sonnet's failure |
+
+- **Orchestrator model:** Opus 5.5 at `medium` or `high` is recommended; Fable 5.2 also works. No
+  tier below it ever runs Fable. The study pinned Opus at `low` only to keep its single-Opus baseline
+  cheap and below its ceiling (at high effort Opus one-shots nearly every task).
+- **Test command and scope:** tell the orchestrator the test command in your request, or let it find
+  the narrowest one; it writes the scope into the brief. The gate runs only `$CONTRAPROVA_TEST_CMD`
+  from your environment, never a command from the brief or the repository.
+- **Cost:** `claude -p "..." --agent orchestrator --output-format json | jq '.total_cost_usd, .modelUsage'`
+  gives Claude Code's per-model estimate, subagents included.
+- **Event log:** `claude mcp add --transport stdio contraprova -- python -m contraprova.mcp_edge --log /abs/path/log.jsonl`
+  lets a session propose task events into a contraprova log ([MCP edge](docs/mcp.md)).
+
+**What this is and is not.** The plugin reproduces the cascade's structure. The measured numbers come
+from this repo's harness, not from Claude Code sessions, and from a different configuration: a fixed
+Haiku → Opus cascade under an Opus-`low` orchestrator. The shipped Haiku → Sonnet → Opus ladder with a
+session-inherited orchestrator has not been measured. Details, the gate, limits and the Claude Code
+documentation this relies on: [docs/claude-code.md](docs/claude-code.md).
 
 ## Documents
 
@@ -93,6 +141,7 @@ plan, route and review (it has no edit tools), Haiku 5.5 workers bound to file-s
 - [Event payloads](docs/events.md): the one schema every module writes and reads
 - [SWE-bench Pro harness](docs/swepro.md): the harder benchmark, the outline rule, edit format, scoring
 - [Statistics](docs/statistics.md), [replay UI](docs/ui.md), [MCP edge](docs/mcp.md)
+- [The cascade in Claude Code](docs/claude-code.md): the plugin, the gate hook, what differs from the study
 - [Related work](docs/related-work.md): ESAA, replay research, routing, verification, parallel lanes
 - Next step: [Contract Lanes study plan](docs/lanes-plan.md), with Haiku lanes vs cascade D on large multi-file SWE-bench Pro tasks, a shadow-merge headline and a cost estimate from measured tokens
 
