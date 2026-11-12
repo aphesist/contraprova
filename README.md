@@ -1,26 +1,63 @@
-# contraprova
+<div align="center">
 
-> Escalation is a claim. *Contraprova* is the control.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/readme/hero-dark.svg">
+  <img alt="contraprova, probatio contraria: the φ drawn in the fog. escalation is a claim. contraprova is the control." src="assets/readme/hero-light.svg" width="100%">
+</picture>
+
+</div>
+
+# contraprova
 
 An event-sourced orchestrator for cheap Claude workers, built to answer one question with numbers:
 **when a cheap model fails, does escalating to a stronger model beat simply trying the cheap model
-again?**
-
-A strong model (Claude Opus 5.5, at low effort) plans, routes and reviews. Cheap workers (Claude Haiku
-5.5) do narrow jobs. Every fact goes into an append-only, hash-chained log, and everything else
-(task state, cost, the routing policy, the cost-quality frontier) is a projection of that log.
-
-When a worker fails, contraprova forks the log and re-runs the task twice from the same point: once
-with the same cheap model (the *contraprova*, or control) and once with a stronger one. The gap
+again?** A strong model plans and reviews; Claude Haiku 5.5 does the narrow jobs; every fact goes into an
+append-only, hash-chained log, and everything else (task state, cost, routing, the cost-quality frontier)
+is a projection of it. When a worker fails, the log forks and the task re-runs twice from the same point:
+once with the same cheap model (the *contraprova*, the control) and once with a stronger one. The gap
 between them is what escalation actually buys.
+
+**[The replay](https://aphesist.github.io/contraprova/)**: the main study's log, replayed event by event
+in the browser.
+
+## What it found
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/readme/results-dark.svg">
+  <img alt="Solve rate on 88 fresh SWE-bench Pro tasks: single Opus 96.6%, the cascade 94.3%, its first Haiku try 87.5%, with 95% Wilson intervals; the cascade minus Opus is -2.3 points [-8.0, +3.4], inside the -10 margin; cost per solved task $0.139 against $0.055, a ratio of 0.39 [0.30, 0.51]" src="assets/readme/results-light.svg" width="100%">
+</picture>
+
+A pre-registered study on 88 fresh SWE-bench Pro tasks (Python and JavaScript repositories), paired by
+task, against a single Opus 5.5 at low effort:
+
+- **As good, within the margin.** The cascade solved 83/88 and single Opus 85/88: a difference of −2.3
+  points [−8.0, +3.4], inside the pre-registered −10 margin (exact McNemar p = 0.69).
+- **About 61% cheaper per solved task.** $0.055 against $0.139, a ratio of 0.39 [0.30, 0.51].
+- **Escalation earned its place, imprecisely.** 8 tasks were blocked at the gate and forked: Opus then
+  solved 6 of 8 and a Haiku retry 2 of 8 from the same logged point, +50 points [+12.5, +87.5].
+- **Opus was near its ceiling** at 96.6%, so this shows the cascade keeps quality on tasks Opus can do,
+  not that it beats Opus. Full report, log and the pre-registration: [results/swepro-main](results/swepro-main/README.md).
+
+## How it works
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/readme/cascade-dark.svg">
+  <img alt="The governed cascade: an Opus orchestrator writes a brief from outlines, a Haiku worker does the job, a gate checks scope, edits and tests; a pass ships, a block forks into a Haiku retry (2 of 8) and an Opus escalation (6 of 8)" src="assets/readme/cascade-light.svg" width="100%">
+</picture>
+
+The orchestrator reads outlines only and writes one brief with a file scope and a test command. A Haiku
+worker does the job inside that scope. A gate checks the changed files, refuses edits to tests, and runs the
+visible and private tests. A pass ships; a block forks the log into the control and the escalation. Each
+step is an event the single writer validates before it is appended, after
+[ESAA](https://github.com/elzobrito/ESAA-Core); cost is never stored, only tokens, re-priced on demand.
 
 ## Status
 
-**v0.2: all parts built and integrated on one event schema ([events.md](docs/events.md)).** One real
-API run so far: a pilot on Aider Polyglot (18 tasks per arm, $1.98).
-[Pilot summary](results/pilot/README.md): **the benchmark was too easy. Haiku 5.5 is already too good
-at it**, so orchestration only added cost and the escalation question could not be tested there. The
-main study moves to harder tasks.
+The engine, both benchmark harnesses, the replay page and the Claude Code plugin are built and tested.
+Real API runs so far: a pilot on Aider Polyglot, where **the benchmark was too easy:
+Haiku 5.5 is already too good at it** ([summary](results/pilot/README.md)); three pre-registered SWE-bench
+Pro probes; and the [main study](results/swepro-main/README.md) above. Contract Lanes, Haiku workers in
+parallel under contracts, is built and its probe is under way.
 
 | Part | State |
 |---|---|
@@ -30,15 +67,16 @@ main study moves to harder tasks.
 | Statistics: Wilson intervals, exact McNemar, paired bootstrap, Holm | Built, tested |
 | Lane contracts and submission gates (scope, protected tests, temp-workspace test runner) | Built, tested |
 | Router fitted from the log, replayable by hash; off-policy estimators with a self-audit | Built, tested on dry-run logs |
-| Messages API client (stdlib), shared budget cap, forks re-run from a logged point | Built, tested; used for the pilot (forks not yet exercised live) |
+| Messages API client (stdlib), shared budget cap, forks re-run from a logged point | Built, tested; used for every study (8 live forks in the main study) |
 | Aider Polyglot harness, arms A–D, frozen partition, `--dry-run` with offline fakes | Built; pilot run on 18 tasks per arm |
 | Aider Polyglot pilot (5 smoke + 13 pilot exercises, arms A–D) | **Run**: [results](results/pilot/README.md) |
-| SWE-bench Pro harness (Python/JS subset, 327 tasks): outlines for the orchestrator, SEARCH/REPLACE edits, Docker verifier, probe pre-flight | Built, tested; scorer validated at $0 on the 12 probe tasks (empty patch 0, gold patch 1). Probe not yet run. [docs](docs/swepro.md) |
-| Contract Lanes on SWE-bench Pro (arm La: Opus-low planner from outlines, frozen interface board, Haiku lanes, governed and shadow merges, per-lane Haiku → Sonnet → Opus ladder, clash detectors, lane pre-flight, `report --lanes`) | Built, tested; validated at $0 (dry runs on the 12-task lanes probe; gold-lane check with the real verifier). Probe not yet run. [plan](docs/lanes-plan.md), [docs](docs/swepro.md#contract-lanes-arm-la) |
+| SWE-bench Pro main study (88 fresh tasks, arm A and the cascade D, B derived from D's first try) | **Run, pre-registered**: [results](results/swepro-main/README.md) |
+| SWE-bench Pro harness (Python/JS subset, 327 tasks): outlines for the orchestrator, SEARCH/REPLACE edits, Docker verifier, probe pre-flight | Built, tested; three probes and the main study run. [docs](docs/swepro.md) |
+| Contract Lanes on SWE-bench Pro (arm La: Opus-low planner from outlines, frozen interface board, Haiku lanes, governed and shadow merges, per-lane Haiku → Sonnet → Opus ladder, clash detectors, lane pre-flight, `report --lanes`) | Built, tested; validated at $0 (dry runs on the 12-task lanes probe; gold-lane check with the real verifier). Paid probe pending. [plan](docs/lanes-plan.md), [docs](docs/swepro.md#contract-lanes-arm-la) |
 | MCP edge (`submit_intent`, `query_projection`) | Built, tested |
-| Analysis and `contraprova report`: per-arm, paired, escalation value, gate quality, frontier | Built; run on the pilot log |
+| Analysis and `contraprova report`: per-arm, paired, escalation value, gate quality, frontier | Built; run on every study log |
 | Replay UI | Built; shows the real SWE-bench Pro main study (replay check 30/30), with the synthetic demo one link away. [docs](docs/ui.md) |
-| Reusable Claude Code orchestrator/worker configuration | Written, not yet evaluated |
+| Claude Code plugin (session-inherited orchestrator, Haiku → Sonnet → Opus, gate hook) | Written, tested offline; not yet evaluated |
 | Local track (Contract Lanes on a rented GPU) | Planned |
 
 ## Honesty table
@@ -148,8 +186,9 @@ documentation this relies on: [docs/claude-code.md](docs/claude-code.md).
 
 ## Budget
 
-About US$45 of Claude API credit and about US$10–16 of rented GPU time. Every run uses an API key
-with per-role keys, so token counts can be checked against Anthropic's own usage records.
+About US$26 of Claude API credit spent so far, all of it itemised from logged token counts under
+[`results/`](results), plus the approved Contract Lanes study (a $5 probe, then at most $25). Every run
+can use per-role keys, so token counts can be checked against Anthropic's own usage records.
 
 ## Credits
 
@@ -157,6 +196,13 @@ contraprova's separation of proposals from a validating single writer comes from
 [ESAA](https://github.com/elzobrito/ESAA-Core) by Elzo Brito dos Santos Filho
 ([arXiv 2602.23193](https://arxiv.org/abs/2602.23193)), which is the more complete governance system.
 See [related work](docs/related-work.md) for the rest.
+
+## The images in this README
+
+They are animated SVGs (SMIL and CSS) in the [aphes.ist](https://aphes.ist) design system, the same as
+the replay page: stippled fog, the φ drawn by its brush engine, Aphesis Script and Special Elite. Every
+number in them is read from `results/swepro-main/analysis.json` by
+[`tools/readme/make_readme_svgs.py`](tools/readme), in a light and a dark version.
 
 ## Licence
 
