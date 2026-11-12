@@ -28,6 +28,12 @@ EVENT_TYPES = frozenset(
         # measurement
         "usage.recorded",
         "outcome.scored",
+        # Contract Lanes (docs/lanes-plan.md): the plan, the interface board, merges, clashes
+        "lane.planned",
+        "interface.frozen",
+        "interface.requested",
+        "merge.decided",
+        "coordination.detected",
     }
 )
 

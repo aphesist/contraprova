@@ -62,6 +62,45 @@ else; the harness does it in `harness.arms.route_record`:
 
 The synthetic demo log (`scripts/make_demo_log.py`) uses the same featurizer with made-up inputs.
 
+## Contract Lanes (arm La)
+
+Arm La on SWE-bench Pro ([lanes-plan.md](lanes-plan.md), code `harness/lanes.py`) adds five event
+types to `events.EVENT_TYPES`. The parent task is `La:<instance_id>` (kind `code`; its attempts are
+merge rounds); each lane is a kernel task `La:<instance_id>:<lane_id>` with `kind: "lane"`, `parent`,
+`plan_id`, `lane_id`, `contract` and `max_attempts` = the ladder length (4), so attempt n runs ladder
+step n (`haiku`, `haiku-repair`, `sonnet`, `opus`) and the projection's attempt limit enforces it.
+
+| Event | Required | Optional |
+|---|---|---|
+| `lane.planned` | `task_id` (the parent), `plan_id`, `model`, `k`, `lanes` (list of {`lane_id`, `allowed`, `new_files`, `goal`, `symbols`, `exports`, `imports`, `tests`}), `plan_sha256` | `parse_errors`, `repair_used`, `repair_errors`, `fallback` (`single_lane` when the plan stayed invalid), `rationale`, `warnings`, `stop_reason`, `response` / `repair_response` (the planner's replies; left out with `--no-log-contents`) |
+| `interface.frozen` | `task_id`, `plan_id`, `interfaces` (symbol → signature), `interfaces_sha256` | `source` (list of `planner` / `task_interface`), `entries` (each symbol's `signature`, `path`, `owner`, `source`, `kind`), `board` (lane_id → {`provides`, `needs`}): the interface round, written in one kernel step |
+| `interface.requested` | `task_id` (the lane task), `plan_id`, `lane_id`, `symbol`, `requested_signature`, `status` (`rejected`) | `reason` |
+| `merge.decided` | `task_id`, `plan_id`, `round`, `mode` (`governed`/`shadow`), `lanes` (lane_id → seq of its `task.submitted`), `merged_sha256`, `verdict` (`pass`/`block`) | governed: `blamed`, `blame_rule` (1 direct, 2 traceback/test file, 3 all lanes), `blame_basis`, `gate_seq` (the merged `gate.decided`), `tiers` (lane_id → ladder step), `conflicts`; shadow: `gated` (false), `files`, `errors` |
+| `coordination.detected` | `task_id` (the parent), `plan_id`, `kind`, `lanes` | `round`, `mode` (`plan`/`governed`/`shadow`), `evidence`, `mast` |
+
+`coordination.detected` kinds: `overlapping_scope`, `scope_violation`, `interface_mismatch`,
+`interface_change_request`, `overwrite` (incl. `reverted: true` in the shadow merge),
+`duplicated_work`, `unattributable_failure`, `wasted_lane`, `regression_after_escalation`
+(definitions in `harness/lanes_detect.py`).
+
+The plan's proposed `lane.submitted` was not added: its fields went onto the lane's `task.submitted`
+as optional fields instead (`plan_id`, `lane_id`, `tier`, `round`, `rejected_blocks`). Existing
+types carry the rest:
+
+- the merge is a `task.claimed` / `task.submitted` (`model: "merge"`, `merge: "governed"`, `round`,
+  `lanes`) / `gate.decided` (gates `T0.scope`, `T0.edits`, `T0.interfaces`, `T0.visible_tests`,
+  `T1.private_tests`, `T2.review`) on the parent task;
+- a blamed lane gets `gate.decided` (`gate: "lane.blame"`, `merge_gate_seq`, `blame_rule`) and, at
+  the end, every lane `lane.merged` (pass) or `lane.unsolved` (block);
+- each escalation is a `route.decided` with `decision: "lane_escalation"`, `action` the next tier's
+  model, `propensities` {that model: 1.0} (a fixed policy), `step`, and the usual `features`;
+- every blocked merge is replayed on the score tests (`outcome.scored` with `gate_seq`);
+- usage carries `arm: "La"`, `role` (`orchestrator` for the planner, `worker` for lanes), the
+  lane's kernel `task_id`, `lane_id`, `tier`, and `lane_role: "planner"` / `repair: true` where they
+  apply. All of it is La's cost: no fork rule applies;
+- derived outcomes `La-shadow`, `La-first` and `La-sonnet` are arm outcomes with
+  `derived_from: "La"` and `merge` (`shadow`/`first`/`sonnet`); they have no usage of their own.
+
 ## Measurement
 
 | Event | Required | Optional |
