@@ -800,3 +800,27 @@ def test_cli_cascade_dry_run_end_to_end(tmp_path, data_dir, capsys):
     ev = EventLog(log).events()
     assert len([e for e in ev if e.type == "fork.created"]) == 6  # every D task blocked: 2 branches each
     assert {e.payload.get("arm") for e in ev if e.type == "outcome.scored" and "arm" in e.payload} == {"A", "B", "D"}
+
+
+def test_validate_exercise_pulls_through_the_cache(tmp_path, exercises, monkeypatch):
+    """A task image must be pulled by the cache (so --delete-images can remove it), not implicitly by docker run."""
+    import types
+    from contraprova.harness import swepro_run
+    ex = exercises[PROBE_IDS[0]]
+    calls = []
+
+    class Cache:
+        def ensure(self, image):
+            calls.append(("ensure", image))
+
+    def fake_run(image, tests, files, timeout=0):
+        calls.append(("run", image))
+        ok = bool(files)
+        return OracleResult(reward=1 if ok else 0, statuses={t: ("PASSED" if ok else "FAILED")
+                                                            for t in ex.test_split.score}, seconds=0.1)
+
+    monkeypatch.setattr(swepro_run, "image_head", lambda image: ex.task.base_commit)
+    monkeypatch.setattr(swepro_run, "run_verifier", fake_run)
+    h, _ = harness(tmp_path, exercises)
+    row = swepro_run.validate_exercise(ex, h, types.SimpleNamespace(test_timeout=60), Cache())
+    assert calls[0] == ("ensure", ex.task.image) and row["ok"]

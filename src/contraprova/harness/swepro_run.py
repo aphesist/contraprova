@@ -199,13 +199,16 @@ def action_prepare(args) -> int:
     return 0
 
 
-def validate_exercise(ex: ProExercise, h: ProHarness, args) -> dict[str, Any]:
-    """The $0 check for one loaded task (its image already present): the empty patch must score 0
-    and fail the visible subset, the gold patch through the edit path must score 1 and pass both gate
-    subsets by per-test status. Returns a row with ``ok``."""
+def validate_exercise(ex: ProExercise, h: ProHarness, args, cache: ImageCache | None = None) -> dict[str, Any]:
+    """The $0 check for one loaded task: the empty patch must score 0 and fail the visible subset,
+    the gold patch through the edit path must score 1 and pass both gate subsets by per-test status.
+    Returns a row with ``ok``. The image is pulled through ``cache`` first, so the cache owns it and
+    ``--delete-images`` can remove it (a bare ``docker run`` would pull it outside the cache)."""
     t = ex.task
     row: dict[str, Any] = {"task": t.instance_id, "repo": t.repo}
     try:
+        if cache is not None:
+            cache.ensure(t.image)
         row["head_is_base"] = image_head(t.image) == t.base_commit
         empty = run_verifier(t.image, ex.verifier, {}, timeout=args.test_timeout)
         files, errors = gold_files(ex, scope=h.scope(ex))
@@ -385,7 +388,7 @@ def action_run(args, preflight_only: bool = False) -> int:
                 return exercises[tid]
             got = _exercise(by_id[tid], part, args, h, cache, with_verifier=not args.dry_run)
             if not isinstance(got, str) and args.validate_before_run and not args.dry_run and not preflight_only:
-                row = validate_exercise(got, h, args)
+                row = validate_exercise(got, h, args, cache)
                 with validation_path.open("a", encoding="utf-8") as f:
                     f.write(json.dumps(row, sort_keys=True) + "\n")
                 if not row["ok"]:
