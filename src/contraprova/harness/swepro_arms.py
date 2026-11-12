@@ -27,6 +27,7 @@ payloads are exactly the Polyglot harness's. What differs:
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Mapping, Sequence
 
@@ -50,7 +51,7 @@ from .outline import render_outline
 from .polyglot import sha256_json, sha256_text
 from .swepro import CHARS_PER_TOKEN, TEST_PATTERNS, ProExercise, ProTestSplit, estimate_tokens, verifier_sha256
 
-PRO_ARMS: tuple[str, ...] = ("A", "B", "C", "D", "B2")  # B2: a second, independent Haiku sample (probe)
+PRO_ARMS: tuple[str, ...] = ("A", "B", "C", "D", "B2", "La")  # B2: a second Haiku sample (probe); La: lanes
 DEFAULT_T2_MAX_LINES = 500
 OUTLINE_MAX_CHARS = 24_000  # about 8K tokens: the outline part of an orchestrator prompt
 # Hard bound (estimated tokens) on the orchestrator's brief prompt; the review prompts add the diff,
@@ -181,6 +182,9 @@ class ProSubmission(Submission):
 
     edit_errors: tuple[str, ...] = ()
     blocks: int = 0
+    response: str = ""  # the first reply's text (the lanes' shadow merge re-parses it)
+    info: Mapping[str, Any] = field(default_factory=dict)  # the repair-turn fields logged on task.submitted
+    seq: int | None = None  # seq of the task.submitted event
 
 
 # ------------------------------------------------------------------ verifier, gates, scorer
@@ -227,6 +231,9 @@ class ProGates:
 
     verifier: Verifier
     t2_max_lines: int = DEFAULT_T2_MAX_LINES
+    # Deterministic checks run after T0.edits passes and before any test runs (arm La adds
+    # T0.interfaces here). Empty for arm D.
+    pre_test: Sequence[Callable[[Submission, TaskContext], GateResult]] = ()
 
     def __call__(self, sub: Submission, ctx: TaskContext) -> list[GateResult]:
         ex: ProExercise = ctx.exercise  # type: ignore[assignment]
@@ -235,7 +242,7 @@ class ProGates:
         changed = changed_line_count(sub, ex)
         manifests = manifests_touched(sub)
         need_t2 = changed > self.t2_max_lines or bool(manifests)
-        tiers = [T0_SCOPE, "T0.edits", T0_VISIBLE] + ([T1_PRIVATE] if ts.gate_private else []) + \
+        tiers = [T0_SCOPE, "T0.edits", *(getattr(c, "gate_name", "T0.pre_test") for c in self.pre_test), T0_VISIBLE] + ([T1_PRIVATE] if ts.gate_private else []) + \
             ([T2_REVIEW] if need_t2 else [])
         common = {"tests_sha256": digest, "tiers": tiers,
                   "blast_radius": {"changed_lines": changed, "max_changed_lines": self.t2_max_lines,
@@ -258,6 +265,9 @@ class ProGates:
             add(GateResult("T0.edits", "block", reason, {"errors": list(errors), "files": len(sub.files)}))
             return out
         add(GateResult("T0.edits", "pass", "", {"errors": [], "files": len(sub.files)}))
+        for check in self.pre_test:
+            if not add(check(sub, ctx)):
+                return out
         res = self.verifier.run(ex, sub.files)
         run_ev = {"seconds": round(res.seconds, 1), "timed_out": res.timed_out, "returncode": res.returncode,
                   "files_sha256": sha256_json(dict(sub.files))}
@@ -413,15 +423,22 @@ class ProHarness(Harness):
 
     def _work(self, arm: str, task_id: str, ex: ProExercise, model: str, prompt: str, attempt: int,  # type: ignore[override]
               effort: str | None = None, role: str = "worker", fork_id: str | None = None,
-              cache_upto: int = 0) -> Submission:
+              cache_upto: int = 0, *, scope=None, max_tokens: int | None = None, system: str | None = None,
+              extra: Mapping[str, Any] | None = None, extra_tags: Mapping[str, Any] | None = None) -> Submission:
+        """One worker request plus at most one edit-repair turn, then ``task.submitted``.
+
+        Arm La passes the lane's own ``scope`` (blocks outside the lane's files are rejected before
+        anything is applied and listed in ``rejected_blocks``), its tier's ``max_tokens``, the lane
+        system prompt, ``extra`` fields for ``task.submitted`` and ``extra_tags`` for usage."""
         self.emit("task.claimed", f"worker:{model}", {"task_id": task_id, "worker": model, "attempt": attempt})
         if effort is None:
             effort = self.worker_effort(model)
-        mt = self.worker_max_tokens(model)
-        kw = dict(arm=arm, role=role, task_id=task_id, model=model, system=self.worker_system, max_tokens=mt,
-                  effort=effort, fork_id=fork_id)
-        c = self.call(user=prompt, cache_upto=cache_upto, **kw)
-        scope = self.scope(ex)
+        mt = max_tokens or self.worker_max_tokens(model)
+        kw = dict(arm=arm, role=role, task_id=task_id, model=model, system=system or self.worker_system,
+                  max_tokens=mt, effort=effort, fork_id=fork_id)
+        c = self.call(user=prompt, cache_upto=cache_upto, extra_tags=extra_tags, **kw)
+        lane_scope = scope is not None
+        scope = scope or self.scope(ex)
         parsed = parse_edits(c.text)
         applied = apply_edits(parsed.blocks, ex.context.files, scope=scope)
         failure = edit_failure(c.stop_reason, parsed.errors, applied.errors)
@@ -429,15 +446,17 @@ class ProHarness(Harness):
         info: dict[str, Any] = {"repair_used": False, "original_failure": failure, "original_errors": first_errors,
                                 "stop_reason": c.stop_reason}
         blocks, final, last_parse, last_stop = list(parsed.blocks), applied, parsed.errors, c.stop_reason
+        sent = list(parsed.blocks)  # every block the worker sent, the repair turn's included
         if failure and self.repair:
             history = (Message("user", prompt, cache_upto), Message("assistant", c.text.rstrip() or "(no output)"))
             c2 = self.call(user=repair_message(failure, first_errors), history=history,
-                           extra_tags={"repair": True}, **kw)
+                           extra_tags={**dict(extra_tags or {}), "repair": True}, **kw)
             parsed2 = parse_edits(c2.text)
             offset = max((b.index for b in parsed.blocks), default=0)
             ok = set(applied.applied)
             blocks = [b for b in parsed.blocks if b.index in ok] + [replace(b, index=b.index + offset)
                                                                    for b in parsed2.blocks]
+            sent += [replace(b, index=b.index + offset) for b in parsed2.blocks]
             final = apply_edits(blocks, ex.context.files, scope=scope)
             last_parse, last_stop = parsed2.errors, c2.stop_reason
             info.update(repair_used=True, repair_stop_reason=c2.stop_reason, repair_response=c2.text,
@@ -446,6 +465,10 @@ class ProHarness(Harness):
         if last_stop == "max_tokens":
             errors.append(f"reply cut off at max_tokens ({mt}); the unfinished block was dropped")
         info["final_failure"] = edit_failure(last_stop, last_parse, final.errors)
+        if lane_scope:
+            info["rejected_blocks"] = [{"block": b.index, "path": b.path, "reason": scope(b.path)}
+                                       for b in sent if scope(b.path)]
+        info.update(extra or {})
         self._last_blocks = len(blocks)
         return self.submit(task_id, attempt, model, ParsedFiles(final.files, tuple(errors)), ex, response=c.text,
                            extra=info)
@@ -460,7 +483,7 @@ class ProHarness(Harness):
                response: str | None = None, extra: Mapping[str, Any] | None = None) -> Submission:
         files = dict(parsed.files)
         diff = unified_patch(ex.context.files, files)
-        self.emit("task.submitted", f"worker:{model}", {
+        ev = self.emit("task.submitted", f"worker:{model}", {
             "task_id": task_id, "attempt": attempt, "model": model, "files": sorted(files),
             **({"contents": files} if self.log_contents else
                {"contents_sha256": {p: sha256_text(c) for p, c in sorted(files.items())}}),
@@ -471,7 +494,8 @@ class ProHarness(Harness):
             **dict(extra or {}),
         })
         return ProSubmission(task_id=task_id, files=files, attempt=attempt, edit_errors=tuple(parsed.errors),
-                             blocks=getattr(self, "_last_blocks", 0))
+                             blocks=getattr(self, "_last_blocks", 0), response=response or "",
+                             info=dict(extra or {}), seq=getattr(ev, "seq", None))
 
     def create(self, arm: str, task_id: str, ex: ProExercise, split: str, max_attempts: int, **extra) -> None:  # type: ignore[override]
         extra.setdefault("benchmark", "swepro")
@@ -523,6 +547,10 @@ class ProHarness(Harness):
     def run_task(self, arm: str, ex, ts, split: str = "") -> bool:  # type: ignore[override]
         if arm == "B2":
             return self.run_single("B2", ex, ts, split)
+        if arm == "La":
+            from .lanes import run_la
+
+            return run_la(self, ex, ts, split)
         return super().run_task(arm, ex, ts, split)
 
     # ---- sizes
@@ -559,13 +587,20 @@ class ProFakeClient:
     """Answers offline. Workers reply with the gold patch as SEARCH/REPLACE blocks if ``solve`` is
     True for the task (a callable on the task id), else with no edits; orchestrators with a canned
     brief; reviewers with ``review``; T2 reviewers with PASS. ``exercises`` maps id -> exercise.
-    Usage is synthetic (about four characters per token). ``count_tokens`` is free and offline."""
+    Usage is synthetic (about four characters per token). ``count_tokens`` is free and offline.
+
+    Arm La: the planner gets a by-file plan of ``lanes_k`` lanes (``lanes.by_file_plan``) and each
+    lane its share of the gold patch. ``policy(task_id, model, lane)`` (``lane`` is ``(lane_id,
+    k)`` for a lane request, else None) overrides ``solve`` per request: ``"gold"``, ``"none"`` or
+    ``"conflict"`` (a lane's gold blocks plus one out-of-scope block that breaks another file)."""
 
     def __init__(self, exercises: Mapping[str, ProExercise], solve: Callable[[str], bool] = lambda i: True,
-                 review: str = "ACCEPT"):
+                 review: str = "ACCEPT", policy: Callable[[str, str, Any], str] | None = None, lanes_k: int = 3):
         self.exercises = exercises
         self.solve = solve
         self.review = review
+        self.policy = policy
+        self.lanes_k = lanes_k
         self.calls: list[dict[str, Any]] = []
 
     def _task_of(self, prompt: str) -> str | None:
@@ -574,19 +609,46 @@ class ProFakeClient:
                 return line[6:].split()[0]
         return None
 
+    _LANE_LINE = re.compile(r"^Lane: (\S+) of (\d+) \(files: (.*)\)$", re.M)
+
+    def _worker_text(self, tid: str | None, model: str, prompt: str) -> str:
+        from .lanes import by_file_plan, plan_reply
+
+        if tid not in self.exercises:
+            return "I could not find a safe change."
+        ex = self.exercises[tid]
+        if "## Request: lane plan" in prompt:
+            return plan_reply(by_file_plan(ex, self.lanes_k))
+        m = self._LANE_LINE.search(prompt)
+        lane = (m.group(1), int(m.group(2))) if m else None
+        action = self.policy(tid, model, lane) if self.policy else ("gold" if self.solve(tid) else "none")
+        if action == "none":
+            return "I could not find a safe change."
+        blocks = diff_to_blocks(ex.task.patch, ex.context.files)
+        if m is None:
+            return "Here are the changes.\n\n" + format_blocks(blocks)
+        files = {f.strip() for f in m.group(3).split(",")}
+        mine = [b for b in blocks if b.path in files]
+        if action == "conflict":
+            other = next((b for b in blocks if b.search and b.path not in files), None)
+            if other is not None:
+                mine.append(replace(other, replace=other.search + "conflicting line from another lane\n",
+                                    index=len(mine) + 1))
+        return "Here are the changes for my lane.\n\n" + format_blocks(mine)
+
     def complete(self, *, model: str, system: str, messages: Sequence[Message], max_tokens: int,
                  effort: str | None = None, tags: Mapping[str, Any] | None = None) -> Completion:
         prompt = messages[-1].content
         role = (tags or {}).get("role", "")
         tid = self._task_of(prompt)
-        if role == "orchestrator":
+        if role == "orchestrator" and "## Request: lane plan" in prompt:
+            text = self._worker_text(tid, model, prompt)
+        elif role == "orchestrator":
             text = "Brief: change the functions named in the interface; keep signatures; handle empty input."
         elif role == "reviewer":
             text = "PASS" if system == PRO_T2_SYSTEM else self.review
-        elif tid in self.exercises and self.solve(tid):
-            text = "Here are the changes.\n\n" + gold_reply(self.exercises[tid])
         else:
-            text = "I could not find a safe change."
+            text = self._worker_text(tid, model, prompt)
         self.calls.append({"model": model, "role": role, "effort": effort, "tags": dict(tags or {}),
                            "prompt": prompt, "system": system, "max_tokens": max_tokens})
         tin = (len(system) + len(prompt)) // 4 + 1
@@ -619,7 +681,8 @@ class OracleResult:
 
 def gold_oracle(exercises: Mapping[str, ProExercise]) -> Callable[..., OracleResult]:
     """A verifier ``run_fn`` that executes nothing: a submission passes every test iff its files
-    equal the gold patch's files (as produced by the edit path)."""
+    equal the gold patch's files (as produced by the edit path). Its output names each file that
+    differs from gold in a traceback-like line, so arm La's blame (rule 2) has something to read."""
     gold = {}
 
     def run(image: str, tests_dir, files: Mapping[str, str]) -> OracleResult:
@@ -628,7 +691,9 @@ def gold_oracle(exercises: Mapping[str, ProExercise]) -> Callable[..., OracleRes
             gold[ex.id] = gold_files(ex)[0]
         ok = dict(files) == gold[ex.id]
         status = "PASSED" if ok else "FAILED"
-        return OracleResult(1 if ok else 0, {t: status for t in ex.test_split.score})
+        bad = sorted(p for p in set(gold[ex.id]) | set(files) if files.get(p) != gold[ex.id].get(p))
+        tail = "".join(f'  File "/app/{p}", line 1, in <module>\nAssertionError\n' for p in bad)
+        return OracleResult(1 if ok else 0, {t: status for t in ex.test_split.score}, output_tail=tail)
 
     return run
 
