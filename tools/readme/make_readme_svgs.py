@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Animated SVGs for contraprova's README, in both themes (assets/readme/<name>-{light,dark}.svg).
+Animated SVGs for contraprova's README (the cascade and the results; the header and the card come from
+the design system's readme kit), in both themes (assets/readme/<name>-{light,dark}.svg).
 
-They follow the aphes.ist design system, as the replay page does: a stippled fog for ground, the φ drawn by
-hand, brush icons in rubedo, Aphesis Script (slanted) for names and glosses, Special Elite for text, and
-the lab kit's categorical colours for the arms (A blue, B ochre, D green, as on the replay page). Nothing
+They follow the aphes.ist design system, as the replay page does: a stippled fog for ground, brush icons
+in rubedo, Aphesis Script (slanted) for names and glosses, Special Elite for text, and the lab kit's categorical colours for the arms (A blue, B ochre, D green, as on the replay page). Nothing
 is solid: areas are stipple, marks are brush.
 
 GitHub shows a README's SVG as an image: SMIL and CSS animations run, scripts and external files do not.
@@ -15,8 +15,8 @@ Every number is read from results/swepro-main/analysis.json, so the images canno
 Inputs, all in this repository (adapted from tools/readme on aphesis's main branch):
   ui/vendor/lab-kit/v1/lab.css     colour tokens, per theme
   ui/vendor/lab-kit/v1/fonts/      Aphesis Script (variable) and Special Elite
-  tools/readme/marks.json          the φ and the brush icons
-  tools/readme/engine_frames.json  the φ as the brush engine draws it, one outline per frame
+  tools/readme/marks.json          the brush icons
+  tools/readme/eye_frames.json     the live eye, recorded with record_eye.js
 
     pip install fonttools brotli numpy
     python3 tools/readme/make_readme_svgs.py            # writes assets/readme/
@@ -35,7 +35,6 @@ ap.add_argument('--css', default=os.path.join(KIT, 'lab.css'))
 ap.add_argument('--aphesis', default=os.path.join(KIT, 'fonts', 'AphesisScript-VF.woff2'))
 ap.add_argument('--elite', default=os.path.join(KIT, 'fonts', 'SpecialElite-latin.woff2'))
 ap.add_argument('--marks', default=os.path.join(HERE, 'marks.json'))
-ap.add_argument('--frames', default=os.path.join(HERE, 'engine_frames.json'))
 ap.add_argument('--eyeframes', default=os.path.join(HERE, 'eye_frames.json'))
 ap.add_argument('--analysis', default=os.path.join(ROOT, 'results', 'swepro-main', 'analysis.json'))
 ap.add_argument('--out', default=os.path.join(ROOT, 'assets', 'readme'))
@@ -71,6 +70,8 @@ def themes():
 
 
 THEMES = themes()
+# GitHub's README grounds: the images are transparent, as the design system's readme kit makes them
+GITHUB_GROUND = {'light': '#ffffff', 'dark': '#0d1117'}
 
 # ------------------------------------------------------------------ fonts
 APH, ELITE = TTFont(ARGS.aphesis), TTFont(ARGS.elite)
@@ -99,7 +100,6 @@ def advance(text, size, spacing=0):
 
 
 MARKS = json.load(open(ARGS.marks))
-PHI = MARKS['phi']
 A = json.load(open(ARGS.analysis))
 
 
@@ -213,33 +213,6 @@ def stipple_rect(w, h, seed, cell=4, level=.62, edge=True):
 
 
 # ------------------------------------------------------------------ pieces
-ENGINE = None
-
-
-def phi_drawn(x, y, h, color, dur=14, start=.6, fid='boilE'):
-    """the φ as the brush engine draws it on aphes.ist, played back frame by frame (engine_frames.json)"""
-    global ENGINE
-    if ENGINE is None: ENGINE = json.load(open(ARGS.frames))
-    fr = [p or 'M%d %dl0 0z' % (ENGINE['bbox'][0] + 326, ENGINE['bbox'][3]) for p in ENGINE['frames']]
-    n = len(fr) - 1; draw = ENGINE['dur']
-    x0, y0, x1, y1 = ENGINE['bbox']; s = h / (y1 - y0); tx, ty = x - x0 * s, y - y0 * s
-    kt = [0] + [(start + i / n * draw) / dur for i in range(n + 1)]
-    filt = ('<filter id="%s" x="-5%%" y="-5%%" width="110%%" height="110%%"><feTurbulence type="fractalNoise" baseFrequency=".03" numOctaves="1" seed="2">'
-            '<animate attributeName="seed" dur="1s" repeatCount="indefinite" calcMode="discrete" values="2;7;13;21;34;55;89;144"/></feTurbulence>'
-            '<feDisplacementMap in="SourceGraphic" scale="7" xChannelSelector="R" yChannelSelector="G"/></filter>' % fid)
-    return ('<defs>%s</defs><g transform="translate(%s %s) scale(%s)">'
-            '<animate attributeName="opacity" dur="%ss" repeatCount="indefinite" keyTimes="0;.86;.93;1" values="1;1;0;0"/>'
-            '<path fill="%s" filter="url(#%s)" d="%s"><animate attributeName="d" dur="%ss" repeatCount="indefinite" calcMode="discrete" keyTimes="%s" values="%s"/></path></g>'
-            % (filt, f(tx), f(ty), f(s), dur, color, fid, fr[0], dur, ';'.join(f(k) for k in kt), ';'.join([fr[0]] + fr)))
-
-
-def phi_static(x, y, h, color):
-    vb = [float(v) for v in PHI['viewBox'].split()]
-    s = h / vb[3]
-    return '<g transform="translate(%s %s) scale(%s)"><path d="%s" fill="%s" fill-rule="evenodd"/></g>' % (
-        f(x - vb[0] * s), f(y - vb[1] * s), f(s), PHI['d'], color)
-
-
 def icon(name, x, y, size, color):
     g = MARKS[name]; s = size / 24
     dots = '<path d="%s" fill="%s" opacity=".85"/>' % (g['dots'], color) if g['dots'] else ''
@@ -350,6 +323,7 @@ def txt(s, x, y, size, color, cls='elite', anchor='start', extra=''):
 
 def svg(name, W, H, body_fn, aph_text='', elite_text='', title=''):
     for tid, T in THEMES.items():
+        T = dict(T, bg=GITHUB_GROUND[tid])   # transparent image; halos and discs match the README's own ground
         css = []
         if aph_text: css.append(font_face(ARGS.aphesis, 'Aphesis Script', aph_text, variable=True))
         if elite_text: css.append(font_face(ARGS.elite, 'Special Elite', elite_text))
@@ -358,8 +332,8 @@ def svg(name, W, H, body_fn, aph_text='', elite_text='', title=''):
                    ".halo{paint-order:stroke;stroke:%s;stroke-width:7px;stroke-linejoin:round;stroke-opacity:.92}"
                    ".halo-s{paint-order:stroke;stroke:%s;stroke-width:3px;stroke-linejoin:round}" % (T['bg'], T['bg']))
         doc = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %d %d" width="%d" height="%d" role="img"><title>%s</title>'
-               '<style>%s</style><rect width="%d" height="%d" fill="%s"/>%s</svg>'
-               % (W, H, W, H, esc(title), ''.join(css), W, H, T['bg'], body_fn(T, tid)))
+               '<style>%s</style>%s</svg>'
+               % (W, H, W, H, esc(title), ''.join(css), body_fn(T, tid)))
         p = os.path.join(ARGS.out, '%s-%s.svg' % (name, tid))
         open(p, 'w').write(doc); print('%-26s %6.1f KB' % (os.path.basename(p), len(doc) / 1024))
 
@@ -371,28 +345,7 @@ usd = lambda v: '$%.3f' % v
 FORKS = EV['n_forks']; NP = A['n_pairs']
 
 
-# ------------------------------------------------------------------ 1. hero: the seal drawn in the fog, the name, the claim typed
-def hero():
-    W, H = 1200, 460
-    calm = [(230, 230, 210, 240), (760, 220, 400, 150), (930, 430, 300, 50)]
-    layers = fog_layers(W, H, 4, 23, calm)
-    gloss = 'probatio contraria'
-    name = 'contraprova'
-    tag = 'escalation is a claim. contraprova is the control.'
-    line = '>> fork: haiku again %d/%d, opus %d/%d. the gap is what escalation buys.' % (
-        EV['control_haiku_noise_floor']['solved'], FORKS, EV['treatment_opus']['solved'], FORKS)
-
-    def body(T, tid):
-        return (fog_svg(layers, T['fog']) + phi_drawn(120, 50, 360, T['seal']) +
-                txt(gloss, 476, 132, 24, T['ink-soft'], 'aph halo') +
-                txt(name, 466, 252, 128, T['ink'], 'aph halo') +
-                txt(tag, 476, 310, 20, T['ink-soft'], 'elite halo', extra=' letter-spacing="1"') +
-                typed(line, 1176, 438, 13, T['accent-text'], 14, 3.0, 6.0, anchor='end', spacing=1.2) +
-                icon('eye0' if tid == 'light' else 'eye1', 22, 414, 28, T['accent']))
-    svg('hero', W, H, body, gloss + name, tag + line, 'contraprova: escalation is a claim, contraprova is the control')
-
-
-# ------------------------------------------------------------------ 2. the cascade: a brief travels, the gate passes it or forks it
+# ------------------------------------------------------------------ 1. the cascade: a brief travels, the gate passes it or forks it
 def cascade():
     W, H, dur = 1200, 470, 16
     O, Wk, G = (110, 225), (390, 225), (640, 225)
@@ -462,7 +415,7 @@ def cascade():
         'the governed cascade: an orchestrator briefs a haiku worker, a gate passes the result or forks it into a haiku retry and an opus escalation')
 
 
-# ------------------------------------------------------------------ 3. results: solve rates with wilson intervals, the margin, cost per solved
+# ------------------------------------------------------------------ 2. results: solve rates with wilson intervals, the margin, cost per solved
 def results():
     W, H, dur = 1200, 470, 14
     arms = [('A', 'single opus', 'arm a', 'lab-cat-1'), ('D', 'the cascade', 'arm d', 'lab-cat-3'),
@@ -543,4 +496,4 @@ def results():
 
 
 if __name__ == '__main__':
-    hero(); cascade(); results()
+    cascade(); results()
