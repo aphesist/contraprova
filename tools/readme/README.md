@@ -11,7 +11,15 @@ Inputs:
 - `ui/vendor/lab-kit/v1/lab.css` and `fonts/`: the colour tokens and the two faces, from the vendored lab kit;
 - `marks.json` and `engine_frames.json` (here): the φ, the brush icons and the φ as the brush engine draws
   it, copied verbatim from aphesis `main` at `e536573` (`tools/readme/`);
+- `eye_frames.json` (here): the orchestrator's eye, the design system's live `Aphesis.Eye` (owner's-mark preset)
+  recorded tick by tick (125 ms) for 24 s with `record_eye.js`, so the README plays back its real blinks,
+  saccades and tremble. To record it again from a checkout of aphesis's `design-system` branch:
+  `node tools/readme/record_eye.js <aphesis>/system/components 192` (needs Playwright);
 - `results/swepro-main/analysis.json`: every number shown.
+
+The other icons move as `.aph-icon` does on the site: the stipple stirs, its two halves against each other, and
+draws in toward the icon's heart (`.aph-gather`) when the token reaches it; the gate and the fork cut to their
+second drawing while a block is shown.
 
 ```bash
 pip install fonttools brotli numpy

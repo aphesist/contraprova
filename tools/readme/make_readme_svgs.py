@@ -36,6 +36,7 @@ ap.add_argument('--aphesis', default=os.path.join(KIT, 'fonts', 'AphesisScript-V
 ap.add_argument('--elite', default=os.path.join(KIT, 'fonts', 'SpecialElite-latin.woff2'))
 ap.add_argument('--marks', default=os.path.join(HERE, 'marks.json'))
 ap.add_argument('--frames', default=os.path.join(HERE, 'engine_frames.json'))
+ap.add_argument('--eyeframes', default=os.path.join(HERE, 'eye_frames.json'))
 ap.add_argument('--analysis', default=os.path.join(ROOT, 'results', 'swepro-main', 'analysis.json'))
 ap.add_argument('--out', default=os.path.join(ROOT, 'assets', 'readme'))
 ARGS = ap.parse_args()
@@ -245,6 +246,61 @@ def icon(name, x, y, size, color):
     return '<g transform="translate(%s %s) scale(%s)"><path d="%s" fill="%s"/>%s</g>' % (f(x), f(y), f(s), g['strokes'], color, dots)
 
 
+STIR = '0 0;.45 -.3;-.3 .35;.25 .15;-.3 .35;.45 -.3;0 0'   # the design system's aph-stir, played alternate
+
+
+def live_icon(name, x, y, size, color, dur, gathers=(), seed=0):
+    """a brush icon whose stipple stirs, its two halves against each other (the design system's .aph-icon motion),
+    and draws in toward its heart (.aph-gather) during each (t0, t1) of `gathers`, in a loop of `dur` seconds"""
+    g = MARKS[name]; s = size / 24
+    cells = re.findall(r'M[^M]*', g['dots'] or '')
+    halves = [''.join(cells[0::2]), ''.join(cells[1::2])]
+    kt = '0;.15;.325;.5;.675;.85;1'
+    spl = ';'.join(['.45 0 .55 1'] * 6)
+    stir = ''.join('<path d="%s" fill="%s" opacity=".85"><animateTransform attributeName="transform" type="translate" dur="%ss" begin="%ss" '
+                   'repeatCount="indefinite" calcMode="spline" keyTimes="%s" keySplines="%s" values="%s"/></path>'
+                   % (h, color, d, f(-(seed * .37 % 1.3)), kt, spl, STIR if i == 0 else ';'.join(reversed(STIR.split(';'))))
+                   for i, (h, d) in enumerate(zip(halves, (3.4, 2.9))) if h)
+    if gathers:
+        k, v = [0], ['1']
+        for t0, t1 in gathers:
+            m = (t0 + t1) / 2
+            k += [t0 / dur, m / dur, t1 / dur]; v += ['1', '.8', '1']
+        k.append(1); v.append('1')
+        stir = ('<g transform="translate(12 12)"><g><animateTransform attributeName="transform" type="scale" dur="%ss" repeatCount="indefinite" '
+                'calcMode="spline" keyTimes="%s" keySplines="%s" values="%s"/><g transform="translate(-12 -12)">%s</g></g></g>'
+                % (dur, ';'.join(f(q) for q in k), ';'.join(['.3 0 .2 1'] * (len(k) - 1)), ';'.join(v), stir))
+    return '<g transform="translate(%s %s) scale(%s)"><path d="%s" fill="%s"/>%s</g>' % (f(x), f(y), f(s), g['strokes'], color, stir)
+
+
+EYE = None
+
+
+def eye_live(cx, cy, width, color, fid='eyeboil'):
+    """the design system's live Eye (owner's-mark preset) played back from eye_frames.json: hard-cut blinks, saccades
+    and the 8 fps tremble, exactly as recorded from Aphesis.Eye; its own clock, independent of the image's"""
+    global EYE
+    if EYE is None: EYE = json.load(open(ARGS.eyeframes))
+    seq, tick = EYE['sequence'], EYE['tick']; n = len(seq); dur = n * tick
+    vx, vy, vw, vh = [float(v) for v in EYE['viewBox'].split()]
+    s = width / vw; tx, ty = cx - (vx + vw / 2) * s, cy - (vy + vh / 2) * s
+    out = []
+    for k, layers in enumerate(EYE['drawings']):
+        on = [q == k for q in seq]
+        kts, vals = ['0'], ['visible' if on[0] else 'hidden']
+        for i in range(1, n):
+            if on[i] != on[i - 1]:
+                kts.append(f(i / n)); vals.append('visible' if on[i] else 'hidden')
+        paths = ''.join('<path d="%s"%s/>' % (d, '' if o == '1' else ' opacity="%s"' % o) for _c, o, d in layers)
+        out.append('<g visibility="%s">%s<animate attributeName="visibility" dur="%ss" repeatCount="indefinite" calcMode="discrete" keyTimes="%s" values="%s"/></g>'
+                   % (vals[0], paths, f(dur), ';'.join(kts), ';'.join(vals)))
+    filt = ('<filter id="%s" x="-6%%" y="-6%%" width="112%%" height="112%%"><feTurbulence type="fractalNoise" baseFrequency=".055" numOctaves="1" seed="1">'
+            '<animate attributeName="seed" dur="1s" repeatCount="indefinite" calcMode="discrete" values="1;4;9;16;25;36;49;64"/></feTurbulence>'
+            '<feDisplacementMap in="SourceGraphic" scale="%s" xChannelSelector="R" yChannelSelector="G"/></filter>' % (fid, EYE['boil']))
+    return '<defs>%s</defs><g transform="translate(%s %s) scale(%s)"><g filter="url(#%s)" fill="%s">%s</g></g>' % (
+        filt, f(tx), f(ty), f(s), fid, color, ''.join(out))
+
+
 def window(dur, t0, t1, fade=.25, attr='opacity'):
     """an animate that shows an element from t0 to t1 (seconds) in a loop of dur"""
     k = [0, max(0, t0 - fade), t0, t1, min(dur, t1 + fade), dur]
@@ -356,15 +412,18 @@ def cascade():
                 'keyPoints="0;0;1;1" keyTimes="0;%s;%s;1" calcMode="linear"/></g>'
                 % (window(dur, t0, t1, .12), tok, color, dur, d(pts), f(t0 / dur), f(t1 / dur)))
 
-    def node(c, ic, name, sub, T, below=True, anchor='middle', ic2=None, swap=None):
+    def node(c, ic, name, sub, T, below=True, anchor='middle', ic2=None, swap=None, gathers=(), seed=0):
         x, y = c
         disc = '<circle cx="%s" cy="%s" r="30" fill="%s"/>' % (f(x), f(y), T['bg'])
-        icn = icon(ic, x - 22, y - 22, 44, T['accent'])
-        if ic2:   # the gate turns to its second state while a block is shown
+        if ic == 'eye':
+            icn = eye_live(x, y, 58, T['accent'])
+        else:
+            icn = live_icon(ic, x - 22, y - 22, 44, T['accent'], dur, gathers, seed)
+        if ic2:   # a second drawing while (a, b) lasts: the gate on a block, the fork while it splits
             a, b = swap
             flip = lambda v: ('<animate attributeName="opacity" dur="%ss" repeatCount="indefinite" calcMode="discrete" '
                               'keyTimes="0;%s;%s" values="%s"/>' % (dur, f(a / dur), f(b / dur), v))
-            icn = '<g>%s%s</g><g opacity="0">%s%s</g>' % (icn, flip('1;0;1'), icon(ic2, x - 22, y - 22, 44, T['accent']), flip('0;1;0'))
+            icn = '<g>%s%s</g><g opacity="0">%s%s</g>' % (icn, flip('1;0;1'), live_icon(ic2, x - 22, y - 22, 44, T['accent'], dur, (), seed + 1), flip('0;1;0'))
         ty = y + 60 if below else y - 44
         tx = x if anchor == 'middle' else x + 40
         ty2 = ty + 22
@@ -389,13 +448,13 @@ def cascade():
                 pulse(e_ow, *t['ow'], T['lab-cat-3']) + pulse(e_wg, *t['wg'], T['lab-cat-3']) + pulse(e_gp, *t['gp'], T['lab-cat-3']) +
                 pulse(e_ow, *t['ow2'], T['lab-cat-3']) + pulse(e_wg, *t['wg2'], T['lab-cat-3']) + pulse(e_gf, *t['gf'], T['accent']) +
                 pulse(e_fc, *t['split'], T['lab-cat-2']) + pulse(e_ft, *t['split'], T['lab-cat-1']) +
-                node(O, 'eye1' if tid == 'dark' else 'eye0', 'orchestrator', 'opus · plans from outlines', T) +
-                node(Wk, 'luna', 'worker', 'haiku · does the job', T) +
-                node(G, 'thr0', 'gate', 'scope · edits · tests', T, ic2='thr1', swap=(9.0, 12.8)) +
-                node(Pp, 'sol', 'shipped', '%d of %d passed on haiku' % (NP - FORKS, NP), T, anchor='start') +
-                node(F, 'term0', 'fork', 'from the same logged point', T, below=True) +
-                node(Cc, 'luna', 'contraprova', 'haiku again: %d of %d' % (ctrl['solved'], ctrl['n']), T, anchor='start') +
-                node(Tt, 'sol', 'escalation', 'opus: %d of %d' % (treat['solved'], treat['n']), T, anchor='start') +
+                node(O, 'eye', 'orchestrator', 'opus · plans from outlines', T) +
+                node(Wk, 'luna', 'worker', 'haiku · does the job', T, gathers=[(2.0, 2.7), (8.0, 8.7)], seed=1) +
+                node(G, 'thr0', 'gate', 'scope · edits · tests', T, ic2='thr1', swap=(9.0, 12.8), gathers=[(3.0, 3.6)], seed=2) +
+                node(Pp, 'sol', 'shipped', '%d of %d passed on haiku' % (NP - FORKS, NP), T, anchor='start', gathers=[(4.4, 5.2)], seed=3) +
+                node(F, 'term0', 'fork', 'from the same logged point', T, below=True, ic2='term1', swap=(10.2, 12.8), seed=4) +
+                node(Cc, 'luna', 'contraprova', 'haiku again: %d of %d' % (ctrl['solved'], ctrl['n']), T, anchor='start', gathers=[(11.8, 12.6)], seed=5) +
+                node(Tt, 'sol', 'escalation', 'opus: %d of %d' % (treat['solved'], treat['n']), T, anchor='start', gathers=[(11.8, 12.6)], seed=6) +
                 typed(note, 40, 450, 13, T['accent-text'], dur, 11.2, 3.6, spacing=1.0))
     svg('cascade', W, H, body, 'orchestrator worker gate shipped fork contraprova escalation',
         'scope: test: goal: opus · plans from outlines haiku · does the job scope · edits · tests passed on haiku from the same logged point '
