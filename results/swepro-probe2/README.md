@@ -1,7 +1,7 @@
 # SWE-bench Pro probe 2: harder tasks (2026-11-11)
 
 **These are pilot measurements on 12 tasks**, used for the pre-registered GO/NO-GO decision.
-Pre-registration: [PREREG.md](PREREG.md), committed (0414b74) before any paid request. Nothing in it
+Pre-registration: [PREREG.md](PREREG.md), committed (c32ed65) before any paid request. Nothing in it
 was changed afterwards.
 
 - **Tasks:** split `probe2`, 12 tasks from Pro's HARD-51 subset (selection and replacements in

@@ -2,9 +2,9 @@
 
 **This reruns the same 12 tasks as probe 2.** It is an instrument re-check, not a fresh sample, and
 the main study will use untouched tasks. These are pilot measurements on 12 tasks. Pre-registration:
-[PREREG.md](PREREG.md), committed (851c93d) before any paid request and unchanged since.
+[PREREG.md](PREREG.md), committed (14d92e2) before any paid request and unchanged since.
 
-- **Instrument changes since probe 2** (harness 0d80260, the same for every arm):
+- **Instrument changes since probe 2** (harness b133048, the same for every arm):
   - Opus `max_tokens` 32,000 (was 12,000), the same as Haiku.
   - One repair turn after a reply that was cut off at `max_tokens` or whose edit blocks failed to
     parse or apply. The repair turn holds only the edit error, never test names or results.

@@ -1,6 +1,6 @@
 # SWE-bench Pro main study: results (2026-11-12)
 
-Pre-registration: [PREREG.md](PREREG.md), committed (8d92b0a) before any paid request. Run: arms A
+Pre-registration: [PREREG.md](PREREG.md), committed (f43ad38) before any paid request. Run: arms A
 and D on the pre-registered list of 90 `main` tasks, in its seeded order. The pre-registered analysis
 is [analyze.py](analyze.py); its output is `analysis.json`. The independent `contraprova report` is in
 [contraprova-report.md](contraprova-report.md) and gives the same paired D-vs-A contrast.
@@ -79,7 +79,7 @@ to 8 points. Arm A is near its ceiling on these tasks (96.6%), so this sample co
    not pulled through the image cache, so docker pulled them implicitly and `--delete-images` never
    removed them. The disk filled and the process stopped **between tasks**: no partial task, and the
    log verifies.
-   - Fix 2d12cc5: validation pulls through the cache first.
+   - Fix b587f67: validation pulls through the cache first.
    - The run resumed with the identical command; the resume skips completed tasks.
    - **This changes the hash of `src/contraprova/harness/swepro_run.py`** from the PREREG value
      (`bf8f9729…`) to `771dd3217e37ef4da6dc78a0f5d79728a86a8c4ff16aea37fc5d3b82fdd1877f`. Every other hashed file matches the PREREG values. The change touches
