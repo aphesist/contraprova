@@ -70,7 +70,11 @@ DEFAULT_SECONDARY: tuple[Contrast, ...] = (("D", "A"), ("D", "B"), ("D", "C"), (
 DEFAULT_ITERS = 10_000
 ALPHA = 0.05
 ORCHESTRATOR_ROLE = "orchestrator"
-ARM_ORDER = ("A", "B", "C", "D", "L1", "La", "La-shadow", "Lb", "Lc")
+ARM_ORDER = ("A", "B", "C", "D", "L1", "La", "La-sonnet", "La-first", "La-shadow", "Lb", "Lc")
+# Contract Lanes on SWE-bench Pro (docs/lanes-plan.md section 6): the primary family is exactly one contrast.
+LANES_PRIMARY: tuple[Contrast, ...] = (("La", "La-shadow"),)
+LANES_SECONDARY: tuple[Contrast, ...] = (("La", "D"), ("La", "La-sonnet"), ("La-sonnet", "La-first"),
+                                         ("La-first", "La-shadow"), ("La", "B"), ("D", "B"))
 
 PriceTable = str | Mapping[str, ModelPrice]
 
@@ -1013,3 +1017,177 @@ def report_markdown(
         L += ["", "## Warnings", ""]
         L += [f"- {w}" for w in r.warnings]
     return "\n".join(L) + "\n"
+
+
+# ------------------------------------------------------------------ Contract Lanes (arm La)
+
+LANE_ARM = "La"
+FAILURES = ("truncated", "parse", "apply")
+
+
+@dataclass(frozen=True)
+class LaneMetrics:
+    """Lane-specific numbers for the Contract Lanes report (docs/lanes-plan.md section 6)."""
+
+    tasks: int  # La tasks with a plan
+    k: dict[int, int]  # lanes chosen -> tasks
+    fallbacks: int  # plans that fell back to one lane
+    plan_repairs: int
+    rounds: dict[int, int]  # merge rounds -> tasks
+    final_tiers: dict[str, int]  # ladder step reached -> lanes
+    clashes: dict[str, dict[str, int]]  # kind -> mode -> count
+    clash_tasks: dict[str, int]  # kind -> tasks with at least one
+    clashes_per_task: dict[str, dict[str, int]]  # pairing key -> kind -> count
+    first_reply_failures: dict[str, dict[str, int]]  # "La lanes" / "D" -> failure kind (+ "requests", "tasks_any")
+    blame_rules: dict[int, int]
+    planner_cost: float
+    la_cost: float
+    cost_per_solved_ratio: Estimate  # (La cost / La solved) / (D cost / D solved) on shared tasks
+
+    @property
+    def planner_share(self) -> float | None:
+        return self.planner_cost / self.la_cost if self.la_cost > 0 else None
+
+
+def lane_metrics(events: Iterable[Event], table: PriceTable = DEFAULT_TABLE, *, seed: int = 0,
+                 iters: int = DEFAULT_ITERS) -> LaneMetrics:
+    """Plan shape, ladder use, clash counts, first-reply failures, planner share and the La/D cost
+    per solved ratio (paired bootstrap over the tasks both arms scored)."""
+    events = list(events)
+    _, tbl, _ = resolve_table(table)
+    d = _parse(events, tbl)
+    plans: dict[str, Mapping] = {}
+    rounds: dict[str, int] = {}
+    tiers: dict[str, dict[str, str]] = {}
+    clashes: dict[str, dict[str, int]] = {}
+    per_task: dict[str, dict[str, int]] = {}
+    rules: dict[int, int] = {}
+    parent_key: dict[str, str] = {}
+    fails = {"La lanes": {f: 0 for f in FAILURES}, "D": {f: 0 for f in FAILURES}}
+    reqs = {"La lanes": 0, "D": 0}
+    any_fail: dict[str, set[str]] = {"La lanes": set(), "D": set()}
+    lane_tasks: set[str] = set()
+    for ev in events:
+        p = ev.payload
+        if ev.type == "task.created":
+            if p.get("arm") == LANE_ARM and p.get("kind") == "lane":
+                lane_tasks.add(str(p["task_id"]))
+            if p.get("exercise_id") is not None:
+                parent_key[str(p["task_id"])] = str(p["exercise_id"])
+        elif ev.type == "lane.planned":
+            plans[str(p["task_id"])] = p
+        elif ev.type == "merge.decided" and p.get("mode") == "governed":
+            rounds[str(p["task_id"])] = int(p.get("round", 0)) + 1
+            tiers[str(p["task_id"])] = dict(p.get("tiers") or {})
+            if p.get("verdict") == "block":
+                rule = int(p.get("blame_rule", 0))
+                rules[rule] = rules.get(rule, 0) + 1
+        elif ev.type == "coordination.detected":
+            kind, mode = str(p.get("kind")), str(p.get("mode") or "?")
+            clashes.setdefault(kind, {}).setdefault(mode, 0)
+            clashes[kind][mode] += 1
+            key = parent_key.get(str(p.get("task_id")), str(p.get("task_id")))
+            per_task.setdefault(key, {}).setdefault(kind, 0)
+            per_task[key][kind] += 1
+        elif ev.type == "task.submitted":
+            tid = str(p.get("task_id"))
+            first_lane = tid in lane_tasks and p.get("round") == 0
+            first_d = tid.startswith("D:") and tid.count(":") == 1 and int(p.get("attempt", 1)) == 1
+            group = "La lanes" if first_lane else ("D" if first_d else None)
+            if group is not None:
+                reqs[group] += 1
+                f = p.get("original_failure")
+                if f in fails[group]:
+                    fails[group][f] += 1
+                    any_fail[group].add(parent_key.get(tid, tid))
+    for g in fails:
+        fails[g]["requests"] = reqs[g]
+        fails[g]["tasks_any"] = len(any_fail[g])
+    final_tiers: dict[str, int] = {}
+    for t in tiers.values():
+        for step in t.values():
+            final_tiers[step] = final_tiers.get(step, 0) + 1
+    clash_tasks = {k: sum(1 for c in per_task.values() if c.get(k)) for k in clashes}
+    la = d.arm_usage.get(LANE_ARM, _Usage())
+    return LaneMetrics(
+        tasks=len(plans), k=_count(int(p.get("k", 0)) for p in plans.values()),
+        fallbacks=sum(1 for p in plans.values() if p.get("fallback")),
+        plan_repairs=sum(1 for p in plans.values() if p.get("repair_used")),
+        rounds=_count(rounds.values()), final_tiers=dict(sorted(final_tiers.items())), clashes=clashes,
+        clash_tasks=clash_tasks, clashes_per_task=per_task, first_reply_failures=fails,
+        blame_rules=dict(sorted(rules.items())), planner_cost=la.orch_cost, la_cost=la.cost,
+        cost_per_solved_ratio=_cps_ratio(d, LANE_ARM, "D", seed, iters))
+
+
+def _count(xs: Iterable[int]) -> dict[int, int]:
+    out: dict[int, int] = {}
+    for x in xs:
+        out[x] = out.get(x, 0) + 1
+    return dict(sorted(out.items()))
+
+
+def _cps_ratio(d: _Data, a: str, b: str, seed: int, iters: int) -> Estimate:
+    """(cost / solved of ``a``) / (cost / solved of ``b``) over the tasks both scored, with a paired
+    percentile bootstrap CI (resampled tasks keep their pairs)."""
+    oa, ob = d.outcomes.get(a, {}), d.outcomes.get(b, {})
+    shared = sorted(set(oa) & set(ob))
+    n = len(shared)
+    if n == 0:
+        return _none()
+    ua, ub = d.task_usage.get(a, {}), d.task_usage.get(b, {})
+    cols = {"sa": [float(oa[t]) for t in shared], "sb": [float(ob[t]) for t in shared],
+            "ca": [ua[t].cost if t in ua else 0.0 for t in shared], "cb": [ub[t].cost if t in ub else 0.0 for t in shared]}
+    tot = {c: sum(v) for c, v in cols.items()}
+
+    def stat(s: Mapping[str, float]) -> float:
+        num, den = _ratio(s["ca"], s["sa"]), _ratio(s["cb"], s["sb"])
+        if math.isnan(num) or math.isnan(den) or math.isinf(den) or den == 0:
+            return math.nan
+        return num / den
+
+    if tot["sa"] == 0 or tot["sb"] == 0:
+        return _none(n)
+    lo, hi = _bootstrap(cols, {"r": stat}, iters, _derive(seed, "cps-ratio", a, b))["r"]
+    return Estimate(stat(tot), lo, hi, n, "bootstrap")
+
+
+def _x(x: float | None) -> str:
+    if x is None:
+        return "-"
+    return "inf" if math.isinf(x) else f"{x:.2f}"
+
+
+def lanes_report_markdown(events: Iterable[Event], table: PriceTable = DEFAULT_TABLE, *, seed: int = 0,
+                          iters: int = DEFAULT_ITERS) -> str:
+    """The Contract Lanes report: the standard report with the pre-registered family (La vs La-shadow,
+    exact McNemar, Holm with m = 1) and the secondary contrasts (La vs D by paired bootstrap,
+    estimation only; the decomposition shadow -> first -> Sonnet -> final), then the lane section."""
+    events = list(events)
+    base = report_markdown(events, table, primary=LANES_PRIMARY, secondary=LANES_SECONDARY, seed=seed, iters=iters)
+    m = lane_metrics(events, table, seed=seed, iters=iters)
+    L = ["", "## Contract Lanes", ""]
+    L.append(f"Tasks planned: {m.tasks}; lanes chosen (k: tasks): "
+             + (", ".join(f"{k}: {n}" for k, n in m.k.items()) or "none")
+             + f"; single-lane fallbacks: {m.fallbacks}; plan repairs: {m.plan_repairs}.")
+    L.append("Merge rounds (rounds: tasks): " + (", ".join(f"{k}: {n}" for k, n in m.rounds.items()) or "none")
+             + ". Ladder step reached per lane: " + (", ".join(f"{k} {n}" for k, n in m.final_tiers.items()) or "none")
+             + ". Blame rule of blocked merges (rule: blocks): "
+             + (", ".join(f"{k}: {n}" for k, n in m.blame_rules.items()) or "none") + ".")
+    share = m.planner_share
+    L.append(f"Planner cost {_usd(m.planner_cost)} of La's {_usd(m.la_cost)} "
+             f"({'n/a' if share is None else f'{100 * share:.1f}%'}); every planner, lane, repair and escalation "
+             "request is La's cost.")
+    L.append(f"Cost per solved task, La / D (shared tasks): {_ci(m.cost_per_solved_ratio, _x)} (estimation).")
+    L += ["", "### Coordination clashes (deterministic detectors, not validated against human labels)", ""]
+    if m.clashes:
+        modes = sorted({mo for v in m.clashes.values() for mo in v})
+        L += _table(["Clash", *modes, "Tasks with one"],
+                    [[k, *(str(v.get(mo, 0)) for mo in modes), str(m.clash_tasks.get(k, 0))]
+                     for k, v in sorted(m.clashes.items())])
+    else:
+        L.append("No clash detected.")
+    L += ["", "### First-reply edit failures (truncated / parse / apply)", ""]
+    L += _table(["Group", "Requests", "Truncated", "Parse", "Apply", "Tasks with any"],
+                [[g, str(v["requests"]), str(v["truncated"]), str(v["parse"]), str(v["apply"]), str(v["tasks_any"])]
+                 for g, v in m.first_reply_failures.items()])
+    return base + "\n".join(L) + "\n"

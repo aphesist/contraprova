@@ -26,6 +26,8 @@ def main(argv: list[str] | None = None) -> int:
             p.add_argument("--prices", default=DEFAULT_TABLE, choices=sorted(PRICE_TABLES))
         if name == "report":
             p.add_argument("--seed", type=int, default=0)
+            p.add_argument("--lanes", action="store_true", help="Contract Lanes report: primary family La vs "
+                           "La-shadow only (exact McNemar), La vs D by paired bootstrap, clash counts, planner share")
         if name == "cost":
             p.add_argument("--by", default="role", help="usage field to group by (role, model, arm, task_id); "
                            "with arm, fork spend an arm did not ship is grouped as '<arm>:measurement'")
@@ -56,7 +58,12 @@ def main(argv: list[str] | None = None) -> int:
         elif args.cmd == "report":
             from .analysis import report_markdown
 
-            print(report_markdown(log.events(), args.prices, seed=args.seed))
+            if args.lanes:
+                from .analysis import lanes_report_markdown
+
+                print(lanes_report_markdown(log.events(), args.prices, seed=args.seed))
+            else:
+                print(report_markdown(log.events(), args.prices, seed=args.seed))
     except (ChainError, InvalidTransition) as e:
         print(f"FAILED: {e}", file=sys.stderr)
         return 1
