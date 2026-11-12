@@ -1,13 +1,4 @@
-<div align="center">
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/readme/hero-dark.svg">
-  <img alt="contraprova, probatio contraria: the φ drawn in the fog. escalation is a claim. contraprova is the control." src="assets/readme/hero-light.svg" width="100%">
-</picture>
-
-</div>
-
-# contraprova
+<a href="https://contraprova.aphes.ist/"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/header-dark.svg"><img src="assets/readme/header-light.svg" alt="contraprova: cheap claude workers, with a control for every escalation." width="100%"></picture></a>
 
 An event-sourced orchestrator for cheap Claude workers, built to answer one question with numbers:
 **when a cheap model fails, does escalating to a stronger model beat simply trying the cheap model
@@ -16,6 +7,8 @@ append-only, hash-chained log, and everything else (task state, cost, routing, t
 is a projection of it. When a worker fails, the log forks and the task re-runs twice from the same point:
 once with the same cheap model (the *contraprova*, the control) and once with a stronger one. The gap
 between them is what escalation actually buys.
+
+<a href="https://contraprova.aphes.ist/"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/readme/card-dark.svg"><img src="assets/readme/card-light.svg" alt="contraprova, probatio contraria: on 88 fresh swe-bench pro tasks, on par with a single opus at ~61% less cost per solved task." width="660"></picture></a>
 
 **[The replay](https://contraprova.aphes.ist/)**: the main study's log, replayed event by event
 in the browser.
@@ -198,10 +191,11 @@ See [related work](docs/related-work.md) for the rest.
 
 ## The images in this README
 
-They are animated SVGs (SMIL and CSS) in the [aphes.ist](https://aphes.ist) design system, the same as
-the replay page: stippled fog, the φ drawn by its brush engine, Aphesis Script and Special Elite. Every
-number in them is read from `results/swepro-main/analysis.json` by
-[`tools/readme/make_readme_svgs.py`](tools/readme), in a light and a dark version.
+They are animated SVGs in the [aphes.ist](https://aphes.ist) design system, the same as the replay
+page, each in a light and a dark version. The header and the card come from the design system's readme kit
+(`tools/readme/readme.py` on aphesis's `design-system` branch) with contraprova's icon, a balance with an
+equal heap in each pan. The cascade and the results are drawn by [`tools/readme/make_readme_svgs.py`](tools/readme),
+which reads every number from `results/swepro-main/analysis.json`.
 
 ## Licence
 
