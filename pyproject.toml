@@ -23,3 +23,5 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = ["slow: measurements and large fixtures; skipped by default, run with `pytest -m slow`"]
+addopts = "-m 'not slow'"

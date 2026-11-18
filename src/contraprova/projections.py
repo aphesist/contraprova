@@ -44,6 +44,17 @@ def _require(tasks: Tasks, task_id: str) -> TaskView:
 def apply_task_event(tasks: Tasks, ev: Event) -> dict[str, TaskView]:
     """Return the task map after ``ev``. Raises InvalidTransition if ``ev`` is illegal."""
     out = dict(tasks)
+    apply_task_event_inplace(out, ev)
+    return out
+
+
+def apply_task_event_inplace(out: dict[str, TaskView], ev: Event) -> None:
+    """Apply ``ev`` to ``out`` in place. Raises InvalidTransition if ``ev`` is illegal.
+
+    Every check happens before the first write, so a rejected event leaves ``out`` untouched.
+    This is what makes an incremental projection (``EventLog``'s cached tasks) cost O(1) per event
+    instead of a copy of the whole map; ``apply_task_event`` is the pure form of the same rules.
+    """
     p = ev.payload
     problems = payload_problems(ev.type, p)
     if problems:
@@ -90,7 +101,6 @@ def apply_task_event(tasks: Tasks, ev: Event) -> dict[str, TaskView]:
     elif ev.type in ("ship.applied", "ship.restored") and p.get("task_id") is not None:
         _require(out, p["task_id"])  # a ship that names a task needs that task to exist
     # Every other type (usage, outcomes, lanes and the harness types) leaves task state alone.
-    return out
 
 
 def project_tasks(events: Iterable[Event]) -> dict[str, TaskView]:
