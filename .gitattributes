@@ -1,0 +1,2 @@
+# The golden log is a byte-exact contract: never convert line endings.
+tests/fixtures/golden/*.jsonl -text
