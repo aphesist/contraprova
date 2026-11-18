@@ -37,11 +37,13 @@ def test_model_ref_rejects_a_missing_part(bad):
 
 
 def test_effort_is_abstract_and_serialises_as_its_value():
-    assert [e.value for e in Effort] == ["none", "low", "medium", "high", "max"]
+    assert [e.value for e in Effort] == ["none", "low", "medium", "high", "xhigh", "max"]
     assert json.dumps({"effort": Effort.HIGH}) == '{"effort": "high"}'
     assert Effort.parse("low") is Effort.LOW and Effort.parse(Effort.MAX) is Effort.MAX
-    with pytest.raises(ValueError, match="xhigh"):
-        Effort.parse("xhigh")
+    assert Effort.parse("xhigh") is Effort.XHIGH
+    with pytest.raises(ValueError, match="turbo"):
+        Effort.parse("turbo")
+    assert all(t.effort is Effort.MEDIUM for t in DEFAULT_CLAUDE_LADDER.tiers)  # defaults unchanged
 
 
 def test_the_claude_constants_are_the_default_ladder():

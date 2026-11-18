@@ -44,14 +44,15 @@ class ModelRef:
 class Effort(str, Enum):
     """How hard a model is asked to think, independent of any provider.
 
-    Each adapter maps a level onto its own knob (a reasoning effort, a thinking budget, or nothing);
-    that mapping is not in this package. It is a ``str``, so it serialises as its value.
+    Each adapter maps a level onto its own knob (a reasoning effort, a thinking budget, or nothing),
+    and maps down where a provider has fewer levels; that mapping is not in this package. It is a ``str``, so it serialises as its value.
     """
 
     NONE = "none"
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
+    XHIGH = "xhigh"
     MAX = "max"
 
     @classmethod
