@@ -7,13 +7,13 @@ never stored, so replaying the log can never fail on a transition.
 
 from __future__ import annotations
 
-import fcntl
 import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
 from .events import GENESIS_HASH, Event, verify_chain
+from .locking import exclusive_lock
 from .projections import apply_task_event, project_tasks
 
 
@@ -29,8 +29,10 @@ def read_events(path: Path) -> list[Event]:
 
 
 class EventLog:
-    def __init__(self, path: str | os.PathLike):
+    def __init__(self, path: str | os.PathLike, *, lock_timeout: float | None = None):
         self.path = Path(path)
+        self.lock_timeout = lock_timeout  # seconds to wait for the writer lock; None waits forever
+        self.lock_path = self.path.with_name(self.path.name + ".lock")  # used on Windows only
 
     def events(self) -> list[Event]:
         evs = read_events(self.path)
@@ -45,16 +47,13 @@ class EventLog:
 
     def append(self, type_: str, actor: str, payload: Mapping[str, Any], ts: str | None = None) -> Event:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.path, "a+", encoding="utf-8") as f:
-            fcntl.flock(f, fcntl.LOCK_EX)
-            try:
-                evs = self.events()
-                prev = evs[-1].hash if evs else GENESIS_HASH
-                ev = Event.create(len(evs), type_, actor, ts or utc_now(), payload, prev)
-                apply_task_event(project_tasks(evs), ev)  # raises InvalidTransition
-                f.write(ev.to_json() + "\n")
-                f.flush()
-                os.fsync(f.fileno())
-                return ev
-            finally:
-                fcntl.flock(f, fcntl.LOCK_UN)
+        # newline="\n": no CRLF translation on Windows, so the bytes match a POSIX log.
+        with open(self.path, "a+", encoding="utf-8", newline="\n") as f, exclusive_lock(f, self.lock_path, timeout=self.lock_timeout):
+            evs = self.events()
+            prev = evs[-1].hash if evs else GENESIS_HASH
+            ev = Event.create(len(evs), type_, actor, ts or utc_now(), payload, prev)
+            apply_task_event(project_tasks(evs), ev)  # raises InvalidTransition
+            f.write(ev.to_json() + "\n")
+            f.flush()
+            os.fsync(f.fileno())
+            return ev
