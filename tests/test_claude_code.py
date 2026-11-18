@@ -227,3 +227,39 @@ def test_the_test_command_comes_from_configuration_never_from_the_brief(tmp_path
     ok = f"{sys.executable} -c pass"
     assert g.evaluate(brief, ["src/a.py"], ok, tmp_path)[0] == "PASS"  # ...and a configured one wins
     assert not marker.exists()
+
+
+# ------------------------------------------------------------------ the engine's brief parser
+
+from contraprova.contracts import Brief, parse_brief  # noqa: E402
+
+BRIEFS = [
+    "scope: src/a.py, `src/pkg/*.py`\ntest: `pytest -q tests/test_a.py`\ngoal: x",
+    "goal: no contract",
+    "",
+    "- Scope: src/a.py  src/b.py\n* TEST: pytest\nsome notes\nscope: ignored second line\ntest: ignored too",
+    "scope:\ntest:\n",
+    "  scope : `a`, `b` ,c\n\n  test: `make check`",
+    "# brief\nscope: lib/\ngoal: fix it\nmore text with scope: inside",
+    "scope: a\r\ntest: t\r\n",
+]
+
+
+@pytest.mark.parametrize("text", BRIEFS)
+def test_the_engine_parser_agrees_with_the_standalone_gate_script(text):
+    brief = parse_brief(text)
+    assert (brief.scope, brief.test) == _gate_module().parse_brief(text)
+
+
+def test_parse_brief_fields():
+    b = parse_brief("# plan\nscope: src/a.py, `src/pkg/*.py`\ntest: `pytest -q`\ngoal: fix leap years\nnotes here\ntest: second")
+    assert b == Brief(["src/a.py", "src/pkg/*.py"], "pytest -q", "fix leap years", "# plan\nnotes here\ntest: second")
+    assert parse_brief("goal: only") == Brief(None, None, "only", "")
+    assert parse_brief("scope:\ntest:\ngoal:").scope == []  # a scope line with no globs: present, empty
+
+
+def test_a_brief_test_line_is_reported_never_run(tmp_path):
+    """parse_brief only reads: the kernel has no path from a brief to a command."""
+    marker = tmp_path / "pwned"
+    brief = parse_brief(f"scope: a\ntest: {sys.executable} -c \"open(r'{marker}', 'w')\"")
+    assert brief.test is not None and not marker.exists()

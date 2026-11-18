@@ -7,6 +7,7 @@ by default, because coding agents are known to edit tests to make them pass.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from fnmatch import fnmatchcase
 
@@ -56,3 +57,49 @@ def overlapping_scopes(contracts: list[LaneContract]) -> list[tuple[str, str]]:
             if set(a.allowed) & set(b.allowed):
                 pairs.append((a.lane_id, b.lane_id))
     return pairs
+
+
+# ------------------------------------------------------------------ the orchestrator's brief
+
+_BRIEF_LINE = re.compile(r"^\s*[-*]?\s*(scope|test|goal)\s*:\s*(.*)$", re.IGNORECASE)
+
+
+@dataclass(frozen=True)
+class Brief:
+    """An orchestrator's brief, read for its ``scope:``, ``test:`` and ``goal:`` lines.
+
+    ``scope`` is the list of globs (None if there is no ``scope:`` line, which a gate blocks on).
+    ``test`` is what the brief *says* the test command is, kept **for reporting only**: no part of the
+    kernel runs it. A test command comes from configuration, never from a brief. ``body`` is the text
+    with the first of each of those three lines removed.
+    """
+
+    scope: list[str] | None
+    test: str | None
+    goal: str | None
+    body: str
+
+
+def parse_brief(text: str) -> Brief:
+    """Read a brief. The first ``scope:``, ``test:`` and ``goal:`` line wins (any case, optionally
+    after a ``-`` or ``*`` bullet); backticks around a value are dropped; ``scope`` splits on commas
+    and whitespace. Empty values count as absent. This is the same rule as the Claude Code plugin's
+    standalone gate script (``config/claude-code/scripts/gate.py``), which a test keeps in step."""
+    scope: list[str] | None = None
+    test = goal = None
+    seen: set[str] = set()
+    rest: list[str] = []
+    for line in text.splitlines():
+        m = _BRIEF_LINE.match(line)
+        if not m or m.group(1).lower() in seen:
+            rest.append(line)
+            continue
+        key, value = m.group(1).lower(), m.group(2).strip().strip("`")
+        seen.add(key)
+        if key == "scope":
+            scope = [p.strip().strip("`") for p in re.split(r"[,\s]+", value) if p.strip().strip("`")]
+        elif key == "test":
+            test = value or None
+        else:
+            goal = value or None
+    return Brief(scope, test, goal, "\n".join(rest).strip("\n"))
