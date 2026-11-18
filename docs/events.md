@@ -122,7 +122,7 @@ or `teammate:<profile>`; the kernel treats it as an opaque string.
 | `checkpoint.committed` | `ship_id`, `ref`, `commit` | |
 | `approval.requested` | `approval_id`, `kind`, `summary`, `rule` | `task_id`, `teammate` |
 | `approval.decided` | `approval_id`, `decision` (`approve`/`deny`/`timeout`), `decided_by`, `surface` | |
-| `blank.opened` | `blank_id`, `question`, `options`, `blocks` | `task_id` |
+| `blank.opened` | `blank_id`, `question`, `options`, `blocks` (list of strings: the steps that wait for the answer; `[]` blocks nothing) | `task_id` |
 | `blank.filled` | `blank_id`, `answer`, `decided_by` | |
 | `blank.lapsed` | `blank_id` | |
 | `feedforward.set` | `turn_id`, `decision`, `value`, `source` (`config`/`convention`/`model`/`user`) | |

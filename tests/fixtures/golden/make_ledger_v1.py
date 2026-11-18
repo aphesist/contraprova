@@ -142,11 +142,12 @@ NEW: list[Spec] = [
     ("approval.decided", "user", {
         "approval_id": "ap-1", "decision": "approve", "decided_by": "user", "surface": "desktop"}),
     ("blank.opened", "orchestrator:anthropic/claude-opus-5-5", {
-        "blank_id": "bl-1", "question": "which date format?", "options": ["iso", "br"], "blocks": True,
+        "blank_id": "bl-1", "question": "which date format?", "options": ["iso", "br"],
+        "blocks": ["choose the export name", "update callers"],
         "task_id": TID}),
     ("blank.filled", "user", {"blank_id": "bl-1", "answer": "iso", "decided_by": "user"}),
     ("blank.opened", "orchestrator:anthropic/claude-opus-5-5", {
-        "blank_id": "bl-2", "question": "rename the module?", "options": [], "blocks": False}),
+        "blank_id": "bl-2", "question": "rename the module?", "options": [], "blocks": []}),
     ("blank.lapsed", "plugin", {"blank_id": "bl-2"}),
     ("feedforward.set", "plugin", {
         "turn_id": "turn-1", "decision": "test_command", "value": "pytest -q", "source": "config"}),

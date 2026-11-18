@@ -21,7 +21,7 @@ FULL = {
     "checkpoint.committed": {"ship_id": "sh", "ref": "refs/x", "commit": "abc"},
     "approval.requested": {"approval_id": "a", "kind": "shell", "summary": "s", "rule": "r"},
     "approval.decided": {"approval_id": "a", "decision": "deny", "decided_by": "user", "surface": "cli"},
-    "blank.opened": {"blank_id": "b", "question": "q", "options": [], "blocks": True},
+    "blank.opened": {"blank_id": "b", "question": "q", "options": [], "blocks": ["update callers"]},
     "blank.filled": {"blank_id": "b", "answer": "x", "decided_by": "user"},
     "blank.lapsed": {"blank_id": "b"},
     "feedforward.set": {"turn_id": "t", "decision": "d", "value": 1, "source": "model"},
@@ -75,6 +75,12 @@ def test_closed_value_sets(type_, key, bad):
 def test_ship_files_must_be_a_list_of_complete_entries(files):
     assert payload_problems("ship.applied", {"ship_id": "s", "files": files})
     assert payload_problems("ship.applied", {"ship_id": "s", "files": []}) == []
+
+
+@pytest.mark.parametrize("blocks", [True, "update callers", [1], [["x"]], {"a": "b"}, None])
+def test_blank_blocks_is_a_list_of_strings(blocks):
+    assert payload_problems("blank.opened", {**FULL["blank.opened"], "blocks": blocks})
+    assert payload_problems("blank.opened", {**FULL["blank.opened"], "blocks": []}) == []
 
 
 def test_existing_types_are_not_checked_so_old_logs_replay():

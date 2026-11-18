@@ -21,7 +21,7 @@ GOLDEN = GOLDEN_DIR / "ledger-v1.jsonl"
 
 # The whole file, and its first 21 lines (the original 14 types, written before the harness types
 # were appended). Update both only for an intended, announced change to the golden log.
-GOLDEN_SHA256 = "fe646f80af3339bb0562dd0fca175536f428e29355001dadc04d220bcefeda33"
+GOLDEN_SHA256 = "7579b1b366e0e6b5bbf1b8b741ec88d96dd4e8f4639714d2b4dd0e0626f65439"
 EXISTING_PREFIX_LINES = 21
 EXISTING_PREFIX_SHA256 = "31eeb95e805c264648e01348e3ca4aae42cef3cd0095ad39aff4683b6c5928b7"
 

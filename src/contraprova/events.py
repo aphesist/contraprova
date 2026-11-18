@@ -104,6 +104,10 @@ def payload_problems(type_: str, payload: Mapping[str, Any]) -> list[str]:
     for (t, key), allowed in ALLOWED_VALUES.items():
         if t == type_ and key in payload and payload[key] not in allowed:
             problems.append(f"{key} must be one of {sorted(allowed)}, got {payload[key]!r}")
+    if type_ == "blank.opened" and "blocks" in payload:
+        blocks = payload["blocks"]
+        if not isinstance(blocks, list) or not all(isinstance(b, str) for b in blocks):
+            problems.append("blocks must be a list of strings (the steps that wait for the answer)")
     if type_ == "ship.applied" and "files" in payload:
         files = payload["files"]
         if not isinstance(files, list) or not all(isinstance(f, Mapping) and all(k in f for k in SHIP_FILE_KEYS) for f in files):
