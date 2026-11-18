@@ -29,7 +29,6 @@ Verifier
 
 from __future__ import annotations
 
-import fcntl
 import json
 import os
 import shutil
@@ -40,6 +39,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Iterator, Mapping, Sequence
+
+from ..locking import exclusive_lock
 
 GB = 1_000_000_000
 DEFAULT_MAX_IMAGE_BYTES = 20 * GB
@@ -154,12 +155,8 @@ class ImageCache:
     @contextmanager
     def _locked(self) -> Iterator[None]:
         self.lock_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.lock_path, "a+") as fh:
-            fcntl.flock(fh, fcntl.LOCK_EX)
-            try:
-                yield
-            finally:
-                fcntl.flock(fh, fcntl.LOCK_UN)
+        with open(self.lock_path, "a+") as fh, exclusive_lock(fh, self.lock_path.with_name(self.lock_path.name + ".lock")):
+            yield
 
     # -- docker queries
 
