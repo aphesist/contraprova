@@ -1,4 +1,4 @@
-# Event payloads (canonical, v0.2)
+# Event payloads (canonical, v0.3)
 
 This is the contract between the kernel, the harness, the router, the analysis and the UI. Code that
 writes events must follow it; code that reads events may rely on it. Fields marked *optional* may be
@@ -100,6 +100,46 @@ types carry the rest:
   apply. All of it is La's cost: no fork rule applies;
 - derived outcomes `La-shadow`, `La-first` and `La-sonnet` are arm outcomes with
   `derived_from: "La"` and `merge` (`shadow`/`first`/`sonnet`); they have no usage of their own.
+
+## Harness events
+
+A desktop harness (hypotaxis, on Hermes Agent) writes the events below around the task lifecycle.
+They are in `events.EVENT_TYPES` (as `HARNESS_EVENT_TYPES`) and none of them changes a task's state.
+The writer rejects one whose payload lacks a required field, or has a value outside a closed set
+(`events.payload_problems`); other fields are allowed and ignored, as everywhere. Contraprova's own
+14 types and their payloads are unchanged, so older logs replay as before.
+
+`actor` is `user`, `plugin`, `gate`, `orchestrator:<provider>/<model>`, `worker:<provider>/<model>`
+or `teammate:<profile>`; the kernel treats it as an opaque string.
+
+| Event | Required | Optional |
+|---|---|---|
+| `session.opened` | `session_id`, `mode` (`governed`/`ungoverned`), `cwd`, `hermes_version`, `plugin_version` | `profile`, `ladder` (the tier ladder as data, `TierLadder.to_dict()`), `gate_command_sha256`, `price_table` (version) |
+| `session.closed` | `session_id`, `reason` | |
+| `tool.called` | `tool_call_id`, `tool`, `status` (`ok`/`error`/`blocked`), `duration_ms` | `args_sha256`, `error_code`, `task_id`. Arguments are hashed, never stored |
+| `ship.applied` | `ship_id`, `files` (list of `{path, sha256_before, sha256_after}`; a hash is `null` for a created or deleted file) | `task_id`, `journal_id` |
+| `ship.restored` | `ship_id`, `reason` | `task_id` |
+| `checkpoint.committed` | `ship_id`, `ref`, `commit` | |
+| `approval.requested` | `approval_id`, `kind`, `summary`, `rule` | `task_id`, `teammate` |
+| `approval.decided` | `approval_id`, `decision` (`approve`/`deny`/`timeout`), `decided_by`, `surface` | |
+| `blank.opened` | `blank_id`, `question`, `options`, `blocks` | `task_id` |
+| `blank.filled` | `blank_id`, `answer`, `decided_by` | |
+| `blank.lapsed` | `blank_id` | |
+| `feedforward.set` | `turn_id`, `decision`, `value`, `source` (`config`/`convention`/`model`/`user`) | |
+| `mode.changed` | `from`, `to` | |
+| `budget.blocked` | `cap_usd`, `price_table` | |
+
+Rules:
+
+- **`ship.*` and tasks.** A `ship.applied` or `ship.restored` that carries a `task_id` needs that task
+  to exist (`InvalidTransition` otherwise). With no `task_id` it is accepted. `task_id` on the other
+  harness types is not checked.
+- **Hashes, not content.** Tool arguments and file contents appear only as sha256 digests.
+- **Dollars are still never stored.** `budget.blocked` records the cap and the table version; any
+  dollar figure beyond the cap is recomputed from tokens.
+- **Golden log.** `tests/fixtures/golden/ledger-v1.jsonl` holds one or more events of every type
+  above and of the 14 original ones, with fixed timestamps. It is the cross-implementation contract
+  (see its README); a change to it is a breaking change.
 
 ## Measurement
 

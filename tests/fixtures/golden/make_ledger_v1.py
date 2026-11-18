@@ -115,7 +115,50 @@ EXISTING: list[Spec] = [
 
 # The 14 types the hypotaxis harness adds (hypotaxis docs/LEDGER.md). Appended after EXISTING, so
 # the lines above keep their bytes and hashes.
-NEW: list[Spec] = []
+NEW: list[Spec] = [
+    ("session.opened", "plugin", {
+        "session_id": "sess-0001", "mode": "governed", "cwd": "/work/demo", "hermes_version": "0.9.0",
+        "plugin_version": "0.1.0", "profile": "default", "gate_command_sha256": SHA_A,
+        "price_table": "anthropic-2026-11",
+        "ladder": {"same_tier_scope_retry": True, "tiers": [
+            {"name": "cheap", "model": "anthropic/claude-haiku-5-5", "effort": "medium", "max_tokens": 8000, "retries": 0},
+            {"name": "strong", "model": "anthropic/claude-opus-5-5", "effort": "medium", "max_tokens": 8000, "retries": 0}]}}),
+    ("tool.called", "plugin", {
+        "tool_call_id": "call_1", "tool": "edit_file", "status": "ok", "duration_ms": 12,
+        "args_sha256": SHA_B, "task_id": TID}),
+    ("tool.called", "plugin", {
+        "tool_call_id": "call_2", "tool": "shell", "status": "blocked", "duration_ms": 0,
+        "error_code": "hx.policy.denied", "args_sha256": SHA_C}),
+    ("ship.applied", "plugin", {
+        "ship_id": "ship-1", "task_id": TID, "journal_id": "journal-1", "files": [
+            {"path": "src/leap.py", "sha256_before": SHA_A, "sha256_after": SHA_B},
+            {"path": "src/new.py", "sha256_before": None, "sha256_after": SHA_C}]}),
+    ("checkpoint.committed", "plugin", {
+        "ship_id": "ship-1", "ref": "refs/hypotaxis/ship-1", "commit": "d" * 40}),
+    ("ship.restored", "user", {"ship_id": "ship-1", "reason": "undo"}),
+    ("approval.requested", "plugin", {
+        "approval_id": "ap-1", "kind": "shell", "summary": "run pytest -q", "rule": "ask:shell",
+        "task_id": TID, "teammate": "alice"}),
+    ("approval.decided", "user", {
+        "approval_id": "ap-1", "decision": "approve", "decided_by": "user", "surface": "desktop"}),
+    ("blank.opened", "orchestrator:anthropic/claude-opus-5-5", {
+        "blank_id": "bl-1", "question": "which date format?", "options": ["iso", "br"], "blocks": True,
+        "task_id": TID}),
+    ("blank.filled", "user", {"blank_id": "bl-1", "answer": "iso", "decided_by": "user"}),
+    ("blank.opened", "orchestrator:anthropic/claude-opus-5-5", {
+        "blank_id": "bl-2", "question": "rename the module?", "options": [], "blocks": False}),
+    ("blank.lapsed", "plugin", {"blank_id": "bl-2"}),
+    ("feedforward.set", "plugin", {
+        "turn_id": "turn-1", "decision": "test_command", "value": "pytest -q", "source": "config"}),
+    ("mode.changed", "user", {"from": "governed", "to": "ungoverned"}),
+    ("usage.recorded", "plugin", {
+        "model": "gpt-5", "provider": "openai", "input_tokens": 900, "output_tokens": 120,
+        "cache_read_tokens": 300, "cache_write_5m_tokens": 0, "cache_write_1h_tokens": 0,
+        "reasoning_tokens": 64, "latency_ms": 850, "request_id": "resp_0001", "usage_schema": 2,
+        "subscription": False, "role": "worker"}),
+    ("budget.blocked", "plugin", {"cap_usd": 2.5, "price_table": "anthropic-2026-11"}),
+    ("session.closed", "plugin", {"session_id": "sess-0001", "reason": "user_quit"}),
+]
 
 
 def specs() -> list[Spec]:

@@ -11,7 +11,7 @@ import pytest
 
 PKG = Path(__file__).resolve().parents[1] / "src" / "contraprova"
 ENGINE = ("events", "log", "projections", "pricing", "stats", "contracts", "interfaces", "usage", "gates",
-          "sandbox", "router", "ope", "llm", "forks", "mcp_edge")
+          "sandbox", "router", "ope", "llm", "forks", "mcp_edge", "locking")
 FORBIDDEN = ("contraprova.harness", "contraprova.analysis")
 
 

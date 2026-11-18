@@ -14,7 +14,8 @@ from typing import Any, Mapping
 
 GENESIS_HASH = "0" * 64
 
-EVENT_TYPES = frozenset(
+# The 14 types of contraprova v0.2: the study and the engine (docs/events.md).
+CORE_EVENT_TYPES = frozenset(
     {
         # task lifecycle
         "task.created",
@@ -36,6 +37,78 @@ EVENT_TYPES = frozenset(
         "coordination.detected",
     }
 )
+
+# Types a desktop harness writes around the task lifecycle (hypotaxis docs/LEDGER.md). They never
+# change a task's state; they are validated for their required fields only (``payload_problems``).
+HARNESS_EVENT_TYPES = frozenset(
+    {
+        "session.opened",
+        "session.closed",
+        "tool.called",
+        "ship.applied",
+        "ship.restored",
+        "checkpoint.committed",
+        "approval.requested",
+        "approval.decided",
+        "blank.opened",
+        "blank.filled",
+        "blank.lapsed",
+        "feedforward.set",
+        "mode.changed",
+        "budget.blocked",
+    }
+)
+
+EVENT_TYPES = CORE_EVENT_TYPES | HARNESS_EVENT_TYPES
+
+# Required payload keys of the harness types. Other keys are allowed and ignored.
+REQUIRED_FIELDS: Mapping[str, tuple[str, ...]] = {
+    "session.opened": ("session_id", "mode", "cwd", "hermes_version", "plugin_version"),
+    "session.closed": ("session_id", "reason"),
+    "tool.called": ("tool_call_id", "tool", "status", "duration_ms"),
+    "ship.applied": ("ship_id", "files"),
+    "ship.restored": ("ship_id", "reason"),
+    "checkpoint.committed": ("ship_id", "ref", "commit"),
+    "approval.requested": ("approval_id", "kind", "summary", "rule"),
+    "approval.decided": ("approval_id", "decision", "decided_by", "surface"),
+    "blank.opened": ("blank_id", "question", "options", "blocks"),
+    "blank.filled": ("blank_id", "answer", "decided_by"),
+    "blank.lapsed": ("blank_id",),
+    "feedforward.set": ("turn_id", "decision", "value", "source"),
+    "mode.changed": ("from", "to"),
+    "budget.blocked": ("cap_usd", "price_table"),
+}
+
+# Closed value sets, as listed in docs/events.md.
+ALLOWED_VALUES: Mapping[tuple[str, str], frozenset[str]] = {
+    ("session.opened", "mode"): frozenset({"governed", "ungoverned"}),
+    ("tool.called", "status"): frozenset({"ok", "error", "blocked"}),
+    ("approval.decided", "decision"): frozenset({"approve", "deny", "timeout"}),
+    ("feedforward.set", "source"): frozenset({"config", "convention", "model", "user"}),
+}
+
+SHIP_FILE_KEYS = ("path", "sha256_before", "sha256_after")
+
+
+def payload_problems(type_: str, payload: Mapping[str, Any]) -> list[str]:
+    """What is wrong with a harness event's payload; empty if it is acceptable.
+
+    Checks required keys, the closed value sets and the shape of ``ship.applied`` ``files``.
+    Types outside ``HARNESS_EVENT_TYPES`` are never checked here (their payloads are unchanged
+    from contraprova v0.2).
+    """
+    required = REQUIRED_FIELDS.get(type_)
+    if required is None:
+        return []
+    problems = [f"missing {key!r}" for key in required if key not in payload]
+    for (t, key), allowed in ALLOWED_VALUES.items():
+        if t == type_ and key in payload and payload[key] not in allowed:
+            problems.append(f"{key} must be one of {sorted(allowed)}, got {payload[key]!r}")
+    if type_ == "ship.applied" and "files" in payload:
+        files = payload["files"]
+        if not isinstance(files, list) or not all(isinstance(f, Mapping) and all(k in f for k in SHIP_FILE_KEYS) for f in files):
+            problems.append(f"files must be a list of objects with {', '.join(SHIP_FILE_KEYS)}")
+    return problems
 
 
 def canonical_json(obj: Any) -> str:

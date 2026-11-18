@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Iterable, Mapping
 
-from .events import Event
+from .events import Event, payload_problems
 
 TERMINAL = frozenset({"done", "failed"})
 DEFAULT_MAX_ATTEMPTS = 3
@@ -45,6 +45,9 @@ def apply_task_event(tasks: Tasks, ev: Event) -> dict[str, TaskView]:
     """Return the task map after ``ev``. Raises InvalidTransition if ``ev`` is illegal."""
     out = dict(tasks)
     p = ev.payload
+    problems = payload_problems(ev.type, p)
+    if problems:
+        raise InvalidTransition(f"{ev.type}: {'; '.join(problems)}")
     if ev.type == "task.created":
         tid = p["task_id"]
         if tid in out:
@@ -84,7 +87,9 @@ def apply_task_event(tasks: Tasks, ev: Event) -> dict[str, TaskView]:
             raise InvalidTransition(f"unknown gate verdict {verdict!r}")
     elif ev.type in ("route.decided", "fork.created"):
         _require(out, p["task_id"])
-    # usage.recorded and outcome.scored do not change task state.
+    elif ev.type in ("ship.applied", "ship.restored") and p.get("task_id") is not None:
+        _require(out, p["task_id"])  # a ship that names a task needs that task to exist
+    # Every other type (usage, outcomes, lanes and the harness types) leaves task state alone.
     return out
 
 
