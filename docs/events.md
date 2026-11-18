@@ -145,10 +145,36 @@ Rules:
 
 | Event | Required | Optional |
 |---|---|---|
-| `usage.recorded` | `model`, token counts (`input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_write_5m_tokens`, `cache_write_1h_tokens`) | `role` (`orchestrator`/`worker`/`reviewer`), `arm`, `task_id`, `fork_id`, `request_id`, `batch` |
+| `usage.recorded` | `model`, token counts (`input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_write_5m_tokens`, `cache_write_1h_tokens`) | `role` (`orchestrator`/`worker`/`reviewer`), `arm`, `task_id`, `fork_id`, `request_id`, `batch`; schema 2 adds `provider`, `reasoning_tokens`, `latency_ms`, `usage_schema` (2), `subscription` (see below) |
 | `outcome.scored`, arm outcome | `arm`, `task_id` (pairing key), `solved` | `log_task_id`, `branch_task_id` (kernel id of the fork branch shipped, if any), `branch`, `shipped`, `split`, `model`, `evidence`, `gate_passed`, `router_action`, `derived_from` (the arm whose attempt this derived arm scores, e.g. `B` from `D`; it has no usage of its own) |
 | `outcome.scored`, fork outcome | `fork_id`, `task_id` (pairing key), `solved` | `log_task_id`, `arm` (the parent arm, informational), `gate_passed` |
 | `outcome.scored`, gate replay | `gate_seq` (seq of the blocked `gate.decided`), `solved` (would the blocked patch have passed the score tests) | `task_id` |
+
+### Usage, provider-neutral (`usage_schema` 2)
+
+The six token fields keep one meaning for every provider, so a log can be re-priced under any table:
+
+- `input_tokens` is **uncached** input only (as in the Anthropic API). Providers whose prompt count
+  includes cached tokens are mapped by subtracting them: OpenAI `prompt_tokens` / `input_tokens` minus
+  `cached_tokens`; Gemini `promptTokenCount` minus `cachedContentTokenCount`; DeepSeek uses
+  `prompt_cache_miss_tokens` directly.
+- `cache_read_tokens` is input served from a cache. `cache_write_5m_tokens` / `cache_write_1h_tokens`
+  are input written to one; a provider with a single write bucket reports it as `5m`.
+- `output_tokens` is everything billed as output, **including** reasoning tokens.
+- `reasoning_tokens` (optional) is the part of `output_tokens` spent thinking: OpenAI
+  `completion_tokens_details.reasoning_tokens`, Gemini `thoughtsTokenCount` (which Gemini reports
+  outside `candidatesTokenCount`, so `output_tokens` is their sum), DeepSeek likewise. Absent when the
+  provider does not say. It is a subset: it never adds to the cost, it only changes the rate if the
+  price table has a separate `reasoning` rate.
+- `provider` (optional): `anthropic`, `openai`, `google`, `deepseek`, `ollama`, a hub's name, and so on.
+  With it a record is priced as `provider/model`; without it the bare `model` must name one entry.
+- `latency_ms`, `request_id` (optional): wall time and the provider's request id.
+- `subscription` (optional bool): the request was covered by a plan, not billed by the API. The cost
+  projection then bills 0 and keeps the API-equivalent figure (`pricing.request_cost_detail`).
+- `usage_schema`: `2` for records written by the neutral mappers in `contraprova.usage`
+  (`anthropic_usage_payload`, `openai_usage_payload` for chat and responses, `gemini_usage_payload`,
+  `deepseek_usage_payload`, `ollama_usage_payload`). Records without it are schema 1 (Anthropic
+  only) and mean exactly the same for the fields they have.
 
 Rules:
 
