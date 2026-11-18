@@ -30,6 +30,7 @@ action = st.one_of(
     st.tuples(st.just("task.submitted"), st.sampled_from(TASK_IDS), st.none()),
     st.tuples(st.just("gate.decided"), st.sampled_from(TASK_IDS), st.sampled_from(["pass", "block"])),
     st.tuples(st.just("usage.recorded"), st.sampled_from(TASK_IDS), st.none()),
+    st.tuples(st.just("task.closed"), st.sampled_from(TASK_IDS), st.sampled_from(["failed", "abandoned"])),
 )
 
 
@@ -38,6 +39,8 @@ def payload_for(type_, tid, verdict):
         return {"task_id": tid, "title": tid, "scope": ["src/*"], "max_attempts": 2}
     if type_ == "gate.decided":
         return {"task_id": tid, "gate": "tests", "verdict": verdict}
+    if type_ == "task.closed":
+        return {"task_id": tid, "status": verdict, "reason": "no way forward"}
     if type_ == "usage.recorded":
         return {"task_id": tid, "model": "claude-haiku-5-5", "input_tokens": 10, "output_tokens": 5}
     return {"task_id": tid}
@@ -174,3 +177,20 @@ def test_a_rejected_event_never_touches_the_projection(actions, extra):
         apply_task_event_inplace(tasks, ev)
     except InvalidTransition:
         assert tasks == snapshot
+
+
+@settings(max_examples=200)
+@given(st.lists(action, max_size=60))
+def test_a_closed_task_is_failed_and_final(actions):
+    """task.closed moves a task to failed and nothing moves it after; the rest of the log is unaffected."""
+    events, tasks = build_history(actions)
+    closed = {ev.payload["task_id"] for ev in events if ev.type == "task.closed"}
+    for tid in closed:
+        assert tasks[tid].status == "failed"
+    seen = set()
+    for ev in events:
+        if ev.type == "task.closed":
+            assert ev.payload["task_id"] not in seen  # a second close was rejected by the writer
+            seen.add(ev.payload["task_id"])
+        elif ev.type in ("task.claimed", "task.submitted", "gate.decided"):
+            assert ev.payload["task_id"] not in seen

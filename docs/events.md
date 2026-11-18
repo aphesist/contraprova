@@ -20,6 +20,14 @@ absent. Unknown extra fields are allowed and ignored.
 | `task.claimed` | `task_id` | `worker`, `attempt` |
 | `task.submitted` | `task_id` | `attempt`, `model`, `files`, `contents`, `files_sha256`, `response` (raw worker reply, used to rebuild fork prefixes), `parse_errors`; SWE-bench Pro adds `diff` (unified diff against the base files), `edit_blocks` (blocks parsed), `changed_lines`, `contents_sha256` (instead of `contents` with `--no-log-contents`), and the repair turn's `repair_used`, `original_failure` / `final_failure` (`truncated`, `parse`, `apply` or null), `original_errors`, `stop_reason`, `repair_stop_reason`, `repair_response`, `repair_blocks` |
 | `gate.decided` | `task_id`, `gate`, `verdict` (`pass`/`block`), `reason` | `attempt`, `tier`, `tests_sha256`, `results` / `gates` (per-gate detail), `evidence` |
+| `task.closed` | `task_id`, `status` (`failed`/`abandoned`), `reason` | |
+
+**`task.closed`** ends a task that will never reach a gate verdict or `max_attempts`: a cascade whose
+ladder ran out, a worker launch that failed after `route.decided`. It is legal from any non-terminal
+state (`todo`, `in_progress`, `review`), moves the task to `failed` whatever `status` says (the
+payload keeps the distinction), and is final like `done` and `failed`: nothing can claim, submit,
+gate or close the task afterwards, and a closed task can be superseded. Closing a `done` or `failed`
+task is an `InvalidTransition`.
 
 On SWE-bench Pro, `contents` holds the full new content of each changed file only, and the gate names
 include `T0.edits` (every SEARCH/REPLACE block applied); see [swepro.md](swepro.md). Arm `B2` is a

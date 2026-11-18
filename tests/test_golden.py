@@ -21,7 +21,10 @@ GOLDEN = GOLDEN_DIR / "ledger-v1.jsonl"
 
 # The whole file, and its first 21 lines (the original 14 types, written before the harness types
 # were appended). Update both only for an intended, announced change to the golden log.
-GOLDEN_SHA256 = "7579b1b366e0e6b5bbf1b8b741ec88d96dd4e8f4639714d2b4dd0e0626f65439"
+GOLDEN_SHA256 = "ee83a42a02750f1f8e123136ab211c5a60cb0b3bbf502ef5dc2d8e5fd9dd64b8"
+# The first 38 lines (original types and the harness types), before task.closed was appended.
+HARNESS_PREFIX_LINES = 38
+HARNESS_PREFIX_SHA256 = "7579b1b366e0e6b5bbf1b8b741ec88d96dd4e8f4639714d2b4dd0e0626f65439"
 EXISTING_PREFIX_LINES = 21
 EXISTING_PREFIX_SHA256 = "31eeb95e805c264648e01348e3ca4aae42cef3cd0095ad39aff4683b6c5928b7"
 
@@ -70,6 +73,11 @@ def test_file_is_canonical_bytes():
 def test_original_events_keep_their_bytes():
     head = b"".join(line.encode("utf-8") + b"\n" for line in lines()[:EXISTING_PREFIX_LINES])
     assert sha256(head) == EXISTING_PREFIX_SHA256
+
+
+def test_the_harness_prefix_keeps_its_bytes():
+    head = b"".join(line.encode("utf-8") + b"\n" for line in lines()[:HARNESS_PREFIX_LINES])
+    assert sha256(head) == HARNESS_PREFIX_SHA256
 
 
 def test_every_event_type_is_covered():

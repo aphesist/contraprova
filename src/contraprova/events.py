@@ -14,7 +14,7 @@ from typing import Any, Mapping
 
 GENESIS_HASH = "0" * 64
 
-# The 14 types of contraprova v0.2: the study and the engine (docs/events.md).
+# The types of contraprova's engine and study (docs/events.md): the 14 of v0.2, plus task.closed.
 CORE_EVENT_TYPES = frozenset(
     {
         # task lifecycle
@@ -22,6 +22,7 @@ CORE_EVENT_TYPES = frozenset(
         "task.claimed",
         "task.submitted",
         "gate.decided",
+        "task.closed",
         # routing and escalation
         "route.decided",
         "router.trained",
@@ -61,8 +62,9 @@ HARNESS_EVENT_TYPES = frozenset(
 
 EVENT_TYPES = CORE_EVENT_TYPES | HARNESS_EVENT_TYPES
 
-# Required payload keys of the harness types. Other keys are allowed and ignored.
+# Required payload keys of the harness types and of task.closed. Other keys are allowed and ignored.
 REQUIRED_FIELDS: Mapping[str, tuple[str, ...]] = {
+    "task.closed": ("task_id", "status", "reason"),
     "session.opened": ("session_id", "mode", "cwd", "hermes_version", "plugin_version"),
     "session.closed": ("session_id", "reason"),
     "tool.called": ("tool_call_id", "tool", "status", "duration_ms"),
@@ -81,6 +83,7 @@ REQUIRED_FIELDS: Mapping[str, tuple[str, ...]] = {
 
 # Closed value sets, as listed in docs/events.md.
 ALLOWED_VALUES: Mapping[tuple[str, str], frozenset[str]] = {
+    ("task.closed", "status"): frozenset({"failed", "abandoned"}),
     ("session.opened", "mode"): frozenset({"governed", "ungoverned"}),
     ("tool.called", "status"): frozenset({"ok", "error", "blocked"}),
     ("approval.decided", "decision"): frozenset({"approve", "deny", "timeout"}),
@@ -91,11 +94,10 @@ SHIP_FILE_KEYS = ("path", "sha256_before", "sha256_after")
 
 
 def payload_problems(type_: str, payload: Mapping[str, Any]) -> list[str]:
-    """What is wrong with a harness event's payload; empty if it is acceptable.
+    """What is wrong with a harness or ``task.closed`` payload; empty if it is acceptable.
 
     Checks required keys, the closed value sets and the shape of ``ship.applied`` ``files``.
-    Types outside ``HARNESS_EVENT_TYPES`` are never checked here (their payloads are unchanged
-    from contraprova v0.2).
+    The other types are never checked here (their payloads are unchanged from contraprova v0.2).
     """
     required = REQUIRED_FIELDS.get(type_)
     if required is None:

@@ -31,8 +31,8 @@ FULL = {
 
 
 def test_the_fourteen_new_types_are_registered():
-    assert HARNESS_EVENT_TYPES == set(FULL) == set(REQUIRED_FIELDS)
-    assert len(CORE_EVENT_TYPES) == 14 and len(HARNESS_EVENT_TYPES) == 14
+    assert HARNESS_EVENT_TYPES == set(FULL) == set(REQUIRED_FIELDS) - {"task.closed"}
+    assert len(CORE_EVENT_TYPES) == 15 and len(HARNESS_EVENT_TYPES) == 14  # the 14 of v0.2 and task.closed
     assert EVENT_TYPES == CORE_EVENT_TYPES | HARNESS_EVENT_TYPES
     assert not CORE_EVENT_TYPES & HARNESS_EVENT_TYPES
 

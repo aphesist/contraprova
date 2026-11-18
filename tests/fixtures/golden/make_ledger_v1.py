@@ -162,8 +162,20 @@ NEW: list[Spec] = [
 ]
 
 
+# task.closed (a terminal event for a task that ends before max_attempts). Appended after NEW.
+CLOSED: list[Spec] = [
+    ("task.closed", "orchestrator", {
+        "task_id": "La:inst-1", "status": "abandoned", "reason": "the ladder ran out before a gate decided"}),
+    ("task.created", OPUS, {
+        "task_id": "D:python/other", "title": "launch fails", "scope": ["src/other.py"], "kind": "code"}),
+    ("task.claimed", HAIKU_W, {"task_id": "D:python/other", "worker": HAIKU_W, "attempt": 1}),
+    ("task.closed", "orchestrator", {
+        "task_id": "D:python/other", "status": "failed", "reason": "worker launch failed"}),
+]
+
+
 def specs() -> list[Spec]:
-    return EXISTING + NEW
+    return EXISTING + NEW + CLOSED
 
 
 def build(items: list[Spec] | None = None) -> list[Event]:

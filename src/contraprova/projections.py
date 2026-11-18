@@ -96,6 +96,13 @@ def apply_task_event_inplace(out: dict[str, TaskView], ev: Event) -> None:
             out[t.task_id] = replace(t, status=nxt, worker=None)
         else:
             raise InvalidTransition(f"unknown gate verdict {verdict!r}")
+    elif ev.type == "task.closed":
+        # A cascade that ends unsolved without reaching max_attempts, or a launch that failed after
+        # route.decided, would leave the task open forever. Legal from any non-terminal state.
+        t = _require(out, p["task_id"])
+        if t.status in TERMINAL:
+            raise InvalidTransition(f"task {t.task_id!r} is {t.status}, cannot be closed")
+        out[t.task_id] = replace(t, status="failed", worker=None)
     elif ev.type in ("route.decided", "fork.created"):
         _require(out, p["task_id"])
     elif ev.type in ("ship.applied", "ship.restored") and p.get("task_id") is not None:
