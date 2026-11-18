@@ -144,3 +144,21 @@ def test_the_mapped_payload_prices_the_same_for_every_provider():
     costs = [request_cost(p, table) for p in (openai, gemini, deepseek)]
     assert costs[0] == pytest.approx((600 * 2.0 + 400 * 0.5 + 100 * 8.0) / 1e6)
     assert costs == [costs[0]] * 3
+
+
+@pytest.mark.parametrize("shape, usage", [
+    ("anthropic", {"input_tokens": 1, "output_tokens": 9}),
+    ("openai", {"prompt_tokens": 1, "completion_tokens": 9, "completion_tokens_details": {"reasoning_tokens": 4}}),
+    ("openai", {"input_tokens": 1, "output_tokens": 9, "output_tokens_details": {"reasoning_tokens": 9}}),
+    ("gemini", {"promptTokenCount": 1, "candidatesTokenCount": 5, "thoughtsTokenCount": 4}),
+    ("deepseek", {"prompt_tokens": 1, "completion_tokens": 9, "completion_tokens_details": {"reasoning_tokens": 4}}),
+    ("ollama", {"prompt_eval_count": 1, "eval_count": 9}),
+])
+def test_reasoning_tokens_are_a_subset_of_output_tokens(shape, usage):
+    p = provider_usage_payload(shape, usage, "m")
+    assert p.get("reasoning_tokens", 0) <= p["output_tokens"]
+
+
+def test_gemini_adds_thoughts_into_output_tokens():
+    p = gemini_usage_payload({"promptTokenCount": 1, "candidatesTokenCount": 5, "thoughtsTokenCount": 4}, "m")
+    assert (p["output_tokens"], p["reasoning_tokens"]) == (9, 4)

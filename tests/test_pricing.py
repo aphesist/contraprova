@@ -294,3 +294,11 @@ def test_converting_a_custom_multiplier_table():
          "cache_write_1h_tokens": 40, "output_tokens": 50}
     assert math.isclose(request_cost(u, t), request_cost(u, legacy), rel_tol=1e-12)
     assert str(next(iter(t.entries))) == "acme/m"
+
+
+def test_reasoning_is_never_double_charged():
+    u = {"model": "m", "output_tokens": 1_000, "reasoning_tokens": 300}
+    same = PriceTable("t", {ModelRef("p", "m"): Price(input=1.0, output=10.0)})
+    assert close(request_cost(u, same), 1_000 * 10.0 / 1e6)  # no reasoning rate: output rate for all
+    own = PriceTable("t", {ModelRef("p", "m"): Price(input=1.0, output=10.0, reasoning=4.0)})
+    assert close(request_cost(u, own), (700 * 10.0 + 300 * 4.0) / 1e6)  # (output - reasoning) + reasoning
