@@ -260,3 +260,35 @@ def test_evidence_is_deterministic(ws, contract):
     b = run_gates(s, contract, ws, visible_command=UNITTEST)
     strip = lambda rs: [(r.gate, r.verdict, r.reason, r.evidence["tests_sha256"], r.evidence.get("tests", {}).get("counts")) for r in rs]
     assert strip(a) == strip(b)
+
+
+# ------------------------------------------------------------ per-gate timeouts
+
+SLEEP = (sys.executable, "-c", "import time; time.sleep(30)")
+
+
+def test_default_timeouts_are_unchanged():
+    import inspect
+
+    params = inspect.signature(run_gates).parameters
+    assert params["timeout"].default == 60.0
+    assert params["visible_timeout"].default is None and params["private_timeout"].default is None
+
+
+def test_visible_timeout_applies_to_the_visible_gate_alone(ws, private, contract):
+    results = run_gates(Submission("t1", {"calc.py": GOOD}), contract, ws, visible_command=SLEEP,
+                        private_command=PRIVATE, private_dir=private, timeout=60, visible_timeout=0.5)
+    assert [(r.gate, r.verdict) for r in results] == [(T0_SCOPE, "pass"), (T0_VISIBLE, "block")]
+    assert results[-1].reason == "timed out after 0.5s"
+
+
+def test_private_timeout_applies_to_the_private_gate_alone(ws, private, contract):
+    results = run_gates(Submission("t1", {"calc.py": GOOD}), contract, ws, visible_command=PYTEST,
+                        private_command=SLEEP, private_dir=private, timeout=60, private_timeout=0.5)
+    assert [(r.gate, r.verdict) for r in results] == [(T0_SCOPE, "pass"), (T0_VISIBLE, "pass"), (T1_PRIVATE, "block")]
+    assert results[-1].reason == "timed out after 0.5s"
+
+
+def test_the_shared_timeout_still_covers_both_gates(ws, contract):
+    results = run_gates(Submission("t1", {"calc.py": GOOD}), contract, ws, visible_command=SLEEP, timeout=0.5)
+    assert results[-1].gate == T0_VISIBLE and results[-1].reason == "timed out after 0.5s"

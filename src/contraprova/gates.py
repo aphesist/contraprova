@@ -242,6 +242,8 @@ def run_gates(
     reviewer: Reviewer | None = None,
     missing_reviewer: str = "block",
     timeout: float = 60.0,
+    visible_timeout: float | None = None,
+    private_timeout: float | None = None,
     max_changed_lines: int = DEFAULT_MAX_CHANGED_LINES,
     dir_name: str = "ws",
 ) -> list[GateResult]:
@@ -254,6 +256,11 @@ def run_gates(
     the worker never saw). If ``private_command`` is None, T1 is skipped and is
     absent from both the results and the recorded tier plan. ``missing_reviewer``
     is passed to :func:`review_gate`.
+
+    ``timeout`` (seconds, default 60) applies to each test gate; ``visible_timeout`` and
+    ``private_timeout`` override it for T0.visible_tests and T1.private_tests alone, so a slow
+    private suite can have more time than a fast visible one. The commands themselves are always
+    the caller's (project configuration); nothing here reads one from a brief.
     """
     current = hash_protected_files(workspace, contract)
     before = current if test_hashes is None else dict(test_hashes)
@@ -272,10 +279,12 @@ def run_gates(
         if tier == T0_SCOPE:
             res = scope_gate(submission, contract, test_hashes=before, current_hashes=current)
         elif tier == T0_VISIBLE:
-            res = run_test_gate(T0_VISIBLE, submission, workspace, visible_command, timeout=timeout, dir_name=dir_name)
+            res = run_test_gate(T0_VISIBLE, submission, workspace, visible_command,
+                                timeout=timeout if visible_timeout is None else visible_timeout, dir_name=dir_name)
         elif tier == T1_PRIVATE:
             assert private_command is not None
-            res = run_test_gate(T1_PRIVATE, submission, workspace, private_command, timeout=timeout, overlay=private_dir,
+            res = run_test_gate(T1_PRIVATE, submission, workspace, private_command,
+                                timeout=timeout if private_timeout is None else private_timeout, overlay=private_dir,
                                 dir_name=dir_name)
         else:
             res = review_gate(submission, contract, reviewer, missing_reviewer)

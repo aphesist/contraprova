@@ -212,3 +212,18 @@ def test_init_claude_no_gate_and_bad_source(tmp_path, monkeypatch, capsys):
     assert not (tmp_path / ".claude" / "hooks").exists()
     assert main(["init-claude", "--source", str(tmp_path / "nowhere")]) == 1
     assert "plugin install contraprova-cascade" in capsys.readouterr().err
+
+
+def test_the_test_command_comes_from_configuration_never_from_the_brief(tmp_path):
+    """A `test:` line in a brief is never run: only the command passed in (CONTRAPROVA_TEST_CMD) is."""
+    g = _gate_module()
+    marker = tmp_path / "pwned"
+    planted = f"{sys.executable} -c \"open(r'{marker}', 'w').write('x')\""
+    brief = f"scope: src/a.py\ntest: {planted}\ngoal: x"
+    assert g.parse_brief(brief)[1] == planted  # the brief does carry a test line...
+    verdict, findings = g.evaluate(brief, ["src/a.py"], None, tmp_path)  # ...but with no configured command
+    assert any("CONTRAPROVA_TEST_CMD is not set, so the gate did not run tests" in f for f in findings)
+    assert not marker.exists()  # nothing ran: the brief's line was only reported
+    ok = f"{sys.executable} -c pass"
+    assert g.evaluate(brief, ["src/a.py"], ok, tmp_path)[0] == "PASS"  # ...and a configured one wins
+    assert not marker.exists()
